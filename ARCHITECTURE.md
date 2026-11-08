@@ -68,3 +68,10 @@ Stored dynamically in `src/applypilot/config/employers.yaml`:
 - **Workday Enterprise:** Cisco, Mastercard, Visa, Autodesk, Nvidia, Qualcomm, Salesforce, Dell, Adobe, Intuit, Walmart Global Tech, etc.
 - **Direct ATS Boards (Greenhouse, Lever, SmartRecruiters):** Groww, Razorpay, InMobi, CRED, Freshworks, Rubrik, Stripe, Coinbase, Databricks, Cloudflare, Elastic, Twilio, MongoDB, Okta, etc.
 - Tested and verified: zero guessed slugs; all endpoints return live career opportunities.
+
+
+---
+
+## 4. Latest Git Commit & Snapshot Backups
+- **Git Commit:** `47fdc02` (*feat: complete safe migration to D:\ApplyPilot_Workspace, update config/paths to dynamic env, and add automatic CSV pipeline export*)
+- **Snapshot Backup:** `D:\ApplyPilot_Workspace\backups\snapshot_20261108_125849_migrated_D\`
