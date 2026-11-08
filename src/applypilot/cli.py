@@ -453,5 +453,18 @@ def doctor() -> None:
     console.print()
 
 
+
+@app.command()
+def export(
+    output: Optional[str] = typer.Option(None, "--output", "-o", help="Custom CSV output path.")
+) -> None:
+    """Export scored opportunities to a CSV spreadsheet."""
+    _bootstrap()
+    from applypilot.export.csv_export import export_opportunities_csv
+    out_path = export_opportunities_csv(output)
+    console.print(f"[green]Successfully exported opportunities to:[/green] {out_path}")
+
+
 if __name__ == "__main__":
+
     app()

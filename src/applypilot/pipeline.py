@@ -59,42 +59,72 @@ _UPSTREAM: dict[str, str | None] = {
 # Individual stage runners
 # ---------------------------------------------------------------------------
 
-def _run_discover(workers: int = 1) -> dict:
-    """Stage: Job discovery — JobSpy, Workday, and smart-extract scrapers."""
-    stats: dict = {"jobspy": None, "workday": None, "smartextract": None}
+def _run_discover(workers: int = 4) -> dict:
+    """Stage: Job discovery across all enabled sources (Workday, Direct ATS, JobSpy, SmartExtract)."""
+    stats: dict = {"workday": None, "ats": None, "jobspy": None, "smartextract": None}
 
-    # JobSpy
-    console.print("  [cyan]JobSpy full crawl...[/cyan]")
-    try:
-        from applypilot.discovery.jobspy import run_discovery
-        run_discovery()
-        stats["jobspy"] = "ok"
-    except Exception as e:
-        log.error("JobSpy crawl failed: %s", e)
-        console.print(f"  [red]JobSpy error:[/red] {e}")
-        stats["jobspy"] = f"error: {e}"
+    from applypilot import config
+    search_cfg = config.load_search_config()
+    sources = search_cfg.get("sources", {
+        "workday": True,
+        "ats": True,
+        "jobspy": True,
+        "smartextract": False,
+    })
 
-    # Workday corporate scraper
-    console.print("  [cyan]Workday corporate scraper...[/cyan]")
-    try:
-        from applypilot.discovery.workday import run_workday_discovery
-        run_workday_discovery(workers=workers)
-        stats["workday"] = "ok"
-    except Exception as e:
-        log.error("Workday scraper failed: %s", e)
-        console.print(f"  [red]Workday error:[/red] {e}")
-        stats["workday"] = f"error: {e}"
+    # 1. Workday corporate scraper (28 employers)
+    if sources.get("workday", True):
+        console.print("  [cyan]Workday corporate scraper...[/cyan]")
+        try:
+            from applypilot.discovery.workday import run_workday_discovery
+            res = run_workday_discovery(workers=workers)
+            stats["workday"] = f"ok ({res.get('found', 0)} found, {res.get('new', 0)} new)"
+        except Exception as e:
+            log.error("Workday scraper failed: %s", e)
+            console.print(f"  [red]Workday error:[/red] {e}")
+            stats["workday"] = f"error: {e}"
+    else:
+        log.info("Workday scraper disabled in searches.yaml")
 
-    # Smart extract
-    console.print("  [cyan]Smart extract (AI-powered scraping)...[/cyan]")
-    try:
-        from applypilot.discovery.smartextract import run_smart_extract
-        run_smart_extract(workers=workers)
-        stats["smartextract"] = "ok"
-    except Exception as e:
-        log.error("Smart extract failed: %s", e)
-        console.print(f"  [red]Smart extract error:[/red] {e}")
-        stats["smartextract"] = f"error: {e}"
+    # 2. Direct ATS scraper (Greenhouse, Lever, SmartRecruiters)
+    if sources.get("ats", True) or sources.get("greenhouse", True) or sources.get("lever", True):
+        console.print("  [cyan]Direct ATS scraper (Greenhouse, Lever, SmartRecruiters)...[/cyan]")
+        try:
+            from applypilot.discovery.ats import run_ats_discovery
+            res = run_ats_discovery(workers=workers)
+            stats["ats"] = f"ok ({res.get('found', 0)} found, {res.get('new', 0)} new)"
+        except Exception as e:
+            log.error("Direct ATS scraper failed: %s", e)
+            console.print(f"  [red]Direct ATS error:[/red] {e}")
+            stats["ats"] = f"error: {e}"
+    else:
+        log.info("Direct ATS scraper disabled in searches.yaml")
+
+    # 3. JobSpy multi-board crawl (Indeed, Glassdoor, LinkedIn)
+    if sources.get("jobspy", True):
+        console.print("  [cyan]JobSpy multi-board crawl (Indeed, Glassdoor, LinkedIn)...[/cyan]")
+        try:
+            from applypilot.discovery.jobspy import run_discovery
+            run_discovery()
+            stats["jobspy"] = "ok"
+        except Exception as e:
+            log.error("JobSpy crawl failed: %s", e)
+            console.print(f"  [red]JobSpy error:[/red] {e}")
+            stats["jobspy"] = f"error: {e}"
+    else:
+        log.info("JobSpy crawl disabled in searches.yaml")
+
+    # 4. Smart extract
+    if sources.get("smartextract", False):
+        console.print("  [cyan]Smart extract (AI-powered scraping)...[/cyan]")
+        try:
+            from applypilot.discovery.smartextract import run_smart_extract
+            run_smart_extract(workers=workers)
+            stats["smartextract"] = "ok"
+        except Exception as e:
+            log.error("Smart extract failed: %s", e)
+            console.print(f"  [red]Smart extract error:[/red] {e}")
+            stats["smartextract"] = f"error: {e}"
 
     return stats
 
@@ -144,10 +174,19 @@ def _run_cover(min_score: int = 7, validation_mode: str = "normal") -> dict:
 
 
 def _run_pdf() -> dict:
-    """Stage: PDF conversion — convert tailored resumes and cover letters to PDF."""
+    """Stage: PDF conversion — convert tailored resumes and cover letters to PDF + CSV export."""
     try:
         from applypilot.scoring.pdf import batch_convert
         batch_convert()
+
+        # Auto-export results to CSV
+        try:
+            from applypilot.export.csv_export import export_opportunities_csv
+            csv_path = export_opportunities_csv()
+            console.print(f"  [green]Exported results CSV to:[/green] {csv_path}")
+        except Exception as ce:
+            log.error("CSV export error: %s", ce)
+
         return {"status": "ok"}
     except Exception as e:
         log.error("PDF conversion failed: %s", e)

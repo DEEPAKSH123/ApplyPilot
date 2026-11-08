@@ -1,187 +1,149 @@
-# Workday employer registry for ApplyPilot — India / Bengaluru focused
-# Targeted at established product companies and enterprises hiring
-# backend engineers (SDE-I / SDE-II) in Bengaluru, India.
-#
-# Find your employer's Workday URL at: https://[company].wd[N].myworkdayjobs.com
-
 employers:
-
-  # ── Big Tech (India offices) ─────────────────────────────────────────
-
   salesforce:
-    name: "Salesforce"
-    tenant: "salesforce"
-    site_id: "External_Career_Site"
-    base_url: "https://salesforce.wd12.myworkdayjobs.com"
-
+    name: Salesforce
+    ats: workday
+    tenant: salesforce
+    site_id: External_Career_Site
+    base_url: https://salesforce.wd12.myworkdayjobs.com
   nvidia:
-    name: "NVIDIA"
-    tenant: "nvidia"
-    site_id: "NVIDIAExternalCareerSite"
-    base_url: "https://nvidia.wd5.myworkdayjobs.com"
-
+    name: NVIDIA
+    ats: workday
+    tenant: nvidia
+    site_id: NVIDIAExternalCareerSite
+    base_url: https://nvidia.wd5.myworkdayjobs.com
   cisco:
-    name: "Cisco"
-    tenant: "cisco"
-    site_id: "Cisco_Careers"
-    base_url: "https://cisco.wd5.myworkdayjobs.com"
-
+    name: Cisco
+    ats: workday
+    tenant: cisco
+    site_id: Cisco_Careers
+    base_url: https://cisco.wd5.myworkdayjobs.com
   intel:
-    name: "Intel"
-    tenant: "intel"
-    site_id: "External"
-    base_url: "https://intel.wd1.myworkdayjobs.com"
-
+    name: Intel
+    ats: workday
+    tenant: intel
+    site_id: External
+    base_url: https://intel.wd1.myworkdayjobs.com
   adobe:
-    name: "Adobe"
-    tenant: "adobe"
-    site_id: "external_experienced"
-    base_url: "https://adobe.wd5.myworkdayjobs.com"
-
-  uber:
-    name: "Uber"
-    tenant: "uber"
-    site_id: "uberCareers"
-    base_url: "https://uber.wd5.myworkdayjobs.com"
-
-  servicenow:
-    name: "ServiceNow"
-    tenant: "servicenow"
-    site_id: "ServiceNowCareers"
-    base_url: "https://servicenow.wd1.myworkdayjobs.com"
-
-  workday:
-    name: "Workday"
-    tenant: "workday"
-    site_id: "Workday"
-    base_url: "https://workday.wd5.myworkdayjobs.com"
-
-  docusign:
-    name: "DocuSign"
-    tenant: "docusign"
-    site_id: "External"
-    base_url: "https://docusign.wd5.myworkdayjobs.com"
-
-  # ── Financial Services (India offices) ───────────────────────────────
-
+    name: Adobe
+    ats: workday
+    tenant: adobe
+    site_id: external_experienced
+    base_url: https://adobe.wd5.myworkdayjobs.com
   mastercard:
-    name: "Mastercard"
-    tenant: "mastercard"
-    site_id: "CorporateCareers"
-    base_url: "https://mastercard.wd1.myworkdayjobs.com"
-
+    name: Mastercard
+    ats: workday
+    tenant: mastercard
+    site_id: CorporateCareers
+    base_url: https://mastercard.wd1.myworkdayjobs.com
   paypal:
-    name: "PayPal"
-    tenant: "paypal"
-    site_id: "jobs"
-    base_url: "https://paypal.wd1.myworkdayjobs.com"
-
-  fis:
-    name: "FIS Global"
-    tenant: "fis"
-    site_id: "SearchJobs"
-    base_url: "https://fis.wd5.myworkdayjobs.com"
-
+    name: PayPal
+    ats: workday
+    tenant: paypal
+    site_id: jobs
+    base_url: https://paypal.wd1.myworkdayjobs.com
   visa:
-    name: "Visa"
-    tenant: "visa"
-    site_id: "Visa"
-    base_url: "https://visa.wd5.myworkdayjobs.com"
-
-  jpmorgan:
-    name: "JPMorgan Chase"
-    tenant: "jpmc"
-    site_id: "JPMCRecruitment"
-    base_url: "https://jpmc.wd1.myworkdayjobs.com"
-
-  goldmansachs:
-    name: "Goldman Sachs"
-    tenant: "goldmansachs"
-    site_id: "ExternalJobs"
-    base_url: "https://goldmansachs.wd1.myworkdayjobs.com"
-
-  morganstanley:
-    name: "Morgan Stanley"
-    tenant: "morganstanley"
-    site_id: "MSJR"
-    base_url: "https://morganstanley.wd5.myworkdayjobs.com"
-
-  # ── Enterprise & Product Companies (India offices) ───────────────────
-
-  intuit:
-    name: "Intuit"
-    tenant: "intuit"
-    site_id: "Intuit"
-    base_url: "https://intuit.wd1.myworkdayjobs.com"
-
-  oracle:
-    name: "Oracle"
-    tenant: "oracle"
-    site_id: "ExternalJobs"
-    base_url: "https://oracle.wd1.myworkdayjobs.com"
-
-  vmware:
-    name: "VMware (Broadcom)"
-    tenant: "broadcom"
-    site_id: "Broadcom"
-    base_url: "https://broadcom.wd1.myworkdayjobs.com"
-
-  atlassian:
-    name: "Atlassian"
-    tenant: "atlassian"
-    site_id: "External_Candidates"
-    base_url: "https://atlassian.wd1.myworkdayjobs.com"
-
-  walmart:
-    name: "Walmart Global Tech"
-    tenant: "walmart"
-    site_id: "WalmartExternal"
-    base_url: "https://walmart.wd5.myworkdayjobs.com"
-
+    name: Visa
+    ats: workday
+    tenant: visa
+    site_id: Visa
+    base_url: https://visa.wd5.myworkdayjobs.com
   target:
-    name: "Target"
-    tenant: "target"
-    site_id: "Targetcareers"
-    base_url: "https://target.wd5.myworkdayjobs.com"
-
-  # ── Consulting & Services (India offices) ────────────────────────────
-
+    name: Target
+    ats: workday
+    tenant: target
+    site_id: targetcareers
+    base_url: https://target.wd5.myworkdayjobs.com
   pwc:
-    name: "PwC"
-    tenant: "pwc"
-    site_id: "Global_Experienced_Careers"
-    base_url: "https://pwc.wd3.myworkdayjobs.com"
-
-  # ── Networking & Telecom ─────────────────────────────────────────────
-
-  juniper:
-    name: "Juniper Networks"
-    tenant: "juniper"
-    site_id: "Juniper"
-    base_url: "https://juniper.wd1.myworkdayjobs.com"
-
-  qualcomm:
-    name: "Qualcomm"
-    tenant: "qualcomm"
-    site_id: "External"
-    base_url: "https://qualcomm.wd5.myworkdayjobs.com"
-
-  # ── SaaS & Cloud ────────────────────────────────────────────────────
-
+    name: PwC
+    ats: workday
+    tenant: pwc
+    site_id: Global_Experienced_Careers
+    base_url: https://pwc.wd3.myworkdayjobs.com
+  browserstack:
+    name: BrowserStack
+    ats: workday
+    tenant: browserstack
+    site_id: External
+    base_url: https://browserstack.wd3.myworkdayjobs.com
+  autodesk:
+    name: Autodesk
+    ats: workday
+    tenant: autodesk
+    site_id: Ext
+    base_url: https://autodesk.wd1.myworkdayjobs.com
+  micron:
+    name: Micron
+    ats: workday
+    tenant: micron
+    site_id: External
+    base_url: https://micron.wd1.myworkdayjobs.com
+  groww:
+    name: Groww
+    ats: greenhouse
+    slug: groww
+    api_url: https://boards-api.greenhouse.io/v1/boards/groww/jobs
+  razorpay:
+    name: Razorpay
+    ats: greenhouse
+    slug: razorpaysoftwareprivatelimited
+    api_url: https://boards-api.greenhouse.io/v1/boards/razorpaysoftwareprivatelimited/jobs
+  inmobi:
+    name: InMobi
+    ats: greenhouse
+    slug: inmobi
+    api_url: https://boards-api.greenhouse.io/v1/boards/inmobi/jobs
+  cred:
+    name: CRED
+    ats: lever
+    slug: cred
+    api_url: https://api.lever.co/v0/postings/cred?mode=json
+  freshworks:
+    name: Freshworks
+    ats: smartrecruiters
+    slug: freshworks
+    api_url: https://api.smartrecruiters.com/v1/companies/freshworks/postings
+  rubrik:
+    name: Rubrik
+    ats: greenhouse
+    slug: rubrik
+    api_url: https://boards-api.greenhouse.io/v1/boards/rubrik/jobs
+  coinbase:
+    name: Coinbase
+    ats: greenhouse
+    slug: coinbase
+    api_url: https://boards-api.greenhouse.io/v1/boards/coinbase/jobs
+  stripe:
+    name: Stripe
+    ats: greenhouse
+    slug: stripe
+    api_url: https://boards-api.greenhouse.io/v1/boards/stripe/jobs
+  databricks:
+    name: Databricks
+    ats: greenhouse
+    slug: databricks
+    api_url: https://boards-api.greenhouse.io/v1/boards/databricks/jobs
+  cloudflare:
+    name: Cloudflare
+    ats: greenhouse
+    slug: cloudflare
+    api_url: https://boards-api.greenhouse.io/v1/boards/cloudflare/jobs
+  elastic:
+    name: Elastic
+    ats: greenhouse
+    slug: elastic
+    api_url: https://boards-api.greenhouse.io/v1/boards/elastic/jobs
   twilio:
-    name: "Twilio"
-    tenant: "twilio"
-    site_id: "External"
-    base_url: "https://twilio.wd5.myworkdayjobs.com"
-
-  zscaler:
-    name: "Zscaler"
-    tenant: "zscaler"
-    site_id: "Zscaler_Careers"
-    base_url: "https://zscaler.wd5.myworkdayjobs.com"
-
-  paloalto:
-    name: "Palo Alto Networks"
-    tenant: "paloaltonetworks"
-    site_id: "externalcareersite"
-    base_url: "https://paloaltonetworks.wd5.myworkdayjobs.com"
+    name: Twilio
+    ats: greenhouse
+    slug: twilio
+    api_url: https://boards-api.greenhouse.io/v1/boards/twilio/jobs
+  mongodb:
+    name: MongoDB
+    ats: greenhouse
+    slug: mongodb
+    api_url: https://boards-api.greenhouse.io/v1/boards/mongodb/jobs
+  okta:
+    name: Okta
+    ats: greenhouse
+    slug: okta
+    api_url: https://boards-api.greenhouse.io/v1/boards/okta/jobs

@@ -326,6 +326,131 @@ def get_stats(conn: sqlite3.Connection | None = None) -> dict:
     return stats
 
 
+
+def normalize_company(name: str | None) -> str:
+    """Normalize company name for cross-source matching."""
+    if not name:
+        return ""
+    n = name.lower().strip()
+    for drop in ("systems", "technologies", "technology", "global tech", "corporation", "corp", "inc", "ltd", "private", "pvt", "llc"):
+        n = re.sub(r"\b" + drop + r"\b", "", n)
+    return re.sub(r"[^\w]", "", n)
+
+
+def normalize_title(title: str | None) -> str:
+    """Normalize job title for cross-source matching."""
+    if not title:
+        return ""
+    t = title.lower().strip()
+    # Remove common brackets/tags like (Backend), [Hybrid]
+    t = re.sub(r"\(.*?\)", "", t)
+    t = re.sub(r"\[.*?\]", "", t)
+    t = re.sub(r"[-–|].*$", "", t)
+    return re.sub(r"[^\w]", "", t)
+
+
+def normalize_loc(loc: str | None) -> str:
+    """Normalize location for cross-source matching."""
+    if not loc:
+        return ""
+    l = loc.lower().strip()
+    if "bangalore" in l or "bengaluru" in l:
+        return "bengaluru"
+    if "pune" in l:
+        return "pune"
+    if "hyderabad" in l:
+        return "hyderabad"
+    if "remote" in l:
+        return "remote"
+    if "mumbai" in l:
+        return "mumbai"
+    return re.sub(r"[^\w]", "", l)[:8]
+
+
+def store_jobs_deduped(conn: sqlite3.Connection, jobs: list[dict],
+                       site: str, strategy: str) -> tuple[int, int, int]:
+    """Store discovered jobs with cross-source deduplication.
+
+    Deduplicates by:
+      1. Exact URL
+      2. Normalized (Company + Title + Location)
+
+    If a cross-source duplicate is found, the existing record is updated with
+    application_url and full_description if available, avoiding duplicate applications.
+
+    Returns:
+        (new_count, url_dupe_count, cross_source_dupe_count)
+    """
+    now = datetime.now(timezone.utc).isoformat()
+    new = 0
+    url_dupes = 0
+    cross_dupes = 0
+
+    for job in jobs:
+        url = job.get("url")
+        if not url:
+            continue
+
+        raw_title = job.get("title", "")
+        raw_loc = job.get("location", "")
+        job_site = job.get("site") or site
+        full_desc = job.get("full_description")
+        app_url = job.get("application_url") or url
+
+        # 1. Check exact URL dupe
+        existing = conn.execute("SELECT url FROM jobs WHERE url = ?", (url,)).fetchone()
+        if existing:
+            url_dupes += 1
+            continue
+
+        # 2. Check cross-source match on (normalized site + title + location)
+        norm_c = normalize_company(job_site)
+        norm_t = normalize_title(raw_title)
+        norm_l = normalize_loc(raw_loc)
+
+        cross_match = None
+        if norm_c and norm_t:
+            # Query candidate rows with similar site
+            rows = conn.execute("SELECT url, site, title, location, full_description, application_url FROM jobs").fetchall()
+            for r_url, r_site, r_title, r_loc, r_desc, r_app in rows:
+                if normalize_company(r_site) == norm_c and normalize_title(r_title) == norm_t:
+                    # Check location compatibility
+                    if not norm_l or not normalize_loc(r_loc) or norm_l == normalize_loc(r_loc):
+                        cross_match = (r_url, r_desc, r_app)
+                        break
+
+        if cross_match:
+            cross_dupes += 1
+            m_url, m_desc, m_app = cross_match
+            # Enrich existing record if new info is available
+            updates = []
+            params = []
+            if full_desc and not m_desc:
+                updates.append("full_description = ?")
+                params.append(full_desc)
+            if app_url and not m_app:
+                updates.append("application_url = ?")
+                params.append(app_url)
+            if updates:
+                params.append(m_url)
+                conn.execute(f"UPDATE jobs SET {', '.join(updates)} WHERE url = ?", tuple(params))
+            continue
+
+        # 3. Insert new unique job
+        try:
+            conn.execute(
+                "INSERT INTO jobs (url, title, salary, description, location, site, strategy, discovered_at, full_description, application_url) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (url, raw_title, job.get("salary"), job.get("description"),
+                 raw_loc, job_site, strategy, now, full_desc, app_url),
+            )
+            new += 1
+        except sqlite3.IntegrityError:
+            url_dupes += 1
+
+    conn.commit()
+    return new, url_dupes, cross_dupes
+
 def store_jobs(conn: sqlite3.Connection, jobs: list[dict],
                site: str, strategy: str) -> tuple[int, int]:
     """Store discovered jobs, skipping duplicates by URL.
