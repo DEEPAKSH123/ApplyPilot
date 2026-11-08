@@ -34,8 +34,9 @@ def load_employers() -> dict:
     if not path.exists():
         log.warning("employers.yaml not found at %s", path)
         return {}
-    data = yaml.safe_load(path.read_text(encoding="utf-8"))
-    return data.get("employers", {})
+    data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    employers = data.get("employers", {})
+    return {k: v for k, v in employers.items() if "base_url" in v}
 
 
 # -- Location filtering from search config -----------------------------------

@@ -11,7 +11,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
-from curl_cffi import requests
+import httpx
 
 from applypilot import config
 from applypilot.config import CONFIG_DIR
@@ -40,13 +40,14 @@ def load_ats_employers() -> dict:
 
 def _scrape_greenhouse(employer_key: str, emp: dict, accept_locs: list[str], reject_locs: list[str],
                         max_days_old: int, exclude_titles: list[str]) -> list[dict]:
-    """Fetch and filter jobs from a Greenhouse board."""
+    """Fetch and filter jobs from a Greenhouse board (bulk content in 1 call)."""
     slug = emp.get("slug")
     name = emp.get("name", employer_key)
-    api_url = emp.get("api_url") or f"https://boards-api.greenhouse.io/v1/boards/{slug}/jobs"
+    api_url = emp.get("api_url") or f"https://boards-api.greenhouse.io/v1/boards/{slug}/jobs?content=true"
 
     try:
-        r = requests.get(api_url, impersonate="chrome120", timeout=10)
+        with httpx.Client(headers=HEADERS, timeout=6) as client:
+            r = client.get(api_url)
         if r.status_code != 200:
             log.warning("Greenhouse [%s] HTTP %d", name, r.status_code)
             return []
@@ -71,19 +72,9 @@ def _scrape_greenhouse(employer_key: str, emp: dict, accept_locs: list[str], rej
         if max_days_old > 0 and not _posted_within_days(updated, max_days_old):
             continue
 
-        job_id = j.get("id")
         apply_url = j.get("absolute_url", "")
-
-        # Fetch detail for full description
-        full_desc = ""
-        if job_id and slug:
-            try:
-                detail_url = f"https://boards-api.greenhouse.io/v1/boards/{slug}/jobs/{job_id}"
-                dr = requests.get(detail_url, impersonate="chrome120", timeout=8)
-                if dr.status_code == 200:
-                    full_desc = strip_html(dr.json().get("content", ""))
-            except Exception:
-                pass
+        raw_content = j.get("content", "")
+        full_desc = strip_html(raw_content) if raw_content else ""
 
         matched.append({
             "title": title,
@@ -91,7 +82,7 @@ def _scrape_greenhouse(employer_key: str, emp: dict, accept_locs: list[str], rej
             "location": loc,
             "url": apply_url,
             "application_url": apply_url,
-            "full_description": full_desc,
+            "full_description": full_desc if full_desc else None,
             "description": full_desc[:500] if full_desc else title,
             "strategy": "greenhouse_api",
         })
@@ -101,13 +92,14 @@ def _scrape_greenhouse(employer_key: str, emp: dict, accept_locs: list[str], rej
 
 def _scrape_lever(employer_key: str, emp: dict, accept_locs: list[str], reject_locs: list[str],
                   max_days_old: int, exclude_titles: list[str]) -> list[dict]:
-    """Fetch and filter jobs from a Lever board."""
+    """Fetch and filter jobs from a Lever board (bulk content in 1 call)."""
     slug = emp.get("slug")
     name = emp.get("name", employer_key)
     api_url = emp.get("api_url") or f"https://api.lever.co/v0/postings/{slug}?mode=json"
 
     try:
-        r = requests.get(api_url, impersonate="chrome120", timeout=10)
+        with httpx.Client(headers=HEADERS, timeout=6) as client:
+            r = client.get(api_url)
         if r.status_code != 200:
             log.warning("Lever [%s] HTTP %d", name, r.status_code)
             return []
@@ -125,16 +117,14 @@ def _scrape_lever(employer_key: str, emp: dict, accept_locs: list[str], reject_l
             continue
 
         cats = j.get("categories", {})
-        loc = cats.get("location", "") or cats.get("allLocations", [""])[0] if isinstance(cats, dict) else ""
+        loc = cats.get("location", "") or (cats.get("allLocations", [""])[0] if isinstance(cats.get("allLocations"), list) and cats.get("allLocations") else "")
         if not _location_ok(loc, accept_locs, reject_locs):
             continue
 
         created_ms = j.get("createdAt")
-        posted_str = None
-        if created_ms:
+        if created_ms and max_days_old > 0:
             days = (time.time() - (created_ms / 1000)) / 86400
-            posted_str = f"{int(days)} days ago"
-            if max_days_old > 0 and days > max_days_old:
+            if days > max_days_old:
                 continue
 
         apply_url = j.get("hostedUrl", "")
@@ -146,7 +136,7 @@ def _scrape_lever(employer_key: str, emp: dict, accept_locs: list[str], reject_l
             "location": loc,
             "url": apply_url,
             "application_url": apply_url,
-            "full_description": desc,
+            "full_description": desc if desc else None,
             "description": desc[:500] if desc else title,
             "strategy": "lever_api",
         })
@@ -162,7 +152,8 @@ def _scrape_smartrecruiters(employer_key: str, emp: dict, accept_locs: list[str]
     api_url = emp.get("api_url") or f"https://api.smartrecruiters.com/v1/companies/{slug}/postings"
 
     try:
-        r = requests.get(api_url, impersonate="chrome120", timeout=10)
+        with httpx.Client(headers=HEADERS, timeout=6) as client:
+            r = client.get(api_url)
         if r.status_code != 200:
             log.warning("SmartRecruiters [%s] HTTP %d", name, r.status_code)
             return []
@@ -189,24 +180,7 @@ def _scrape_smartrecruiters(employer_key: str, emp: dict, accept_locs: list[str]
             continue
 
         job_id = j.get("id")
-        ref = j.get("refNumber", "")
         apply_url = f"https://jobs.smartrecruiters.com/{slug}/{job_id}"
-
-        # Fetch detail
-        full_desc = ""
-        if job_id:
-            try:
-                detail_url = f"https://api.smartrecruiters.com/v1/companies/{slug}/postings/{job_id}"
-                dr = requests.get(detail_url, impersonate="chrome120", timeout=8)
-                if dr.status_code == 200:
-                    dj = dr.json()
-                    sections = dj.get("jobAd", {}).get("sections", {})
-                    parts = []
-                    for s in sections.values():
-                        parts.append(strip_html(s.get("text", "")))
-                    full_desc = "\n\n".join(parts)
-            except Exception:
-                pass
 
         matched.append({
             "title": title,
@@ -214,8 +188,8 @@ def _scrape_smartrecruiters(employer_key: str, emp: dict, accept_locs: list[str]
             "location": loc,
             "url": apply_url,
             "application_url": apply_url,
-            "full_description": full_desc,
-            "description": full_desc[:500] if full_desc else title,
+            "full_description": None,
+            "description": title,
             "strategy": "smartrecruiters_api",
         })
 

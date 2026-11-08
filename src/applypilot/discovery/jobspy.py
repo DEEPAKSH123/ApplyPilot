@@ -416,20 +416,29 @@ def _full_crawl(
     total_errors = 0
     completed = 0
 
-    for s in searches:
-        result = _run_one_search(
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    def _worker(s):
+        return _run_one_search(
             s, sites, results_per_site, hours_old,
             proxy_config, defaults, max_retries,
             accept_locs, reject_locs, glassdoor_map,
         )
-        completed += 1
-        total_new += result["new"]
-        total_existing += result["existing"]
-        total_errors += result["errors"]
 
-        if completed % 5 == 0 or completed == len(searches):
-            log.info("Progress: %d/%d queries done (%d new, %d dupes, %d errors)",
-                     completed, len(searches), total_new, total_existing, total_errors)
+    with ThreadPoolExecutor(max_workers=min(4, len(searches))) as pool:
+        futures = [pool.submit(_worker, s) for s in searches]
+        for f in as_completed(futures):
+            try:
+                result = f.result()
+                completed += 1
+                total_new += result["new"]
+                total_existing += result["existing"]
+                total_errors += result["errors"]
+                log.info("Progress: %d/%d queries done (%d new, %d dupes, %d errors)",
+                         completed, len(searches), total_new, total_existing, total_errors)
+            except Exception as e:
+                log.error("JobSpy search error: %s", e)
+                total_errors += 1
 
     # Final stats
     conn = get_connection()
