@@ -331,13 +331,38 @@ def status() -> None:
 
 
 @app.command()
-def dashboard() -> None:
+def dashboard(
+    port: int = typer.Option(8765, "--port", "-p", help="Port for the dashboard server"),
+    no_browser: bool = typer.Option(False, "--no-browser", help="Do not auto-open browser"),
+) -> None:
     """Generate and open the HTML dashboard in your browser."""
     _bootstrap()
 
-    from applypilot.view import open_dashboard
+    from applypilot.dashboard.server import start_dashboard_server
 
-    open_dashboard()
+    start_dashboard_server(port=port, open_browser=not no_browser)
+
+
+@app.command("ui")
+def ui_cmd(
+    port: int = typer.Option(8765, "--port", "-p", help="Port for the dashboard server"),
+    no_browser: bool = typer.Option(False, "--no-browser", help="Do not auto-open browser"),
+) -> None:
+    """Shortcut for `applypilot dashboard`."""
+    dashboard(port=port, no_browser=no_browser)
+
+
+@app.command("assistant")
+def assistant_cmd(
+    target: str = typer.Argument(..., help="Job rowid or URL to apply for"),
+    headed: bool = typer.Option(True, "--headed/--headless", help="Run browser in visible headed mode"),
+) -> None:
+    """Launch Phase 3 Human-in-the-Loop 1-Click Application Assistant."""
+    _bootstrap()
+    from applypilot.apply.assistant import launch_application_assistant
+    console.print(f"[bold green]Launching 1-Click Application Assistant for job {target}...[/bold green]")
+    res = launch_application_assistant(target, headed=headed)
+    console.print(f"[bold cyan]Assistant finished: {res}[/bold cyan]")
 
 
 @app.command()
