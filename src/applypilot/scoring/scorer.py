@@ -12,7 +12,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 
-from applypilot.config import RESUME_PATH, load_profile
+from applypilot.config import RESUME_PATH, load_profile, load_search_config
 from applypilot.database import get_connection, get_jobs_by_stage
 from applypilot.llm import get_client
 
@@ -140,7 +140,7 @@ def run_scoring(limit: int = 0, rescore: bool = False) -> dict:
     results: list[dict] = []
 
     from applypilot.discovery.workday import _title_ok
-    search_cfg = config.load_search_config()
+    search_cfg = load_search_config()
     exclude_titles = search_cfg.get("exclude_titles", [])
 
     def _eval(job_item):
