@@ -139,10 +139,27 @@ def run_scoring(limit: int = 0, rescore: bool = False) -> dict:
     errors = 0
     results: list[dict] = []
 
+    from applypilot.discovery.workday import _title_ok
+    search_cfg = config.load_search_config()
+    exclude_titles = search_cfg.get("exclude_titles", [])
+
     def _eval(job_item):
+        title = job_item.get("title", "?")
+        url = job_item["url"]
+        
+        # Pre-gate non-backend titles to save LLM tokens and eliminate 429 rate limit delays
+        if not _title_ok(title, exclude_titles):
+            return {
+                "url": url,
+                "title": title,
+                "score": 2,
+                "keywords": "non-backend role",
+                "reasoning": f"Filtered pre-LLM: Title '{title}' matches excluded seniority/domain.",
+            }
+
         res = score_job(resume_text, job_item)
-        res["url"] = job_item["url"]
-        res["title"] = job_item.get("title", "?")
+        res["url"] = url
+        res["title"] = title
         return res
 
     with ThreadPoolExecutor(max_workers=workers) as pool:
