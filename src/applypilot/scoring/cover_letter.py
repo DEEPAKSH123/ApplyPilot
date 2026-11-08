@@ -285,7 +285,7 @@ def run_cover_letters(min_score: int = 7, limit: int = 20,
             conn.execute(
                 "UPDATE jobs SET cover_letter_path=?, cover_letter_at=?, "
                 "cover_attempts=COALESCE(cover_attempts,0)+1 WHERE url=?",
-                (r["path"], now, r["url"]),
+                (r.get("pdf_path") or r["path"], now, r["url"]),
             )
             saved += 1
         else:

@@ -60,10 +60,10 @@ LLM_LEAK_PHRASES: list[str] = [
 # Reasonable stretches (K8s, Terraform, Redis, Kafka etc.) are ALLOWED.
 FABRICATION_WATCHLIST: set[str] = {
     # Languages with zero relation to the candidate's stack
-    "c#", "c++", "golang", "rust", "ruby",
-    "kotlin", "swift", "scala", "matlab",
+    "ruby", "swift", "matlab",
+
     # Frameworks for wrong languages
-    "spring", "django", "rails", "angular", "vue", "svelte",
+    "rails", "angular", "vue", "svelte",
     # Hard lies: certifications can't be stretched
     "certif", "certified", "pmp", "scrum master", "aws certified",
 }
