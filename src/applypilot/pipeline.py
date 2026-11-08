@@ -140,6 +140,17 @@ def _run_discover(workers: int = 4) -> dict:
 def _run_enrich(workers: int = 1) -> dict:
     """Stage: Detail enrichment — scrape full descriptions and apply URLs."""
     try:
+        # Fast promote description -> full_description where available
+        conn = get_connection()
+        conn.execute("""
+            UPDATE jobs 
+            SET full_description = description 
+            WHERE (full_description IS NULL OR full_description = '')
+              AND description IS NOT NULL 
+              AND LENGTH(description) > 30
+        """)
+        conn.commit()
+
         from applypilot.enrichment.detail import run_enrichment
         run_enrichment(workers=workers)
         return {"status": "ok"}
