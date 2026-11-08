@@ -479,17 +479,18 @@ def compile_tex_to_pdf(tex_path: Path | str, output_path: Path | str | None = No
 
     import sys
     import shutil
+    env_tectonic = os.environ.get("TECTONIC_PATH")
     venv_tectonic = Path(sys.executable).parent / "tectonic.exe"
-    if venv_tectonic.exists():
+    if env_tectonic and Path(env_tectonic).exists():
+        tectonic_exe = Path(env_tectonic)
+    elif venv_tectonic.exists():
         tectonic_exe = venv_tectonic
-    elif Path(r"C:\Users\Admin\ApplyPilot\.venv\Scripts\tectonic.exe").exists():
-        tectonic_exe = Path(r"C:\Users\Admin\ApplyPilot\.venv\Scripts\tectonic.exe")
     else:
         found = shutil.which("tectonic")
         if found:
             tectonic_exe = Path(found)
         else:
-            raise FileNotFoundError("Tectonic LaTeX compiler not found. Ensure tectonic.exe is in the virtualenv Scripts folder or PATH.")
+            raise FileNotFoundError("Tectonic LaTeX compiler not found. Ensure tectonic.exe is in the virtualenv Scripts folder, set TECTONIC_PATH, or add to PATH.")
 
     res = subprocess.run(
         [str(tectonic_exe), "--outdir", str(out_dir), str(tex_path)],

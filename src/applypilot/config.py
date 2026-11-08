@@ -5,8 +5,17 @@ import platform
 import shutil
 from pathlib import Path
 
+def _resolve_app_dir() -> Path:
+    env_dir = os.environ.get("APPLYPILOT_DIR")
+    if env_dir:
+        return Path(env_dir)
+    d_dir = Path(r"D:\ApplyPilot_Workspace\data")
+    if d_dir.exists():
+        return d_dir
+    return Path.home() / ".applypilot"
+
 # User data directory — all user-specific files live here
-APP_DIR = Path(os.environ.get("APPLYPILOT_DIR", Path.home() / ".applypilot"))
+APP_DIR = _resolve_app_dir()
 
 # Core paths
 DB_PATH = APP_DIR / "applypilot.db"

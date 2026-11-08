@@ -576,4 +576,12 @@ def run_pipeline(
     console.print(f"    Applied:        {final['applied']}")
     console.print(f"{'=' * 70}\n")
 
+    # Automatically export refreshed CSV
+    try:
+        from applypilot.export.csv_export import export_opportunities_csv
+        csv_file = export_opportunities_csv()
+        console.print(f"[green][OK] Refreshed opportunities CSV at:[/green] {csv_file}\n")
+    except Exception as e:
+        log.warning("Could not auto-export CSV: %s", e)
+
     return result
