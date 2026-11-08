@@ -343,7 +343,11 @@ def render_pdf(html: str, output_path: str) -> None:
     from playwright.sync_api import sync_playwright
 
     with sync_playwright() as p:
-        browser = p.chromium.launch()
+        from applypilot.config import get_chrome_path
+        try:
+            browser = p.chromium.launch(executable_path=get_chrome_path())
+        except Exception:
+            browser = p.chromium.launch()
         page = browser.new_page()
         page.set_content(html, wait_until="networkidle")
         page.pdf(
@@ -438,3 +442,65 @@ def batch_convert(limit: int = 50) -> int:
 
     log.info("Done: %d/%d PDFs generated in %s", converted, len(to_convert), TAILORED_DIR)
     return converted
+
+
+def compile_tex_to_pdf(tex_path: Path | str, output_path: Path | str | None = None) -> Path:
+    """Compile a LaTeX (.tex) resume directly to PDF using Tectonic.
+
+    Compatible with standard LaTeX and XeLaTeX templates.
+    """
+    import subprocess
+    tex_path = Path(tex_path)
+    if not tex_path.exists():
+        raise FileNotFoundError(f"LaTeX file not found: {tex_path}")
+
+    # Ensure output directory
+    if output_path:
+        out_pdf = Path(output_path)
+        out_dir = out_pdf.parent
+    else:
+        out_pdf = tex_path.with_suffix(".pdf")
+        out_dir = tex_path.parent
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    # Read and sanitize for XeTeX/Tectonic compatibility
+    content = tex_path.read_text(encoding="utf-8")
+    content = content.replace("```", "")
+    if "\\input{glyphtounicode}" in content and "\\ifdefined\\pdfgentounicode" not in content:
+        content = content.replace(
+            "\\input{glyphtounicode}\n\\pdfgentounicode=1",
+            "\\ifdefined\\pdfgentounicode\n  \\input{glyphtounicode}\n  \\pdfgentounicode=1\n\\fi"
+        ).replace(
+            "\\input{glyphtounicode}",
+            "\\ifdefined\\pdfgentounicode\\input{glyphtounicode}\\fi"
+        )
+        tex_path.write_text(content, encoding="utf-8")
+
+    tectonic_exe = Path(r"C:\Users\Admin\ApplyPilot\.venv\Scripts\tectonic.exe")
+    if not tectonic_exe.exists():
+        # Fallback to PATH
+        import shutil
+        found = shutil.which("tectonic")
+        if found:
+            tectonic_exe = Path(found)
+        else:
+            raise FileNotFoundError("Tectonic LaTeX compiler not found at " + str(tectonic_exe))
+
+    res = subprocess.run(
+        [str(tectonic_exe), "--outdir", str(out_dir), str(tex_path)],
+        capture_output=True,
+        text=True,
+    )
+
+    if res.returncode != 0:
+        log.error("Tectonic error: %s", res.stderr)
+        raise RuntimeError(f"LaTeX compilation failed: {res.stderr[:300]}")
+
+    expected_pdf = out_dir / (tex_path.stem + ".pdf")
+    if expected_pdf != out_pdf and expected_pdf.exists():
+        import shutil
+        shutil.move(str(expected_pdf), str(out_pdf))
+
+    log.info("Successfully compiled %s to %s", tex_path.name, out_pdf.name)
+    return out_pdf

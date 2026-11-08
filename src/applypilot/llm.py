@@ -207,13 +207,12 @@ class LLMClient:
 
                 return self._chat_compat(messages, temperature, max_tokens)
 
-            except _GeminiCompatForbidden as exc:
+            except (_GeminiCompatForbidden, _GeminiCompatNotFound) as exc:
                 # Model not available on OpenAI-compat layer — switch to native.
                 log.warning(
-                    "Gemini compat endpoint returned 403 for model '%s'. "
-                    "Switching to native generateContent API. "
-                    "(Preview/experimental models are often compat-only on native.)",
-                    self.model,
+                    "Gemini compat endpoint returned %s for model '%s'. "
+                    "Switching to native generateContent API.",
+                    "403/404", self.model,
                 )
                 self._use_native_gemini = True
                 # Retry immediately with native — don't count as a rate-limit wait
@@ -278,6 +277,13 @@ class _GeminiCompatForbidden(Exception):
     def __init__(self, response: httpx.Response) -> None:
         self.response = response
         super().__init__(f"Gemini compat 403: {response.text[:200]}")
+
+
+class _GeminiCompatNotFound(Exception):
+    """Sentinel: Gemini OpenAI-compat returned 404. Model deprecated — switch to native API."""
+    def __init__(self, response: httpx.Response) -> None:
+        self.response = response
+        super().__init__(f"Gemini compat 404: {response.text[:200]}")
 
 
 # ---------------------------------------------------------------------------

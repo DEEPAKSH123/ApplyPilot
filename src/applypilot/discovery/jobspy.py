@@ -79,10 +79,19 @@ def _scrape_with_retry(kwargs: dict, max_retries: int = 2, backoff: float = 5.0)
 def _load_location_config(search_cfg: dict) -> tuple[list[str], list[str]]:
     """Extract accept/reject location lists from search config.
 
-    Falls back to sensible defaults if not defined in the YAML.
+    Supports both flat keys and the nested location: format.
     """
     accept = search_cfg.get("location_accept", [])
     reject = search_cfg.get("location_reject_non_remote", [])
+
+    # If flat keys are empty, try nested format
+    if not accept:
+        loc_cfg = search_cfg.get("location", {})
+        if isinstance(loc_cfg, dict):
+            accept = loc_cfg.get("accept_patterns", [])
+            if not reject:
+                reject = loc_cfg.get("reject_patterns", [])
+
     return accept, reject
 
 
@@ -92,8 +101,8 @@ def _location_ok(location: str | None, accept: list[str], reject: list[str]) -> 
     Remote jobs are always accepted. Non-remote jobs must match an accept
     pattern and not match a reject pattern.
     """
-    if not location:
-        return True  # unknown location -- keep it, let scorer decide
+    if not location or not location.strip():
+        return False  # Reject blank locations
 
     loc = location.lower()
 

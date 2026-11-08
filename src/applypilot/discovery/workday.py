@@ -41,29 +41,53 @@ def load_employers() -> dict:
 # -- Location filtering from search config -----------------------------------
 
 def _load_location_filter(search_cfg: dict | None = None):
-    """Load location accept/reject lists from search config."""
+    """Load location accept/reject lists from search config.
+
+    Supports both flat keys (location_accept / location_reject_non_remote)
+    and the nested format used in searches.yaml:
+        location:
+          accept_patterns: [...]
+          reject_patterns: [...]
+    """
     if search_cfg is None:
         search_cfg = config.load_search_config()
 
+    # Try flat keys first (backward compat)
     accept = search_cfg.get("location_accept", [])
     reject = search_cfg.get("location_reject_non_remote", [])
+
+    # If flat keys are empty, try nested format
+    if not accept:
+        loc_cfg = search_cfg.get("location", {})
+        if isinstance(loc_cfg, dict):
+            accept = loc_cfg.get("accept_patterns", [])
+            if not reject:
+                reject = loc_cfg.get("reject_patterns", [])
+
     return accept, reject
 
 
 def _location_ok(location: str | None, accept: list[str], reject: list[str]) -> bool:
-    """Check if a job location passes the user's location filter."""
-    if not location:
-        return True
+    """Check if a job location passes the user's location filter.
+
+    Jobs with blank/empty location are REJECTED to prevent flooding the
+    database with unlocatable positions.
+    """
+    if not location or not location.strip():
+        return False  # Reject blank locations
 
     loc = location.lower()
 
-    if any(r in loc for r in ("remote", "anywhere", "work from home", "wfh", "distributed")):
-        return True
-
+    # Reject patterns take priority
     for r in reject:
         if r.lower() in loc:
             return False
 
+    # Accept remote/distributed jobs (that weren't caught by reject above)
+    if any(r in loc for r in ("remote", "anywhere", "work from home", "wfh", "distributed")):
+        return True
+
+    # Check accept patterns
     for a in accept:
         if a.lower() in loc:
             return True
@@ -186,6 +210,46 @@ def workday_detail(employer: dict, external_path: str) -> dict:
 
 # -- Search + paginate -------------------------------------------------------
 
+
+
+def _title_ok(title: str, exclude_titles: list[str] | None = None) -> bool:
+    """Check if title matches engineering roles and does not contain excluded keywords."""
+    if not title or not title.strip():
+        return False
+    t_lower = title.lower()
+
+    # Must contain at least one core engineering keyword
+    eng_keywords = ("engineer", "developer", "sde", "backend", "software", "systems", "platform", "cloud", "api", "mts")
+    if not any(k in t_lower for k in eng_keywords):
+        return False
+
+    # Check negative title exclusions
+    if exclude_titles:
+        for exc in exclude_titles:
+            exc_lower = exc.lower().strip()
+            if not exc_lower:
+                continue
+            if re.search(r"\b" + re.escape(exc_lower) + r"\b", t_lower):
+                return False
+    return True
+
+def _posted_within_days(posted_text: str | None, max_days: int = 10) -> bool:
+    """Check if job was posted within max_days (e.g. 10 days)."""
+    if not posted_text:
+        return True  # If posting date unknown, don't drop prematurely
+    p = posted_text.lower().strip()
+    if "today" in p or "yesterday" in p:
+        return True
+    if "30+" in p:
+        return False
+    import re
+    m = re.search(r"(\d+)\s+days?\s+ago", p)
+    if m:
+        days = int(m.group(1))
+        return days <= max_days
+    return True
+
+
 def search_employer(
     employer_key: str,
     employer: dict,
@@ -194,6 +258,8 @@ def search_employer(
     max_results: int = 0,
     accept_locs: list[str] | None = None,
     reject_locs: list[str] | None = None,
+    max_days_old: int = 0,
+    exclude_titles: list[str] | None = None,
 ) -> list[dict]:
     """Search an employer, paginate through all results, optionally filter by location."""
     log.info("%s: searching \"%s\"...", employer["name"], search_text)
@@ -201,7 +267,7 @@ def search_employer(
     all_jobs: list[dict] = []
     offset = 0
     page_size = 20
-    max_pages = 25  # Cap at 500 results
+    max_pages = 3  # Cap at 3 pages (60 postings) per query - daily runs focus on fresh postings
     total = None
 
     while True:
@@ -219,7 +285,17 @@ def search_employer(
         if not postings:
             break
 
+        old_in_page = 0
         for j in postings:
+            posted_str = j.get("postedOn", "")
+            if max_days_old > 0 and not _posted_within_days(posted_str, max_days_old):
+                old_in_page += 1
+                continue
+
+            raw_title = j.get("title", "")
+            if not _title_ok(raw_title, exclude_titles):
+                continue
+
             loc = j.get("locationsText", "")
             if location_filter and accept_locs is not None and reject_locs is not None:
                 if not _location_ok(loc, accept_locs, reject_locs):
@@ -228,11 +304,16 @@ def search_employer(
             all_jobs.append({
                 "title": j.get("title", ""),
                 "location": loc,
-                "posted": j.get("postedOn", ""),
+                "posted": posted_str,
                 "external_path": j.get("externalPath", ""),
                 "employer_key": employer_key,
                 "employer_name": employer["name"],
             })
+
+        if max_days_old > 0 and len(postings) > 0 and old_in_page == len(postings):
+            log.info("%s: all %d postings on page %d are older than %d days -- stopping pagination",
+                     employer["name"], len(postings), (offset // page_size) + 1, max_days_old)
+            break
 
         offset += page_size
         page_num = offset // page_size
@@ -273,25 +354,29 @@ def _fetch_one_detail(employer: dict, job: dict) -> dict:
     return job
 
 
-def fetch_details(employer: dict, jobs: list[dict]) -> list[dict]:
-    """Fetch full description + apply URL for each job sequentially."""
-    log.info("%s: fetching details for %d jobs...", employer["name"], len(jobs))
+def fetch_details(employer: dict, jobs: list[dict], max_workers: int = 8) -> list[dict]:
+    """Fetch full description + apply URL for each job in parallel."""
+    if not jobs:
+        return jobs
+    actual_workers = min(max_workers, len(jobs))
+    log.info("%s: fetching details for %d jobs (parallel, %d workers)...", employer["name"], len(jobs), actual_workers)
 
     completed = 0
     errors = 0
     t0 = time.time()
 
-    for job in jobs:
-        _fetch_one_detail(employer, job)
-        completed += 1
-        if "detail_error" in job:
-            errors += 1
-
-        if completed % 20 == 0 or completed == len(jobs):
-            elapsed = time.time() - t0
-            rate = completed / elapsed if elapsed > 0 else 0
-            log.info("%s: %d/%d (%d errors) [%.1f jobs/sec]",
-                     employer["name"], completed, len(jobs), errors, rate)
+    with ThreadPoolExecutor(max_workers=actual_workers) as pool:
+        future_map = {pool.submit(_fetch_one_detail, employer, job): job for job in jobs}
+        for future in as_completed(future_map):
+            completed += 1
+            job = future.result()
+            if "detail_error" in job:
+                errors += 1
+            if completed % 20 == 0 or completed == len(jobs):
+                elapsed = time.time() - t0
+                rate = completed / elapsed if elapsed > 0 else 0
+                log.info("%s: %d/%d (%d errors) [%.1f jobs/sec]",
+                         employer["name"], completed, len(jobs), errors, rate)
 
     elapsed = time.time() - t0
     log.info("%s: done in %.1fs (%.1f jobs/sec)", employer["name"], elapsed, len(jobs) / elapsed if elapsed > 0 else 0)
@@ -347,6 +432,8 @@ def _process_one(
     location_filter: bool,
     accept_locs: list[str],
     reject_locs: list[str],
+    max_days_old: int = 0,
+    exclude_titles: list[str] | None = None,
 ) -> dict:
     """Search one employer, fetch details, store results."""
     emp = employers[employer_key]
@@ -357,6 +444,8 @@ def _process_one(
             location_filter=location_filter,
             accept_locs=accept_locs,
             reject_locs=reject_locs,
+            max_days_old=max_days_old,
+            exclude_titles=exclude_titles,
         )
     except Exception as e:
         log.error("%s: ERROR searching '%s': %s", emp["name"], search_text, e)
@@ -391,6 +480,8 @@ def scrape_employers(
     accept_locs: list[str] | None = None,
     reject_locs: list[str] | None = None,
     workers: int = 1,
+    max_days_old: int = 0,
+    exclude_titles: list[str] | None = None,
 ) -> dict:
     """Run full scrape: search -> filter -> detail -> store.
 
@@ -423,7 +514,7 @@ def scrape_employers(
             futures = {
                 pool.submit(
                     _process_one, key, employers, search_text,
-                    location_filter, accept_locs, reject_locs,
+                    location_filter, accept_locs, reject_locs, max_days_old, exclude_titles,
                 ): key
                 for key in valid_keys
             }
@@ -446,7 +537,7 @@ def scrape_employers(
         for key in valid_keys:
             result = _process_one(
                 key, employers, search_text,
-                location_filter, accept_locs, reject_locs,
+                location_filter, accept_locs, reject_locs, max_days_old, exclude_titles,
             )
             completed += 1
             total_new += result["new"]
@@ -469,7 +560,7 @@ def scrape_employers(
 
 # -- Public entry point ------------------------------------------------------
 
-def run_workday_discovery(employers: dict | None = None, workers: int = 1) -> dict:
+def run_workday_discovery(employers: dict | None = None, workers: int = 4) -> dict:
     """Main entry point for Workday-based corporate job discovery.
 
     Loads employer registry from config/employers.yaml (or uses the provided
@@ -511,6 +602,8 @@ def run_workday_discovery(employers: dict | None = None, workers: int = 1) -> di
         setup_proxy(proxy)
 
     location_filter = search_cfg.get("workday_location_filter", True)
+    max_days_old = search_cfg.get("max_posted_days", 10)
+    exclude_titles = search_cfg.get("exclude_titles", [])
 
     log.info("Workday crawl: %d queries x %d employers (workers=%d)", len(queries), len(employers), workers)
 
@@ -527,6 +620,8 @@ def run_workday_discovery(employers: dict | None = None, workers: int = 1) -> di
             accept_locs=accept_locs,
             reject_locs=reject_locs,
             workers=workers,
+            max_days_old=max_days_old,
+            exclude_titles=exclude_titles,
         )
         grand_new += result["new"]
         grand_existing += result["existing"]

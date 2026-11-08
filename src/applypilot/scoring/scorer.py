@@ -9,6 +9,7 @@ import json
 import logging
 import re
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 
 from applypilot.config import RESUME_PATH, load_profile
@@ -131,26 +132,31 @@ def run_scoring(limit: int = 0, rescore: bool = False) -> dict:
         columns = jobs[0].keys()
         jobs = [dict(zip(columns, row)) for row in jobs]
 
-    log.info("Scoring %d jobs sequentially...", len(jobs))
+    workers = min(4, len(jobs))
+    log.info("Scoring %d jobs (parallel, %d workers)...", len(jobs), workers)
     t0 = time.time()
     completed = 0
     errors = 0
     results: list[dict] = []
 
-    for job in jobs:
-        result = score_job(resume_text, job)
-        result["url"] = job["url"]
-        completed += 1
+    def _eval(job_item):
+        res = score_job(resume_text, job_item)
+        res["url"] = job_item["url"]
+        res["title"] = job_item.get("title", "?")
+        return res
 
-        if result["score"] == 0:
-            errors += 1
-
-        results.append(result)
-
-        log.info(
-            "[%d/%d] score=%d  %s",
-            completed, len(jobs), result["score"], job.get("title", "?")[:60],
-        )
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {pool.submit(_eval, j): j for j in jobs}
+        for future in as_completed(futures):
+            res = future.result()
+            completed += 1
+            if res["score"] == 0:
+                errors += 1
+            results.append(res)
+            log.info(
+                "[%d/%d] score=%d  %s",
+                completed, len(jobs), res["score"], res["title"][:60],
+            )
 
     # Write scores to DB
     now = datetime.now(timezone.utc).isoformat()
