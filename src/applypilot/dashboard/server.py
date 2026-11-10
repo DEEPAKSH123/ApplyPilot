@@ -34,21 +34,26 @@ BRAVE_EXE = r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe
 
 
 def launch_url_in_brave(url: str) -> bool:
-    """Launch URL in Brave browser with shell and browser fallbacks."""
+    """Launch URL in Brave browser using Windows Shell or direct process without pipe redirection."""
     if not url or not (str(url).startswith("http://") or str(url).startswith("https://")):
         return False
     try:
-        if os.path.exists(BRAVE_EXE):
-            subprocess.Popen([BRAVE_EXE, url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        elif hasattr(os, "startfile"):
+        if hasattr(os, "startfile"):
             os.startfile(url)
+            return True
+        elif os.path.exists(BRAVE_EXE):
+            subprocess.Popen([BRAVE_EXE, url])
+            return True
         else:
             webbrowser.open(url)
-        return True
+            return True
     except Exception as e:
         log.warning("Could not launch URL via Brave: %s", e)
         try:
-            webbrowser.open(url)
+            if os.path.exists(BRAVE_EXE):
+                subprocess.Popen([BRAVE_EXE, url])
+            else:
+                webbrowser.open(url)
             return True
         except Exception:
             return False
@@ -825,7 +830,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       <div class="quick-pill" onclick="copyText('https://www.linkedin.com/in/deepak-s-h-82b772254', 'LinkedIn URL')"><i class="fa-brands fa-linkedin" style="color:#60a5fa;"></i> LinkedIn</div>
       <div class="quick-pill" onclick="copyText('20 LPA', 'Current CTC')"><i class="fa-solid fa-indian-rupee-sign" style="color:#f59e0b;"></i> 20 LPA</div>
       <div class="quick-pill" onclick="copyText('Immediate', 'Notice Period')"><i class="fa-solid fa-bolt" style="color:#ec4899;"></i> Immediate Notice</div>
-      <div class="quick-pill" onclick="openDirectUrl('https://www.linkedin.com/feed/')" style="background: #0a66c2; color: #fff; font-weight: 700;"><i class="fa-brands fa-linkedin"></i> Open LinkedIn</div>
+      <a href="https://www.linkedin.com/feed/" target="_blank" rel="noopener noreferrer" class="quick-pill" style="background: #0a66c2; color: #fff; font-weight: 700; text-decoration: none;"><i class="fa-brands fa-linkedin"></i> Open LinkedIn</a>
 
       <!-- Theme Switcher Pill -->
       <div class="theme-picker">
@@ -1096,9 +1101,9 @@ HTML_DASHBOARD = """<!DOCTYPE html>
 
             <div class="actions-bar" style="margin-top: 4px;">
               ${r.action_url ? `
-                <button class="btn btn-brave" onclick="openDirectUrl('${r.action_url}')" style="box-shadow: 0 0 16px rgba(16, 185, 129, 0.4);">
+                <a href="${r.action_url}" target="_blank" rel="noopener noreferrer" class="btn btn-brave" style="box-shadow: 0 0 16px rgba(16, 185, 129, 0.4); text-decoration: none;">
                   <i class="fa-solid fa-rocket"></i> Open Assessment in Brave
-                </button>
+                </a>
               ` : ''}
               <button class="btn btn-preview" onclick="showToast('Email Subject: ' + '${(r.subject || '').replace(/'/g, "\\'")}')">
                 <i class="fa-solid fa-envelope"></i> Subject: ${(r.subject || '').substring(0, 45)}...
@@ -1185,9 +1190,9 @@ HTML_DASHBOARD = """<!DOCTYPE html>
 
             <div class="actions-bar">
               <!-- Live Brave Browser Launcher -->
-              <button class="btn btn-brave" onclick="openJobInBrave(${job.rowid}, '${encodeURIComponent(job.apply_url || job.url || "")}', '${encodeURIComponent(job.tailored_resume_path || "")}')">
+              <a href="${job.apply_url || job.url || '#'}" target="_blank" rel="noopener noreferrer" class="btn btn-brave" onclick="handleJobClick(event, ${job.rowid}, '${encodeURIComponent(job.tailored_resume_path || "")}')" style="text-decoration: none;">
                 <i class="fa-brands fa-brave"></i> Open in Brave (Live)
-              </button>
+              </a>
 
               <!-- On-Demand Tailoring Button (JIT) -->
               ${!hasResume ? `
@@ -1236,53 +1241,58 @@ HTML_DASHBOARD = """<!DOCTYPE html>
 
     /* Actions */
 
-    async function openJobInBrave(rowid, encodedUrl, encodedPdfPath) {
-      const url = decodeURIComponent(encodedUrl || '');
+    function handleJobClick(event, rowid, encodedPdfPath) {
       const pdfPath = decodeURIComponent(encodedPdfPath || '');
-
-      if (!url || url.toLowerCase().startsWith('none') || !url.startsWith('http')) {
-        showToast('❌ No direct application URL found for this position.');
-        return;
-      }
-
-      // 1. Copy tailored resume path to Windows clipboard if available
       if (pdfPath && pdfPath !== 'null' && pdfPath !== 'undefined') {
         const absPath = pdfPath.includes(':') ? pdfPath : `D:\\ApplyPilot_Workspace\\data\\${pdfPath.replace(/^\//, '').replace(/\//g, '\\')}`;
         try {
-          await navigator.clipboard.writeText(absPath);
-          showToast('📋 Tailored Resume copied to clipboard! Opening portal in Brave...');
+          navigator.clipboard.writeText(absPath);
+          showToast('📋 Tailored Resume copied to clipboard! Opening in Brave...');
         } catch (e) {
-          showToast('Opening portal in your active Brave browser...');
+          showToast('Opening in your active Brave browser...');
         }
       } else {
-        showToast('Opening portal in your active Brave browser...');
+        showToast('Opening in your active Brave browser...');
       }
 
-      // 2. Open new tab DIRECTLY in active Brave browser session
-      window.open(url, '_blank');
-
-      // 3. Notify backend asynchronously
+      // Notify backend asynchronously to log and provide OS shell fallback
       try {
         fetch(`/api/jobs/${rowid}/open_brave`, { method: 'POST' });
       } catch (e) {}
     }
 
-    async function openInBrave(rowid) {
+    function openJobInBrave(rowid, encodedUrl, encodedPdfPath) {
+      const url = decodeURIComponent(encodedUrl || '');
+      if (!url || url.toLowerCase().startsWith('none') || !url.startsWith('http')) {
+        showToast('❌ No direct application URL found for this position.');
+        return;
+      }
+      handleJobClick(null, rowid, encodedPdfPath);
+      const a = document.createElement('a');
+      a.href = url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+
+    function openInBrave(rowid) {
       const job = allJobs.find(j => j.rowid === rowid);
-      if (job) {
-        return openJobInBrave(rowid, encodeURIComponent(job.apply_url || job.url || ''), encodeURIComponent(job.tailored_resume_path || ''));
+      const url = job ? (job.apply_url || job.url) : null;
+      if (!url || url.toLowerCase().startsWith('none') || !url.startsWith('http')) {
+        showToast('❌ No direct application URL found for this position.');
+        return;
       }
       showToast('Opening in your active Brave browser...');
-      try {
-        const res = await fetch(`/api/jobs/${rowid}/open_brave`, { method: 'POST' });
-        const data = await res.json();
-        if (data.status === 'ok' && data.apply_url) {
-          window.open(data.apply_url, '_blank');
-        }
-        showToast(data.message || 'Opened in Brave');
-      } catch (err) {
-        showToast('Error opening job in Brave: ' + err);
-      }
+      handleJobClick(null, rowid, encodeURIComponent(job.tailored_resume_path || ''));
+      const a = document.createElement('a');
+      a.href = url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
     }
 
     async function tailorSingleJob(rowid) {
@@ -1581,13 +1591,13 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       }
     }
 
-    async function openDirectUrl(url) {
+    function openDirectUrl(url) {
       if (!url || !url.startsWith('http')) {
         showToast('❌ Invalid or missing link.');
         return;
       }
       showToast('Opening in your active Brave browser...');
-      window.open(url, '_blank');
+      // 1. Notify backend to trigger OS shell launch
       try {
         fetch('/api/open_url', {
           method: 'POST',
@@ -1595,6 +1605,14 @@ HTML_DASHBOARD = """<!DOCTYPE html>
           body: JSON.stringify({ url: url })
         });
       } catch (e) {}
+      // 2. Native anchor dispatch so Brave opens tab immediately
+      const a = document.createElement('a');
+      a.href = url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
     }
 
     function showToast(msg) {
