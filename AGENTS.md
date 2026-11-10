@@ -5,8 +5,10 @@ Refer to `../MEMORY.md` for the complete operational history and candidate perso
 ## Critical Invariants for Developers & AI Agents:
 
 1. **Browser Navigation:**
-   * When opening URLs from the web dashboard, ALWAYS invoke `window.open(url, '_blank')` in the frontend click handler.
-   * Do NOT rely solely on Python spawning `brave.exe` or background OS subprocesses to open tabs—Windows Focus Stealing Prevention will block foreground switching when Brave is already open.
+   * NEVER use programmatic `window.open(...)` from JavaScript functions—Brave Shields intercepts and blocks it silently as an unwanted popup.
+   * ALWAYS render links as native HTML `<a href="..." target="_blank" rel="noopener noreferrer">` anchor elements (used for Job cards, Open LinkedIn, Assessment links, and Referral filters).
+   * In backend Python, NEVER pass `stdout=DEVNULL, stderr=DEVNULL` to `subprocess.Popen([BRAVE_EXE, ...])` on Windows; pipe redirection causes Chromium's process initialization to drop IPC messages.
+   * Prefer `os.startfile(url)` on Windows to launch links via the registered default browser (`BraveHTML`).
    * Use native JavaScript `navigator.clipboard.writeText(...)` for copying files or notes to clipboard with zero latency.
 
 2. **User Profiles:**
