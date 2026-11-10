@@ -422,6 +422,19 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     </div>
   </div>
 
+  <!-- Referral & LinkedIn Outreach Modal -->
+  <div id="referral-modal" class="modal-backdrop" onclick="if(event.target===this) closeReferralModal()">
+    <div class="modal-content" style="max-width: 820px; max-height: 90vh; overflow-y: auto;">
+      <div class="modal-header" style="background: linear-gradient(90deg, #0f172a, #1e1b4b);">
+        <h3 id="referral-modal-title" style="color:#38bdf8;"><i class="fa-solid fa-people-arrows"></i> LinkedIn Referrals & Outreach</h3>
+        <button class="modal-close" onclick="closeReferralModal()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div id="referral-modal-body" style="padding: 24px; color: #cbd5e1; font-size: 14px; line-height: 1.6;">
+        <!-- Injected via JavaScript -->
+      </div>
+    </div>
+  </div>
+
   <div id="toast" class="toast"></div>
 
   <script>
@@ -513,6 +526,10 @@ HTML_DASHBOARD = """<!DOCTYPE html>
               ${hasCover ? `<button class="btn btn-preview" onclick="previewPDF('${job.cover_letter_path}', '${job.company} - Cover Letter')"><i class="fa-solid fa-eye"></i> Cover PDF</button>` : ''}
               ${job.recruiter_email ? `<a class="btn" style="background:#7c3aed;color:white;" href="mailto:${job.recruiter_email}?subject=Application for ${encodeURIComponent(job.title)} - Deepak S H&body=Hi,%0D%0A%0D%0AI came across the ${encodeURIComponent(job.title)} opening at ${encodeURIComponent(job.company)}. I am an SDE-I Backend Engineer at Meesho with 1.3 years of experience in Java, Go, Kafka, Redis, and Distributed Systems, and graduated from RVCE (CGPA 8.92).%0D%0A%0D%0AI would love to connect and share my resume.%0D%0A%0D%0ABest regards,%0D%0ADeepak S H%0D%0A8431433659"><i class="fa-solid fa-paper-plane"></i> Email Recruiter</a>` : ''}
               
+              <button class="btn" style="background:#0284c7;color:white;" onclick="openReferralModal(${job.rowid})">
+                <i class="fa-solid fa-people-arrows"></i> Referral Outreach
+              </button>
+
               <button class="btn btn-apply" onclick="launchAssistant(${job.rowid})">
                 <i class="fa-solid fa-bolt"></i> 1-Click Apply
               </button>
@@ -539,6 +556,69 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     function closeModal() {
       document.getElementById('pdf-modal').style.display = 'none';
       document.getElementById('pdf-frame').src = '';
+    }
+
+    function openReferralModal(rowid) {
+      const job = allJobs.find(j => j.rowid === rowid);
+      if (!job) return;
+      const o = job.outreach || {};
+
+      document.getElementById('referral-modal-title').innerHTML = `<i class="fa-solid fa-people-arrows"></i> LinkedIn Referrals: <strong>${job.company}</strong> (${job.title})`;
+
+      const html = `
+        <div style="background: rgba(30, 41, 59, 0.7); border: 1px solid #334155; border-radius: 8px; padding: 16px; margin-bottom: 20px;">
+          <h4 style="margin: 0 0 10px 0; color: #38bdf8;"><i class="fa-brands fa-linkedin"></i> 1. Who to message on LinkedIn (1-Click Searches in Brave)</h4>
+          <p style="margin: 0 0 12px 0; font-size: 13px; color: #94a3b8;">
+            💡 <em>Alumni referrals have a 50-80% response rate compared to 2% for cold portal applications!</em>
+          </p>
+          <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+            <a href="${o.alumni_search_url || '#'}" target="_blank" class="btn" style="background:#0284c7;color:white;text-decoration:none;">
+              🎓 Find RVCE Alumni at ${job.company}
+            </a>
+            <a href="${o.recruiter_search_url || '#'}" target="_blank" class="btn" style="background:#7c3aed;color:white;text-decoration:none;">
+              🎯 Find Tech Recruiters at ${job.company}
+            </a>
+            <a href="${o.lead_search_url || '#'}" target="_blank" class="btn" style="background:#475569;color:white;text-decoration:none;">
+              ⚡ Find Backend Engineering Managers
+            </a>
+          </div>
+        </div>
+
+        <div style="margin-bottom: 20px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <h4 style="margin: 0; color: #4ade80;"><i class="fa-solid fa-graduation-cap"></i> Template A: RVCE Alumni Referral Request</h4>
+            <button class="btn" style="background: #10b981; color: white; padding: 4px 10px; font-size: 12px;" onclick="copyOutreachText('alumni-msg-text')">
+              <i class="fa-regular fa-copy"></i> Copy Message
+            </button>
+          </div>
+          <textarea id="alumni-msg-text" style="width: 100%; height: 130px; background: #0f172a; color: #f1f5f9; border: 1px solid #334155; border-radius: 6px; padding: 10px; font-family: monospace; font-size: 12px; resize: vertical;" readonly>${o.alumni_message || ''}</textarea>
+        </div>
+
+        <div style="margin-bottom: 10px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <h4 style="margin: 0; color: #a78bfa;"><i class="fa-solid fa-bullhorn"></i> Template B: Recruiter Direct Message</h4>
+            <button class="btn" style="background: #7c3aed; color: white; padding: 4px 10px; font-size: 12px;" onclick="copyOutreachText('recruiter-msg-text')">
+              <i class="fa-regular fa-copy"></i> Copy Message
+            </button>
+          </div>
+          <textarea id="recruiter-msg-text" style="width: 100%; height: 130px; background: #0f172a; color: #f1f5f9; border: 1px solid #334155; border-radius: 6px; padding: 10px; font-family: monospace; font-size: 12px; resize: vertical;" readonly>${o.recruiter_message || ''}</textarea>
+        </div>
+      `;
+
+      document.getElementById('referral-modal-body').innerHTML = html;
+      document.getElementById('referral-modal').style.display = 'flex';
+    }
+
+    function closeReferralModal() {
+      document.getElementById('referral-modal').style.display = 'none';
+    }
+
+    function copyOutreachText(elemId) {
+      const el = document.getElementById(elemId);
+      if (el) {
+        navigator.clipboard.writeText(el.value);
+        showToast('Message copied to clipboard! Ready to paste into LinkedIn.');
+      }
     }
 
     async function approveJob(rowid) {
@@ -626,6 +706,16 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             rows = c.execute(query).fetchall()
             cols = [d[0] for d in c.description]
             jobs = [dict(zip(cols, r)) for r in rows]
+
+            # Attach LinkedIn referral outreach data to each job
+            from applypilot.networking.outreach import generate_outreach_messages
+            for j in jobs:
+                j["outreach"] = generate_outreach_messages(
+                    company=j.get("company", ""),
+                    role_title=j.get("title", ""),
+                    apply_url=j.get("apply_url", ""),
+                    recruiter_email=j.get("recruiter_email", "")
+                )
 
             self.send_response(200)
             self.send_header("Content-Type", "application/json; charset=utf-8")

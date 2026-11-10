@@ -7,17 +7,20 @@ Extracts recruiter emails, referral links, role details, and stores them in the 
 
 import hashlib
 import logging
+import os
 import re
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-from applypilot.config import APP_DIR
+from applypilot.config import APP_DIR, load_search_config
 from applypilot.database import get_connection, store_jobs_deduped
 from applypilot.enrichment.email_extractor import extract_emails_from_text
 
 log = logging.getLogger(__name__)
 
 WHATSAPP_DIR = APP_DIR / "whatsapp_imports"
+BRAVE_PROFILE_DIR = APP_DIR / "brave_profile"
 
 # Regex for WhatsApp message headers
 # Android: "05/11/24, 14:32 - Sender Name: Message"
@@ -137,7 +140,90 @@ def ingest_whatsapp_folder() -> int:
     return 0
 
 
+def scrape_live_whatsapp_web(target_groups: list[str] | None = None, wait_timeout_sec: int = 40) -> int:
+    """Connect to WhatsApp Web via Brave profile and read recent messages from specific channels."""
+    if not target_groups:
+        cfg = load_search_config()
+        target_groups = cfg.get("whatsapp_groups", [
+            "RVCE Tech Referrals",
+            "Bangalore SDE Jobs",
+            "Tech Jobs & Referrals India"
+        ])
+
+    from applypilot.apply.assistant import get_browser_executable
+    from playwright.sync_api import sync_playwright
+
+    exe_path, browser_name = get_browser_executable()
+    BRAVE_PROFILE_DIR.mkdir(parents=True, exist_ok=True)
+
+    log.info("Connecting to WhatsApp Web in %s to monitor channels: %s", browser_name.upper(), target_groups)
+    new_jobs_total = 0
+
+    try:
+        with sync_playwright() as p:
+            context = p.chromium.launch_persistent_context(
+                user_data_dir=str(BRAVE_PROFILE_DIR.resolve()),
+                executable_path=exe_path if exe_path else None,
+                headless=False,
+                viewport={"width": 1280, "height": 800},
+                args=["--disable-blink-features=AutomationControlled"]
+            )
+            page = context.new_page() if not context.pages else context.pages[0]
+
+            log.info("Opening WhatsApp Web...")
+            page.goto("https://web.whatsapp.com/", wait_until="domcontentloaded", timeout=45000)
+
+            # Wait for chat list or QR code
+            try:
+                page.wait_for_selector("#pane-side, div[aria-label='Chat list']", timeout=wait_timeout_sec * 1000)
+            except Exception:
+                log.warning("WhatsApp Web not authenticated yet. Please scan QR code in the browser window.")
+                return 0
+
+            log.info("WhatsApp Web session active! Reading target channels...")
+            all_found = []
+
+            for group in target_groups:
+                try:
+                    log.info("Searching for group: %s", group)
+                    # Search box
+                    search_box = page.query_selector("div[contenteditable='true'][role='textbox']")
+                    if search_box:
+                        search_box.click()
+                        search_box.fill(group)
+                        page.keyboard.press("Enter")
+                        time.sleep(2)
+
+                    # Extract visible message bubbles
+                    bubbles = page.query_selector_all("div.message-in")
+                    raw_texts = []
+                    for b in bubbles[-25:]:  # Read last 25 messages
+                        t = b.inner_text()
+                        if t:
+                            raw_texts.append(t)
+
+                    if raw_texts:
+                        fake_chat_content = "\n".join([f"01/01/26, 12:00 - Community Member: {m}" for m in raw_texts])
+                        parsed = parse_whatsapp_chat_export(fake_chat_content, group_name=group)
+                        all_found.extend(parsed)
+                        log.info("Found %d hiring leads in %s", len(parsed), group)
+                except Exception as ge:
+                    log.warning("Error reading group %s: %s", group, ge)
+
+            if all_found:
+                conn = get_connection()
+                new_jobs_total, _, _ = store_jobs_deduped(conn, all_found, site="WhatsApp Referral", strategy="whatsapp_community")
+                log.info("Saved %d new opportunities from live WhatsApp Web.", new_jobs_total)
+
+            context.close()
+    except Exception as e:
+        log.warning("WhatsApp Web live scraping encountered: %s", e)
+
+    return new_jobs_total
+
+
 def run_discovery() -> int:
     """Main discovery runner for WhatsApp community referrals."""
     log.info("Running WhatsApp Communities discovery...")
-    return ingest_whatsapp_folder()
+    folder_count = ingest_whatsapp_folder()
+    return folder_count

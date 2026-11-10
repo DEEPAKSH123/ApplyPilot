@@ -42,8 +42,10 @@ def export_opportunities_csv(output_path: Path | str | None = None) -> Path:
     fieldnames = [
         "Company", "Title", "Location", "Rating (Fit Score 1-10)",
         "Recruiter Email", "Apply Link", "Tailored Resume PDF", "Cover Letter PDF",
-        "Discovered At", "Scored At", "Match Reasoning"
+        "LinkedIn Referral Search", "Discovered At", "Scored At", "Match Reasoning"
     ]
+
+    from applypilot.networking.outreach import generate_linkedin_searches
 
     query = """
         SELECT 
@@ -66,10 +68,19 @@ def export_opportunities_csv(output_path: Path | str | None = None) -> Path:
     formatted_rows = []
     for r in rows:
         row = list(r)
+        comp = row[0]
+        tit = row[1]
         # item 6: tailored_resume_pdf
         row[6] = _clean_path(row[6])
         # item 7: cover_letter_pdf
         row[7] = _clean_path(row[7])
+
+        # LinkedIn Referral Search Link for RVCE alumni
+        ref_searches = generate_linkedin_searches(comp, tit)
+        alumni_link = ref_searches.get("alumni_search_url", "")
+        # Insert alumni_link before item 8 (discovered_at)
+        row.insert(8, alumni_link)
+
         formatted_rows.append(row)
 
     try:

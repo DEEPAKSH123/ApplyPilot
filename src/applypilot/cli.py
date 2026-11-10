@@ -365,6 +365,18 @@ def assistant_cmd(
     console.print(f"[bold cyan]Assistant finished: {res}[/bold cyan]")
 
 
+@app.command("whatsapp")
+def whatsapp_cmd(
+    timeout: int = typer.Option(45, "--timeout", "-t", help="Timeout in seconds to wait for WhatsApp Web login"),
+) -> None:
+    """Connect to WhatsApp Web via Brave to monitor specified channels for hiring referrals."""
+    _bootstrap()
+    from applypilot.discovery.whatsapp import scrape_live_whatsapp_web
+    console.print("[bold green]Starting WhatsApp Web channel monitor in Brave...[/bold green]")
+    count = scrape_live_whatsapp_web(wait_timeout_sec=timeout)
+    console.print(f"[bold cyan]WhatsApp sync complete! Ingested {count} new opportunities.[/bold cyan]")
+
+
 @app.command()
 def doctor() -> None:
     """Check your setup and diagnose missing requirements."""
