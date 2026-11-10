@@ -97,13 +97,13 @@ def prefill_all_visible_fields(page, profile: dict, tailored_resume: Path | None
     first_name = personal.get("full_name", "").split()[0] if personal.get("full_name") else "Deepak"
     last_name = " ".join(personal.get("full_name", "").split()[1:]) if personal.get("full_name") else "S H"
     full_name = personal.get("full_name", "Deepak S H")
-    email = personal.get("email", "deepaksh2002@gmail.com")
+    email = personal.get("email", "deepakshkarkala@gmail.com")
     phone = personal.get("phone", "8431433659")
     city = personal.get("city", "Bengaluru")
     state = "Karnataka"
     country = "India"
-    postal = "560059"
-    linkedin = personal.get("linkedin_url", "https://www.linkedin.com/in/deepak-s-h-851a76201")
+    postal = personal.get("postal_code", "560087")
+    linkedin = personal.get("linkedin_url", "https://www.linkedin.com/in/deepak-s-h-82b772254")
     github = "https://github.com/Deepak-S-H"
     website = github
     company = exp.get("current_company", "Meesho")
@@ -287,9 +287,10 @@ def launch_application_assistant(identifier: str | int, headed: bool = True) -> 
         return {"status": "error", "message": "No application URL available for this job."}
 
     # Special handling for known invalid referral links (e.g. PhonePe mock referral)
-    if "phonepe.com/careers/sde1" in apply_url:
-        # Fall back to live PhonePe careers portal
-        apply_url = "https://www.phonepe.com/careers-all/"
+    if "phonepe.com" in apply_url and ("sde1" in apply_url or apply_url.rstrip("/").endswith("/careers")):
+        apply_url = "https://jobs.smartrecruiters.com/PhonePeLimited/1000000000003895"
+    elif "razorpay.com" in apply_url and apply_url.rstrip("/").endswith("/jobs"):
+        apply_url = "https://job-boards.greenhouse.io/razorpaysoftwareprivatelimited"
 
     profile = load_profile()
 

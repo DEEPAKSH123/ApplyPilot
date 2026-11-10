@@ -70,8 +70,8 @@ HTML_DASHBOARD = """<!DOCTYPE html>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
   <style>
-    /* Dynamic Theme Palettes */
-    :root, [data-theme="aurora"] {
+    /* Premier Nordic Aurora Cyber Theme */
+    :root {
       --bg: #060913;
       --bg-gradient: radial-gradient(circle at 10% 12%, rgba(6, 182, 212, 0.22) 0%, transparent 45%),
                      radial-gradient(circle at 90% 15%, rgba(16, 185, 129, 0.18) 0%, transparent 45%),
@@ -95,88 +95,6 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       --rose: #f43f5e;
     }
 
-    [data-theme="cyberpunk"] {
-      --bg: #090615;
-      --bg-gradient: radial-gradient(ellipse at 15% 0%, rgba(168, 85, 247, 0.25) 0%, transparent 55%),
-                     radial-gradient(ellipse at 85% 100%, rgba(244, 63, 94, 0.2) 0%, transparent 55%),
-                     #090615;
-      --panel: rgba(22, 13, 41, 0.85);
-      --panel-border: rgba(168, 85, 247, 0.2);
-      --card-bg: rgba(26, 16, 49, 0.9);
-      --card-border: rgba(168, 85, 247, 0.25);
-      --text: #faf5ff;
-      --text-muted: #a8a29e;
-      --accent: #a855f7;
-      --accent-glow: rgba(168, 85, 247, 0.4);
-      --brand-grad: linear-gradient(135deg, #f43f5e, #c084fc, #38bdf8);
-      --tab-active: linear-gradient(135deg, #7c3aed, #ec4899);
-      --emerald: #10b981;
-      --emerald-glow: rgba(16, 185, 129, 0.35);
-      --amber: #f59e0b;
-      --cyan: #38bdf8;
-      --purple: #a855f7;
-      --rose: #f43f5e;
-    }
-
-    [data-theme="space-black"] {
-      --bg: #000000;
-      --bg-gradient: radial-gradient(circle at 50% 12%, rgba(34, 197, 94, 0.14) 0%, transparent 60%),
-                     #000000;
-      --panel: rgba(16, 16, 20, 0.95);
-      --panel-border: rgba(255, 255, 255, 0.14);
-      --card-bg: rgba(20, 20, 26, 0.95);
-      --card-border: rgba(255, 255, 255, 0.16);
-      --text: #ffffff;
-      --text-muted: #9ca3af;
-      --accent: #22c55e;
-      --accent-glow: rgba(34, 197, 94, 0.35);
-      --brand-grad: linear-gradient(135deg, #22c55e, #10b981, #06b6d4);
-      --tab-active: linear-gradient(135deg, #15803d, #047857);
-      --emerald: #22c55e;
-      --emerald-glow: rgba(34, 197, 94, 0.35);
-      --amber: #eab308;
-      --cyan: #06b6d4;
-      --purple: #a855f7;
-      --rose: #f43f5e;
-    }
-
-    [data-theme="sunset-slate"] {
-      --bg: #0c0e12;
-      --bg-gradient: radial-gradient(circle at 12% 15%, rgba(249, 115, 22, 0.2) 0%, transparent 50%),
-                     radial-gradient(circle at 88% 85%, rgba(217, 70, 239, 0.15) 0%, transparent 50%),
-                     #0c0e12;
-      --panel: rgba(20, 24, 33, 0.85);
-      --panel-border: rgba(249, 115, 22, 0.18);
-      --card-bg: rgba(25, 30, 42, 0.9);
-      --card-border: rgba(249, 115, 22, 0.22);
-      --text: #fff7ed;
-      --text-muted: #a1a1aa;
-      --accent: #f97316;
-      --accent-glow: rgba(249, 115, 22, 0.35);
-      --brand-grad: linear-gradient(135deg, #f97316, #fb923c, #fbbf24);
-      --tab-active: linear-gradient(135deg, #ea580c, #c026d3);
-      --emerald: #10b981;
-      --emerald-glow: rgba(16, 185, 129, 0.35);
-      --amber: #f59e0b;
-      --cyan: #38bdf8;
-      --purple: #d946ef;
-      --rose: #f43f5e;
-    }
-
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-
-    body {
-      font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
-      background: var(--bg-gradient);
-      color: var(--text);
-      line-height: 1.5;
-      padding-bottom: 80px;
-      min-height: 100vh;
-      background-attachment: fixed;
-      transition: background 0.3s ease, color 0.3s ease;
-    }
-
-    /* Header */
     header {
       background: rgba(15, 23, 42, 0.85);
       backdrop-filter: blur(16px);
@@ -369,36 +287,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       box-shadow: 0 4px 14px var(--accent-glow);
     }
 
-    /* Palette Switcher */
-    .theme-picker {
-      display: flex;
-      align-items: center;
-      gap: 3px;
-      background: rgba(0, 0, 0, 0.35);
-      border: 1px solid var(--panel-border);
-      border-radius: 999px;
-      padding: 3px 4px;
-    }
-    .theme-btn {
-      background: transparent;
-      border: none;
-      color: var(--text-muted);
-      font-size: 11px;
-      font-weight: 700;
-      padding: 4px 10px;
-      border-radius: 999px;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      white-space: nowrap;
-    }
-    .theme-btn:hover {
-      color: #fff;
-    }
-    .theme-btn.active {
-      background: var(--accent);
-      color: #fff;
-      box-shadow: 0 0 10px var(--accent-glow);
-    }
+    
     .tab-badge {
       background: rgba(255, 255, 255, 0.2);
       font-size: 11px;
@@ -632,6 +521,19 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       transform: translateY(-1px);
       filter: brightness(1.1);
     }
+    .btn-autofill {
+      background: linear-gradient(135deg, #0284c7, #10b981);
+      color: white;
+      font-weight: 700;
+      box-shadow: 0 2px 10px rgba(16, 185, 129, 0.35);
+    }
+    .btn-autofill:hover {
+      background: linear-gradient(135deg, #0369a1, #059669);
+      color: #fff;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 14px rgba(16, 185, 129, 0.5);
+    }
+
     .btn-brave {
       background: linear-gradient(135deg, #ea580c, #f97316);
       color: white;
@@ -845,13 +747,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       <a href="https://mail.google.com/mail/u/0/#drafts" target="_blank" rel="noopener noreferrer" class="quick-pill" style="background: #ea4335; color: #fff; font-weight: 700; text-decoration: none;"><i class="fa-solid fa-envelope"></i> Gmail Drafts</a>
       <div class="quick-pill" onclick="openCustomDraftModal()" style="background: rgba(234, 67, 53, 0.2); border: 1px solid #ea4335; color: #fca5a5; font-weight: 700; cursor: pointer;"><i class="fa-solid fa-pen-nib"></i> + Draft Cold Email</div>
 
-      <!-- Theme Switcher Pill -->
-      <div class="theme-picker">
-        <button class="theme-btn active" id="btn-theme-aurora" onclick="setPalette('aurora')" title="Nordic Aurora (Cyan & Emerald)">🌊 Aurora</button>
-        <button class="theme-btn" id="btn-theme-cyberpunk" onclick="setPalette('cyberpunk')" title="Cyberpunk Neon (Violet & Pink)">🔮 Neon</button>
-        <button class="theme-btn" id="btn-theme-sunset-slate" onclick="setPalette('sunset-slate')" title="Sunset Amber (Warm Carbon)">🌅 Sunset</button>
-        <button class="theme-btn" id="btn-theme-space-black" onclick="setPalette('space-black')" title="OLED True Black (High Contrast)">🪐 OLED</button>
-      </div>
+      
     </div>
   </header>
 
@@ -1016,23 +912,52 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     let allResponses = [];
     let currentTab = 'high';
 
-    function setPalette(themeName) {
-      document.documentElement.setAttribute('data-theme', themeName);
-      localStorage.setItem('applypilot_theme', themeName);
-      document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
-      const activeBtn = document.getElementById(`btn-theme-${themeName}`);
-      if (activeBtn) activeBtn.classList.add('active');
-      showToast(`Palette switched to: ${themeName.replace('-', ' ').toUpperCase()}`);
-    }
+    
 
-    // Initialize saved theme
-    const savedTheme = localStorage.getItem('applypilot_theme') || 'aurora';
-    document.documentElement.setAttribute('data-theme', savedTheme);
-    setTimeout(() => {
-      document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
-      const initialBtn = document.getElementById(`btn-theme-${savedTheme}`);
-      if (initialBtn) initialBtn.classList.add('active');
-    }, 50);
+    
+    /* 1-Click Application Assistant Autofill */
+    async function launchAutofill(rowid) {
+      const btn = document.getElementById(`btn-autofill-${rowid}`);
+      if (btn) {
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Launching Assistant...';
+        btn.disabled = true;
+      }
+      showToast('⚡ Launching Application Assistant in Brave with autofill...');
+
+      const job = allJobs.find(j => j.rowid === rowid);
+      if (job && job.tailored_resume_path) {
+        navigator.clipboard.writeText(job.tailored_resume_path);
+      }
+
+      try {
+        const res = await fetch(`/api/jobs/${rowid}/launch`, { method: 'POST' });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          showToast('🛡️ Application Assistant active in Brave! Auto-filling fields & attaching resume.');
+          if (btn) {
+            btn.innerHTML = '<i class="fa-solid fa-check"></i> Autofilling in Brave';
+            btn.style.background = '#059669';
+            setTimeout(() => {
+              btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> Autofill in Brave';
+              btn.disabled = false;
+              btn.style.background = 'linear-gradient(135deg, #0284c7, #10b981)';
+            }, 5000);
+          }
+        } else {
+          showToast('⚠️ Assistant launch: ' + (data.message || 'Error'));
+          if (btn) {
+            btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> Autofill in Brave';
+            btn.disabled = false;
+          }
+        }
+      } catch (e) {
+        showToast('Assistant error: ' + e);
+        if (btn) {
+          btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> Autofill in Brave';
+          btn.disabled = false;
+        }
+      }
+    }
 
     async function fetchJobs() {
       try {
@@ -1244,9 +1169,14 @@ HTML_DASHBOARD = """<!DOCTYPE html>
             ${job.score_reasoning ? `<div class="reasoning">${job.score_reasoning.replace(/\\n/g, '<br>')}</div>` : ''}
 
             <div class="actions-bar">
+              <!-- 1-Click Application Assistant & Autofill Button -->
+              <button class="btn btn-autofill" id="btn-autofill-${job.rowid}" onclick="launchAutofill(${job.rowid})">
+                <i class="fa-solid fa-wand-magic-sparkles"></i> Autofill in Brave
+              </button>
+
               <!-- Live Brave Browser Launcher -->
               <a href="${job.apply_url || job.url || '#'}" target="_blank" rel="noopener noreferrer" class="btn btn-brave" onclick="handleJobClick(event, ${job.rowid}, '${encodeURIComponent(job.tailored_resume_path || "")}')" style="text-decoration: none;">
-                <i class="fa-brands fa-brave"></i> Open in Brave (Live)
+                <i class="fa-brands fa-brave"></i> Open Portal
               </a>
 
               <!-- On-Demand Tailoring Button (JIT) -->
