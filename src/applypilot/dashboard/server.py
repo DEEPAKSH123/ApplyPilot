@@ -66,226 +66,113 @@ HTML_DASHBOARD = """<!DOCTYPE html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>⚡ ApplyPilot 2.0 - Command & Review Dashboard</title>
+  <title>ApplyPilot - Command & Review Dashboard</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
   <style>
-    /* Dynamic Theme Palettes */
-    :root, [data-theme="classic"] {
-      --bg: #070a13;
-      --bg-gradient: radial-gradient(ellipse at 15% 0%, rgba(99, 102, 241, 0.22) 0%, transparent 55%),
-                     radial-gradient(ellipse at 85% 100%, rgba(236, 72, 153, 0.16) 0%, transparent 55%),
-                     radial-gradient(circle at 50% 50%, rgba(56, 189, 248, 0.08) 0%, transparent 60%),
-                     #070a13;
-      --panel: rgba(15, 23, 42, 0.85);
-      --panel-border: rgba(99, 102, 241, 0.22);
-      --card-bg: rgba(18, 26, 47, 0.9);
-      --card-border: rgba(99, 102, 241, 0.25);
+    /* Clean Enterprise Dark Theme */
+    :root {
+      --bg: #0b0f19;
+      --panel: #111827;
+      --panel-border: #1f2937;
+      --card-bg: #111827;
+      --card-border: #1f2937;
       --text: #f8fafc;
       --text-muted: #94a3b8;
-      --accent: #6366f1;
-      --accent-glow: rgba(99, 102, 241, 0.4);
-      --brand-grad: linear-gradient(135deg, #6366f1, #38bdf8, #10b981);
-      --tab-active: linear-gradient(135deg, #4f46e5, #0ea5e9);
+      --accent: #2563eb;
+      --accent-hover: #1d4ed8;
       --emerald: #10b981;
-      --emerald-glow: rgba(16, 185, 129, 0.35);
       --amber: #f59e0b;
-      --cyan: #06b6d4;
-      --purple: #a855f7;
-      --rose: #f43f5e;
-    }
-
-    [data-theme="aurora"] {
-      --bg: #060913;
-      --bg-gradient: radial-gradient(circle at 10% 12%, rgba(6, 182, 212, 0.22) 0%, transparent 45%),
-                     radial-gradient(circle at 90% 15%, rgba(16, 185, 129, 0.18) 0%, transparent 45%),
-                     radial-gradient(circle at 50% 85%, rgba(59, 130, 246, 0.14) 0%, transparent 55%),
-                     #060913;
-      --panel: rgba(11, 19, 38, 0.85);
-      --panel-border: rgba(56, 189, 248, 0.2);
-      --card-bg: rgba(13, 22, 44, 0.9);
-      --card-border: rgba(56, 189, 248, 0.22);
-      --text: #f8fafc;
-      --text-muted: #94a3b8;
-      --accent: #06b6d4;
-      --accent-glow: rgba(6, 182, 212, 0.4);
-      --brand-grad: linear-gradient(135deg, #00f2fe, #38bdf8, #34d399);
-      --tab-active: linear-gradient(135deg, #0284c7, #0d9488);
-      --emerald: #10b981;
-      --emerald-glow: rgba(16, 185, 129, 0.35);
-      --amber: #f59e0b;
-      --cyan: #06b6d4;
-      --purple: #38bdf8;
-      --rose: #f43f5e;
-    }
-
-    [data-theme="space-black"] {
-      --bg: #000000;
-      --bg-gradient: radial-gradient(circle at 50% 12%, rgba(34, 197, 94, 0.14) 0%, transparent 60%),
-                     #000000;
-      --panel: rgba(16, 16, 20, 0.95);
-      --panel-border: rgba(255, 255, 255, 0.14);
-      --card-bg: rgba(20, 20, 26, 0.95);
-      --card-border: rgba(255, 255, 255, 0.16);
-      --text: #ffffff;
-      --text-muted: #9ca3af;
-      --accent: #22c55e;
-      --accent-glow: rgba(34, 197, 94, 0.4);
-      --brand-grad: linear-gradient(135deg, #22c55e, #10b981, #06b6d4);
-      --tab-active: linear-gradient(135deg, #15803d, #047857);
-      --emerald: #22c55e;
-      --emerald-glow: rgba(34, 197, 94, 0.35);
-      --amber: #eab308;
-      --cyan: #06b6d4;
-      --purple: #a855f7;
-      --rose: #f43f5e;
-    }
-
-    [data-theme="cyberpunk"] {
-      --bg: #090615;
-      --bg-gradient: radial-gradient(ellipse at 15% 0%, rgba(168, 85, 247, 0.25) 0%, transparent 55%),
-                     radial-gradient(ellipse at 85% 100%, rgba(244, 63, 94, 0.2) 0%, transparent 55%),
-                     #090615;
-      --panel: rgba(22, 13, 41, 0.88);
-      --panel-border: rgba(168, 85, 247, 0.25);
-      --card-bg: rgba(26, 16, 49, 0.92);
-      --card-border: rgba(168, 85, 247, 0.28);
-      --text: #faf5ff;
-      --text-muted: #a8a29e;
-      --accent: #a855f7;
-      --accent-glow: rgba(168, 85, 247, 0.45);
-      --brand-grad: linear-gradient(135deg, #f43f5e, #c084fc, #38bdf8);
-      --tab-active: linear-gradient(135deg, #7c3aed, #ec4899);
-      --emerald: #10b981;
-      --emerald-glow: rgba(16, 185, 129, 0.35);
-      --amber: #f59e0b;
-      --cyan: #38bdf8;
-      --purple: #a855f7;
-      --rose: #f43f5e;
-    }
-
-    [data-theme="sunset-slate"] {
-      --bg: #0c0e12;
-      --bg-gradient: radial-gradient(circle at 12% 15%, rgba(249, 115, 22, 0.22) 0%, transparent 50%),
-                     radial-gradient(circle at 88% 85%, rgba(217, 70, 239, 0.16) 0%, transparent 50%),
-                     #0c0e12;
-      --panel: rgba(20, 24, 33, 0.88);
-      --panel-border: rgba(249, 115, 22, 0.22);
-      --card-bg: rgba(25, 30, 42, 0.92);
-      --card-border: rgba(249, 115, 22, 0.26);
-      --text: #fff7ed;
-      --text-muted: #a1a1aa;
-      --accent: #f97316;
-      --accent-glow: rgba(249, 115, 22, 0.4);
-      --brand-grad: linear-gradient(135deg, #f97316, #fb923c, #fbbf24);
-      --tab-active: linear-gradient(135deg, #ea580c, #c026d3);
-      --emerald: #10b981;
-      --emerald-glow: rgba(16, 185, 129, 0.35);
-      --amber: #f59e0b;
-      --cyan: #38bdf8;
-      --purple: #d946ef;
-      --rose: #f43f5e;
+      --cyan: #0284c7;
+      --purple: #6366f1;
+      --rose: #ef4444;
+      --tab-active: #2563eb;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
       font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: var(--bg-gradient);
+      background: var(--bg);
       color: var(--text);
       line-height: 1.5;
       padding-bottom: 80px;
       min-height: 100vh;
-      background-attachment: fixed;
-      transition: background 0.3s ease, color 0.3s ease;
     }
 
     header {
-      background: rgba(15, 23, 42, 0.85);
-      backdrop-filter: blur(16px);
+      background: #0f172a;
       border-bottom: 1px solid var(--panel-border);
-      padding: 14px 32px;
+      padding: 12px 28px;
       display: flex;
       justify-content: space-between;
       align-items: center;
       position: sticky;
       top: 0;
       z-index: 100;
-      box-shadow: 0 4px 24px rgba(0,0,0,0.4);
     }
     .brand {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
     }
     .brand-logo {
-      font-size: 24px;
+      font-size: 20px;
       color: #38bdf8;
-      filter: drop-shadow(0 0 10px rgba(56, 189, 248, 0.6));
     }
     .brand-title {
-      font-size: 21px;
-      font-weight: 800;
-      letter-spacing: -0.5px;
-      background: var(--brand-grad);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
+      font-size: 18px;
+      font-weight: 700;
+      color: #f8fafc;
+      letter-spacing: -0.3px;
     }
     .status-pill {
       display: flex;
       align-items: center;
-      gap: 8px;
-      background: rgba(16, 185, 129, 0.12);
-      border: 1px solid rgba(16, 185, 129, 0.3);
-      color: #34d399;
+      gap: 6px;
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: #94a3b8;
       font-size: 11px;
-      font-weight: 700;
-      padding: 4px 10px;
-      border-radius: 999px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 6px;
     }
     .pulse-dot {
-      width: 7px;
-      height: 7px;
+      width: 6px;
+      height: 6px;
       border-radius: 50%;
       background: #10b981;
-      box-shadow: 0 0 8px #10b981;
-      animation: pulse 1.6s infinite;
-    }
-    @keyframes pulse {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.4; transform: scale(0.85); }
     }
 
-    /* Candidate Quick-Copy Bar */
+    /* Candidate Quick Bar */
     .quick-bar {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
       flex-wrap: wrap;
     }
     .quick-pill {
-      background: rgba(255, 255, 255, 0.06);
-      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: #1e293b;
+      border: 1px solid #334155;
       color: #cbd5e1;
       font-size: 12px;
-      padding: 5px 12px;
-      border-radius: 999px;
+      font-weight: 500;
+      padding: 5px 11px;
+      border-radius: 6px;
       cursor: pointer;
       display: flex;
       align-items: center;
       gap: 6px;
-      transition: all 0.2s ease;
-      font-family: 'JetBrains Mono', monospace;
+      text-decoration: none;
+      transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
     }
     .quick-pill:hover {
-      background: rgba(99, 102, 241, 0.25);
-      border-color: #818cf8;
+      background: #334155;
+      border-color: #475569;
       color: #fff;
-      transform: translateY(-1px);
     }
 
     .container {
@@ -297,47 +184,44 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     /* Stats Grid */
     .stats-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-      gap: 16px;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 14px;
       margin-bottom: 24px;
     }
     .stat-card {
       background: var(--panel);
-      backdrop-filter: blur(12px);
       border: 1px solid var(--panel-border);
-      padding: 18px 20px;
-      border-radius: 14px;
+      padding: 16px 18px;
+      border-radius: 8px;
       display: flex;
       flex-direction: column;
       position: relative;
-      overflow: hidden;
-      transition: all 0.25s ease;
+      transition: border-color 0.15s ease;
     }
     .stat-card:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 10px 25px rgba(0,0,0,0.3);
-      border-color: rgba(255,255,255,0.2);
+      border-color: #374151;
     }
     .stat-card .label {
       font-size: 11px;
       color: var(--text-muted);
       text-transform: uppercase;
-      font-weight: 700;
-      letter-spacing: 0.6px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
     }
     .stat-card .val {
-      font-size: 32px;
-      font-weight: 800;
+      font-size: 26px;
+      font-weight: 700;
       margin-top: 4px;
-      letter-spacing: -1px;
+      letter-spacing: -0.5px;
+      color: #f8fafc;
     }
 
     /* Queue Announcement Banner */
     .queue-banner {
-      background: linear-gradient(90deg, rgba(99, 102, 241, 0.18), rgba(168, 85, 247, 0.18));
-      border: 1px solid rgba(168, 85, 247, 0.35);
-      border-radius: 12px;
-      padding: 14px 20px;
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 12px 18px;
       margin-bottom: 20px;
       display: flex;
       align-items: center;
@@ -345,9 +229,9 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       gap: 16px;
     }
     .queue-banner-title {
-      font-weight: 700;
-      font-size: 14px;
-      color: #e0e7ff;
+      font-weight: 600;
+      font-size: 13px;
+      color: #e2e8f0;
       display: flex;
       align-items: center;
       gap: 8px;
@@ -364,69 +248,33 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     }
     .tabs {
       display: flex;
-      gap: 6px;
-      background: rgba(15, 23, 42, 0.7);
-      padding: 5px;
-      border-radius: 12px;
+      gap: 4px;
+      background: #111827;
+      padding: 4px;
+      border-radius: 8px;
       border: 1px solid var(--panel-border);
-      backdrop-filter: blur(10px);
+      flex-wrap: wrap;
     }
     .tab-btn {
       background: transparent;
       color: var(--text-muted);
       border: none;
-      padding: 9px 18px;
-      border-radius: 8px;
+      padding: 7px 14px;
+      border-radius: 6px;
       font-size: 13px;
-      font-weight: 700;
+      font-weight: 600;
       cursor: pointer;
-      transition: all 0.2s ease;
+      transition: background 0.15s ease, color 0.15s ease;
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 7px;
     }
     .tab-btn:hover {
       color: #fff;
     }
     .tab-btn.active {
-      background: var(--tab-active);
+      background: #2563eb;
       color: white;
-      box-shadow: 0 4px 14px var(--accent-glow);
-    }
-
-    /* Palette Switcher */
-    .theme-picker {
-      display: flex;
-      align-items: center;
-      gap: 3px;
-      background: rgba(0, 0, 0, 0.4);
-      border: 1px solid var(--panel-border);
-      border-radius: 999px;
-      padding: 3px 5px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-    }
-    .theme-btn {
-      background: transparent;
-      border: none;
-      color: var(--text-muted);
-      font-size: 11px;
-      font-weight: 700;
-      padding: 5px 11px;
-      border-radius: 999px;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      white-space: nowrap;
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-    }
-    .theme-btn:hover {
-      color: #fff;
-    }
-    .theme-btn.active {
-      background: var(--accent);
-      color: #fff;
-      box-shadow: 0 0 12px var(--accent-glow);
     }
 
     
@@ -469,65 +317,21 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     .jobs-grid {
       display: flex;
       flex-direction: column;
-      gap: 18px;
+      gap: 14px;
     }
     .job-card {
       background: var(--card-bg);
       border: 1px solid var(--card-border);
-      border-radius: 16px;
-      padding: 22px 26px;
+      border-radius: 8px;
+      padding: 18px 22px;
       display: flex;
       flex-direction: column;
-      gap: 16px;
-      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      gap: 14px;
       position: relative;
-      backdrop-filter: blur(14px);
+      transition: border-color 0.15s ease;
     }
     .job-card:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 16px 36px rgba(0,0,0,0.45);
-      border-color: rgba(129, 140, 248, 0.4);
-    }
-
-    /* Score 9 Dream Match Special Styling */
-    .job-card.super-match {
-      border: 1.5px solid #10b981;
-      box-shadow: 0 0 24px rgba(16, 185, 129, 0.18);
-      background: linear-gradient(135deg, rgba(6, 78, 59, 0.25), rgba(15, 23, 42, 0.85));
-    }
-    .job-card.super-match::before {
-      content: '🔥 DREAM 9/10 MATCH';
-      position: absolute;
-      top: -10px;
-      right: 28px;
-      background: linear-gradient(90deg, #10b981, #059669);
-      color: #fff;
-      font-size: 10px;
-      font-weight: 800;
-      padding: 3px 10px;
-      border-radius: 999px;
-      letter-spacing: 0.5px;
-      box-shadow: 0 2px 8px rgba(16, 185, 129, 0.5);
-    }
-
-    /* Score 8 Top Match Styling */
-    .job-card.top-match {
-      border: 1.5px solid #06b6d4;
-      box-shadow: 0 0 20px rgba(6, 182, 212, 0.15);
-    }
-    .job-card.top-match::before {
-      content: '⚡ TOP TIER 8/10';
-      position: absolute;
-      top: -10px;
-      right: 28px;
-      background: linear-gradient(90deg, #06b6d4, #2563eb);
-      color: #fff;
-      font-size: 10px;
-      font-weight: 800;
-      padding: 3px 10px;
-      border-radius: 999px;
-      letter-spacing: 0.5px;
-      box-shadow: 0 2px 8px rgba(6, 182, 212, 0.4);
+      border-color: #374151;
     }
 
     .card-top {
@@ -538,22 +342,21 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     }
     .job-meta {
       display: flex;
-      gap: 16px;
+      gap: 14px;
       align-items: center;
     }
     .company-avatar {
-      width: 48px;
-      height: 48px;
-      border-radius: 12px;
-      background: linear-gradient(135deg, #1e1b4b, #3730a3);
-      border: 1px solid rgba(255,255,255,0.15);
+      width: 42px;
+      height: 42px;
+      border-radius: 8px;
+      background: #1e293b;
+      border: 1px solid #334155;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 18px;
-      font-weight: 800;
-      color: #38bdf8;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      font-size: 16px;
+      font-weight: 700;
+      color: #cbd5e1;
       flex-shrink: 0;
     }
     .job-title-row {
@@ -563,9 +366,9 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       flex-wrap: wrap;
     }
     .job-title {
-      font-size: 18px;
-      font-weight: 800;
-      color: #fff;
+      font-size: 17px;
+      font-weight: 700;
+      color: #f8fafc;
       letter-spacing: -0.3px;
     }
     .job-sub {
@@ -589,21 +392,20 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      width: 54px;
-      height: 54px;
-      border-radius: 12px;
-      font-weight: 800;
+      width: 44px;
+      height: 44px;
+      border-radius: 8px;
+      font-weight: 700;
       flex-shrink: 0;
-      box-shadow: 0 4px 14px rgba(0,0,0,0.3);
     }
-    .score-badge .num { font-size: 20px; line-height: 1; }
-    .score-badge .denom { font-size: 9px; opacity: 0.8; text-transform: uppercase; font-weight: 700; margin-top: 2px; }
+    .score-badge .num { font-size: 17px; line-height: 1; }
+    .score-badge .denom { font-size: 9px; opacity: 0.7; text-transform: uppercase; font-weight: 600; margin-top: 1px; }
 
-    .score-9 { background: linear-gradient(135deg, #059669, #10b981); color: #fff; box-shadow: 0 0 16px rgba(16, 185, 129, 0.5); }
-    .score-8 { background: linear-gradient(135deg, #0284c7, #06b6d4); color: #fff; box-shadow: 0 0 14px rgba(6, 182, 212, 0.4); }
-    .score-7 { background: linear-gradient(135deg, #4f46e5, #6366f1); color: #fff; }
-    .score-mid { background: #334155; color: #cbd5e1; }
-    .score-low { background: #1e293b; color: #64748b; }
+    .score-9 { background: #064e3b; color: #6ee7b7; border: 1px solid #059669; }
+    .score-8 { background: #1e3a8a; color: #93c5fd; border: 1px solid #2563eb; }
+    .score-7 { background: #1f2937; color: #cbd5e1; border: 1px solid #374151; }
+    .score-mid { background: #111827; color: #9ca3af; border: 1px solid #1f2937; }
+    .score-low { background: #111827; color: #6b7280; border: 1px solid #1f2937; }
 
     .badges-row {
       display: flex;
@@ -614,27 +416,27 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     }
     .tag {
       font-size: 11px;
-      font-weight: 700;
-      padding: 4px 10px;
-      border-radius: 6px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 4px;
       display: flex;
       align-items: center;
       gap: 6px;
     }
-    .tag-resume { background: #1e3a5f; color: #60a5fa; border: 1px solid rgba(96, 165, 250, 0.3); }
-    .tag-cover { background: #1e3a3f; color: #34d399; border: 1px solid rgba(52, 211, 153, 0.3); }
-    .tag-email { background: #3b1d54; color: #e879f9; border: 1px solid rgba(232, 121, 249, 0.3); }
-    .tag-approved { background: #064e3b; color: #6ee7b7; border: 1px solid rgba(110, 231, 183, 0.4); }
-    .tag-applied { background: #713f12; color: #fde047; border: 1px solid rgba(253, 224, 71, 0.4); }
+    .tag-resume { background: #1e293b; color: #93c5fd; border: 1px solid #334155; }
+    .tag-cover { background: #1e293b; color: #86efac; border: 1px solid #334155; }
+    .tag-email { background: #1e293b; color: #f472b6; border: 1px solid #334155; }
+    .tag-approved { background: #064e3b; color: #6ee7b7; border: 1px solid #059669; }
+    .tag-applied { background: #1e293b; color: #cbd5e1; border: 1px solid #475569; }
 
     .reasoning {
-      background: rgba(15, 23, 42, 0.6);
-      border: 1px solid rgba(255, 255, 255, 0.06);
-      border-radius: 10px;
-      padding: 12px 16px;
+      background: #0f172a;
+      border: 1px solid #1f2937;
+      border-radius: 6px;
+      padding: 10px 14px;
       font-size: 13px;
       color: #cbd5e1;
-      line-height: 1.55;
+      line-height: 1.5;
     }
 
     /* Actions Bar */
@@ -643,92 +445,85 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       gap: 8px;
       flex-wrap: wrap;
       align-items: center;
-      border-top: 1px solid rgba(255, 255, 255, 0.07);
-      padding-top: 14px;
+      border-top: 1px solid #1f2937;
+      padding-top: 12px;
     }
     .btn {
-      padding: 8px 14px;
-      border-radius: 8px;
+      padding: 6px 12px;
+      border-radius: 6px;
       font-size: 12px;
-      font-weight: 700;
-      border: none;
+      font-weight: 600;
+      border: 1px solid transparent;
       cursor: pointer;
       display: flex;
       align-items: center;
       gap: 6px;
       text-decoration: none;
-      transition: all 0.15s ease;
+      transition: background 0.15s ease, border-color 0.15s ease;
     }
     .btn:hover {
-      transform: translateY(-1px);
       filter: brightness(1.1);
     }
     .btn-auto-apply {
-      background: linear-gradient(135deg, #10b981, #06b6d4);
-      color: white;
-      font-weight: 800;
-      box-shadow: 0 2px 10px rgba(16, 185, 129, 0.4);
-      border: 1px solid rgba(255,255,255,0.25);
+      background: #2563eb;
+      color: #fff;
+      border: 1px solid #1d4ed8;
     }
     .btn-auto-apply:hover {
-      background: linear-gradient(135deg, #059669, #0891b2);
-      transform: translateY(-2px);
-      box-shadow: 0 4px 16px rgba(16, 185, 129, 0.65);
+      background: #1d4ed8;
       color: #fff;
     }
     .btn-autofill {
-      background: linear-gradient(135deg, #0284c7, #10b981);
-      color: white;
-      font-weight: 700;
-      box-shadow: 0 2px 10px rgba(16, 185, 129, 0.35);
+      background: #0f766e;
+      color: #fff;
+      border: 1px solid #115e59;
     }
     .btn-autofill:hover {
-      background: linear-gradient(135deg, #0369a1, #059669);
+      background: #115e59;
       color: #fff;
-      transform: translateY(-1px);
-      box-shadow: 0 4px 14px rgba(16, 185, 129, 0.5);
     }
-
     .btn-brave {
-      background: linear-gradient(135deg, #ea580c, #f97316);
-      color: white;
-      box-shadow: 0 2px 10px rgba(249, 115, 22, 0.3);
+      background: #ea580c;
+      color: #fff;
+      border: 1px solid #c2410c;
     }
     .btn-tailor {
-      background: linear-gradient(135deg, #9333ea, #a855f7);
-      color: white;
-      box-shadow: 0 2px 10px rgba(168, 85, 247, 0.3);
+      background: #475569;
+      color: #fff;
+      border: 1px solid #64748b;
     }
     .btn-outreach {
-      background: #0284c7;
-      color: white;
+      background: #1e293b;
+      color: #cbd5e1;
+      border: 1px solid #334155;
     }
     .btn-preview {
-      background: #334155;
+      background: #1e293b;
       color: #e2e8f0;
+      border: 1px solid #334155;
     }
     .btn-approve {
-      background: rgba(16, 185, 129, 0.15);
-      border: 1px solid #10b981;
-      color: #34d399;
+      background: #064e3b;
+      border: 1px solid #059669;
+      color: #6ee7b7;
     }
     .btn-applied {
-      background: rgba(245, 158, 11, 0.15);
-      border: 1px solid #f59e0b;
-      color: #fbbf24;
+      background: #1e293b;
+      border: 1px solid #475569;
+      color: #94a3b8;
     }
     .btn-email {
-      background: linear-gradient(135deg, #ea4335, #dc2626);
-      color: white;
-      box-shadow: 0 2px 10px rgba(234, 67, 53, 0.3);
+      background: #991b1b;
+      color: #fee2e2;
+      border: 1px solid #b91c1c;
     }
     .btn-email-ghost {
-      background: rgba(234, 67, 53, 0.12);
-      border: 1px solid rgba(234, 67, 53, 0.35);
-      color: #fca5a5;
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: #cbd5e1;
     }
     .btn-email-ghost:hover {
-      background: rgba(234, 67, 53, 0.25);
+      background: #334155;
       color: #fff;
     }
 
@@ -736,180 +531,164 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     .response-card {
       background: var(--card-bg);
       border: 1px solid var(--card-border);
-      border-radius: 16px;
-      padding: 22px 26px;
+      border-radius: 8px;
+      padding: 16px 20px;
       display: flex;
       flex-direction: column;
-      gap: 14px;
+      gap: 12px;
       position: relative;
-      backdrop-filter: blur(14px);
-      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      transition: border-color 0.15s ease;
     }
     .response-card:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 16px 36px rgba(0,0,0,0.45);
+      border-color: #374151;
     }
     .response-card.sentiment-positive, .response-card.cat-interview {
-      border: 1.5px solid #10b981;
-      background: linear-gradient(135deg, rgba(6, 78, 59, 0.35), rgba(15, 23, 42, 0.95));
-      box-shadow: 0 0 24px rgba(16, 185, 129, 0.25);
+      border-left: 4px solid #10b981;
     }
     .response-card.cat-oa {
-      border: 1.5px solid #f59e0b;
-      background: linear-gradient(135deg, rgba(120, 53, 15, 0.35), rgba(15, 23, 42, 0.95));
-      box-shadow: 0 0 26px rgba(245, 158, 11, 0.25);
+      border-left: 4px solid #f59e0b;
     }
     .response-card.cat-oa.is-missed {
-      border: 1.5px solid #ef4444;
-      background: linear-gradient(135deg, rgba(153, 27, 27, 0.35), rgba(15, 23, 42, 0.95));
-      box-shadow: 0 0 26px rgba(239, 68, 68, 0.25);
+      border-left: 4px solid #ef4444;
     }
     .response-card.cat-oa.is-done {
       opacity: 0.65;
-      border: 1px solid #059669;
-      box-shadow: none;
+      border-left: 4px solid #6b7280;
     }
     .response-card.sentiment-negative, .response-card.cat-rejected {
-      border: 1.5px solid rgba(244, 63, 94, 0.5);
-      background: linear-gradient(135deg, rgba(136, 19, 55, 0.25), rgba(15, 23, 42, 0.95));
-      box-shadow: 0 0 20px rgba(244, 63, 94, 0.12);
+      border-left: 4px solid #ef4444;
     }
     .response-card.cat-apply {
-      border: 1.5px solid #06b6d4;
-      background: linear-gradient(135deg, rgba(14, 116, 144, 0.25), rgba(15, 23, 42, 0.95));
-      box-shadow: 0 0 22px rgba(6, 182, 212, 0.2);
+      border-left: 4px solid #0284c7;
     }
     .response-card.sentiment-neutral, .response-card.cat-acknowledged {
-      border: 1.5px solid rgba(148, 163, 184, 0.25);
-      background: linear-gradient(135deg, rgba(30, 41, 59, 0.35), rgba(15, 23, 42, 0.9));
-      box-shadow: 0 0 16px rgba(148, 163, 184, 0.08);
+      border-left: 4px solid #64748b;
     }
     .resp-filter-bar {
       display: flex;
       flex-wrap: wrap;
-      gap: 8px;
-      margin-bottom: 16px;
-      padding: 12px 16px;
-      background: rgba(15, 23, 42, 0.75);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 12px;
+      gap: 6px;
+      margin-bottom: 14px;
+      padding: 10px 14px;
+      background: #111827;
+      border: 1px solid var(--panel-border);
+      border-radius: 8px;
     }
     .resp-pill {
-      background: rgba(30, 41, 59, 0.85);
-      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: #1e293b;
+      border: 1px solid #334155;
       color: #94a3b8;
       font-size: 12px;
-      font-weight: 700;
-      padding: 7px 15px;
-      border-radius: 999px;
+      font-weight: 600;
+      padding: 5px 12px;
+      border-radius: 6px;
       cursor: pointer;
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      transition: all 0.2s;
+      transition: all 0.15s;
     }
     .resp-pill:hover, .resp-pill.active {
-      background: rgba(6, 182, 212, 0.25);
-      border-color: #06b6d4;
+      background: #2563eb;
+      border-color: #1d4ed8;
       color: #fff;
     }
     .resp-pill.pill-oa.active {
-      background: rgba(245, 158, 11, 0.25);
-      border-color: #f59e0b;
-      color: #fde047;
+      background: #d97706;
+      border-color: #b45309;
+      color: #fff;
     }
     .resp-pill.pill-interview.active {
-      background: rgba(16, 185, 129, 0.25);
-      border-color: #10b981;
-      color: #6ee7b7;
+      background: #059669;
+      border-color: #047857;
+      color: #fff;
     }
     .resp-pill.pill-rejected.active {
-      background: rgba(244, 63, 94, 0.25);
-      border-color: #f43f5e;
-      color: #fca5a5;
+      background: #dc2626;
+      border-color: #b91c1c;
+      color: #fff;
     }
     .resp-pill.pill-apply.active {
-      background: rgba(56, 189, 248, 0.25);
-      border-color: #38bdf8;
-      color: #bae6fd;
+      background: #0284c7;
+      border-color: #0369a1;
+      color: #fff;
     }
 
     /* Source Filters Bar & Badges */
     .source-filter-bar {
       display: flex;
-      gap: 8px;
-      margin-bottom: 18px;
+      gap: 6px;
+      margin-bottom: 16px;
       flex-wrap: wrap;
       align-items: center;
     }
     .source-pill {
-      background: rgba(30, 41, 59, 0.85);
-      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: #1e293b;
+      border: 1px solid #334155;
       color: #94a3b8;
       font-size: 12px;
-      font-weight: 700;
-      padding: 7px 15px;
-      border-radius: 999px;
+      font-weight: 600;
+      padding: 5px 12px;
+      border-radius: 6px;
       cursor: pointer;
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      transition: all 0.2s;
+      transition: all 0.15s;
     }
     .source-pill:hover, .source-pill.active {
-      background: rgba(99, 102, 241, 0.25);
-      border-color: #6366f1;
+      background: #2563eb;
+      border-color: #1d4ed8;
       color: #fff;
     }
     .source-pill.pill-kadegree.active {
-      background: rgba(245, 158, 11, 0.28);
-      border-color: #f59e0b;
-      color: #fde047;
-      box-shadow: 0 0 12px rgba(245, 158, 11, 0.3);
+      background: #b45309;
+      border-color: #92400e;
+      color: #fff;
     }
     .source-pill.pill-linkedin.active {
-      background: rgba(10, 102, 194, 0.3);
-      border-color: #0a66c2;
-      color: #60a5fa;
+      background: #0a66c2;
+      border-color: #084e96;
+      color: #fff;
     }
     .source-pill.pill-whatsapp.active {
-      background: rgba(37, 211, 102, 0.25);
-      border-color: #25d366;
-      color: #86efac;
+      background: #15803d;
+      border-color: #166534;
+      color: #fff;
     }
     .source-pill.pill-ats.active {
-      background: rgba(16, 185, 129, 0.25);
-      border-color: #10b981;
-      color: #6ee7b7;
+      background: #047857;
+      border-color: #065f46;
+      color: #fff;
     }
 
     /* Source Tags on Cards */
     .tag-kadegree {
-      background: linear-gradient(135deg, rgba(180, 83, 9, 0.45), rgba(217, 119, 6, 0.35));
-      color: #fbbf24;
-      border: 1px solid rgba(245, 158, 11, 0.6);
-      font-weight: 700;
-      letter-spacing: 0.3px;
+      background: #292524;
+      color: #fcd34d;
+      border: 1px solid #78350f;
+      font-weight: 600;
     }
     .tag-referrer {
-      background: rgba(245, 158, 11, 0.15);
-      color: #fde68a;
-      border: 1px dashed rgba(245, 158, 11, 0.4);
+      background: #1e293b;
+      color: #cbd5e1;
+      border: 1px solid #334155;
     }
     .tag-linkedin {
-      background: rgba(10, 102, 194, 0.2);
-      color: #38bdf8;
-      border: 1px solid rgba(56, 189, 248, 0.35);
+      background: #172554;
+      color: #93c5fd;
+      border: 1px solid #1e40af;
     }
     .tag-whatsapp {
-      background: rgba(37, 211, 102, 0.18);
-      color: #4ade80;
-      border: 1px solid rgba(74, 222, 128, 0.35);
+      background: #14532d;
+      color: #86efac;
+      border: 1px solid #166534;
     }
     .tag-ats {
-      background: rgba(99, 102, 241, 0.18);
-      color: #a5b4fc;
-      border: 1px solid rgba(165, 180, 252, 0.35);
+      background: #1e293b;
+      color: #cbd5e1;
+      border: 1px solid #334155;
+    }
     }
     .source-badge-meta {
       display: inline-flex;
@@ -1164,119 +943,98 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       to { transform: translateY(0); opacity: 1; }
     }
 
-    /* Confetti Canvas */
-    #confetti-canvas {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      pointer-events: none;
-      z-index: 999999;
-    }
   </style>
 </head>
 <body>
-  <canvas id="confetti-canvas"></canvas>
-
   <header>
     <div class="brand">
-      <i class="fa-solid fa-bolt-lightning brand-logo"></i>
+      <i class="fa-solid fa-plane brand-logo"></i>
       <div>
-        <div class="brand-title">ApplyPilot 2.0</div>
+        <div class="brand-title">ApplyPilot</div>
       </div>
       <div class="status-pill">
         <div class="pulse-dot"></div>
-        <span>Live System Active</span>
+        <span>Active</span>
       </div>
     </div>
 
-    <!-- Quick Copy Drawer & Theme Picker -->
+    <!-- Candidate Quick Bar -->
     <div class="quick-bar">
-      <div class="quick-pill" onclick="copyText('8431433659', 'Phone Number')"><i class="fa-solid fa-phone" style="color:#38bdf8;"></i> 8431433659</div>
-      <div class="quick-pill" onclick="copyText('deepakshkarkala@gmail.com', 'Email')"><i class="fa-solid fa-envelope" style="color:#34d399;"></i> deepakshkarkala@gmail.com</div>
-      <div class="quick-pill" onclick="copyText('https://www.linkedin.com/in/deepak-s-h-82b772254', 'LinkedIn URL')"><i class="fa-brands fa-linkedin" style="color:#60a5fa;"></i> LinkedIn</div>
-      <div class="quick-pill" onclick="copyText('20 LPA', 'Current CTC')"><i class="fa-solid fa-indian-rupee-sign" style="color:#f59e0b;"></i> 20 LPA</div>
-      <div class="quick-pill" onclick="copyText('Immediate', 'Notice Period')"><i class="fa-solid fa-bolt" style="color:#ec4899;"></i> Immediate Notice</div>
-      <a href="https://www.linkedin.com/feed/" target="_blank" rel="noopener noreferrer" class="quick-pill" style="background: #0a66c2; color: #fff; font-weight: 700; text-decoration: none;"><i class="fa-brands fa-linkedin"></i> Open LinkedIn</a>
-      <a href="https://www.linkedin.com/search/results/content/?keywords=backend%20engineer%20AND%20(%22hiring%22%20OR%20%22requirement%22)&sortBy=%22date_posted%22" target="_blank" rel="noopener noreferrer" class="quick-pill" style="background: rgba(10, 102, 194, 0.2); border: 1px solid #0a66c2; color: #60a5fa; font-weight: 700; text-decoration: none;" title="Open live LinkedIn hiring & requirement posts feed"><i class="fa-brands fa-linkedin"></i> Hiring Posts Feed</a>
-      <a href="https://referral-community.kadegree.in/get" target="_blank" rel="noopener noreferrer" class="quick-pill" style="background: linear-gradient(135deg, #b45309, #d97706); color: #fff; font-weight: 700; text-decoration: none;"><i class="fa-solid fa-users"></i> KaDegree (ಕನ್ನಡ Community)</a>
-      <a href="https://mail.google.com/mail/u/0/#drafts" target="_blank" rel="noopener noreferrer" class="quick-pill" style="background: #ea4335; color: #fff; font-weight: 700; text-decoration: none;"><i class="fa-solid fa-envelope"></i> Gmail Drafts</a>
-      <div id="naukri-quick-pill" class="quick-pill" onclick="triggerNaukriRefresh()" style="background: linear-gradient(135deg, #0284c7, #2563eb); color: #fff; font-weight: 700; cursor: pointer;" title="Naukri 9:00 AM Daily Refresh Active (Click to refresh now)"><i class="fa-solid fa-arrows-rotate"></i> <span id="naukri-pill-label">Naukri: 9 AM Active ⚡</span></div>
-      <div class="quick-pill" onclick="openLogCallModal()" style="background: linear-gradient(135deg, #10b981, #059669); color: #fff; font-weight: 700; cursor: pointer;"><i class="fa-solid fa-phone"></i> + Log Recruiter Call / Update</div>
-      <div class="quick-pill" onclick="openCheatsheetModal('PhonePe', 'SDE-1 Backend')" style="background: rgba(168, 85, 247, 0.2); border: 1px solid #a855f7; color: #d8b4fe; font-weight: 700; cursor: pointer;" title="Instant Technical & HR Interview Cheat-Sheet tailored to Deepak's Meesho experience"><i class="fa-solid fa-bolt"></i> ⚡ Tech Cheat-Sheet</div>
-      <div class="quick-pill" onclick="testAlertsFromUI()" style="background: rgba(6, 182, 212, 0.2); border: 1px solid #06b6d4; color: #7dd3fc; font-weight: 700; cursor: pointer;" title="Test instant alerts to Telegram, WhatsApp CallMeBot & Windows Desktop"><i class="fa-solid fa-bell"></i> 📱 Mobile Alert Bot</div>
-      <div class="quick-pill" onclick="syncGSheetsNow()" style="background: linear-gradient(135deg, #0284c7, #0369a1); color: #fff; font-weight: 700; cursor: pointer;"><i class="fa-solid fa-table"></i> 📱 Central Google Sheet</div>
-      <div class="quick-pill" onclick="openCustomDraftModal()"  style="background: rgba(234, 67, 53, 0.2); border: 1px solid #ea4335; color: #fca5a5; font-weight: 700; cursor: pointer;"><i class="fa-solid fa-pen-nib"></i> + Draft Cold Email</div>
-      <div class="quick-pill" onclick="triggerBatchAutoApply()" style="background: linear-gradient(135deg, #10b981, #06b6d4); color: #fff; font-weight: 800; border: 1px solid #34d399; cursor: pointer;" title="Autonomously apply to top qualified roles in Brave (Kanistus Workflow: does everything itself)"><i class="fa-solid fa-bolt"></i> ⚡ Auto-Apply Top Matches</div>
-      <div class="quick-pill" onclick="triggerChannelPoll(event)" style="background: linear-gradient(135deg, #0284c7, #10b981); color: #fff; font-weight: 800; border: 1px solid #38bdf8; cursor: pointer;" title="Poll live WhatsApp Web, Telegram channels, and Gmail for fresh referral leads (2x/day scheduled)"><i class="fa-solid fa-satellite-dish"></i> 📡 Poll WhatsApp & Telegram</div>
-
-      <!-- Theme Switcher Pill -->
-      <div class="theme-picker" title="Change Theme Palette">
-        <button class="theme-btn" id="btn-theme-classic" onclick="setPalette('classic')" title="Classic Cyber Indigo (Original Dark)"><i class="fa-solid fa-moon"></i> Indigo</button>
-        <button class="theme-btn" id="btn-theme-aurora" onclick="setPalette('aurora')" title="Nordic Aurora (Cyan & Emerald)"><i class="fa-solid fa-water"></i> Aurora</button>
-        <button class="theme-btn" id="btn-theme-space-black" onclick="setPalette('space-black')" title="OLED True Black (Pure Contrast)"><i class="fa-solid fa-circle"></i> OLED</button>
-        <button class="theme-btn" id="btn-theme-cyberpunk" onclick="setPalette('cyberpunk')" title="Cyberpunk Neon (Violet & Pink)"><i class="fa-solid fa-wand-magic-sparkles"></i> Neon</button>
-        <button class="theme-btn" id="btn-theme-sunset-slate" onclick="setPalette('sunset-slate')" title="Sunset Amber (Warm Carbon)"><i class="fa-solid fa-sun"></i> Sunset</button>
-      </div>
+      <div class="quick-pill" onclick="copyText('8431433659', 'Phone Number')"><i class="fa-solid fa-phone"></i> 8431433659</div>
+      <div class="quick-pill" onclick="copyText('deepakshkarkala@gmail.com', 'Email')"><i class="fa-solid fa-envelope"></i> deepakshkarkala@gmail.com</div>
+      <div class="quick-pill" onclick="copyText('https://www.linkedin.com/in/deepak-s-h-82b772254', 'LinkedIn URL')"><i class="fa-brands fa-linkedin"></i> LinkedIn</div>
+      <div class="quick-pill" onclick="copyText('20 LPA', 'Current CTC')"><i class="fa-solid fa-indian-rupee-sign"></i> 20 LPA</div>
+      <div class="quick-pill" onclick="copyText('Immediate', 'Notice Period')"><i class="fa-solid fa-bolt"></i> Immediate</div>
+      <a href="https://www.linkedin.com/feed/" target="_blank" rel="noopener noreferrer" class="quick-pill"><i class="fa-brands fa-linkedin"></i> Feed</a>
+      <a href="https://www.linkedin.com/search/results/content/?keywords=backend%20engineer%20AND%20(%22hiring%22%20OR%20%22requirement%22)&sortBy=%22date_posted%22" target="_blank" rel="noopener noreferrer" class="quick-pill" title="Open live LinkedIn hiring & requirement posts feed"><i class="fa-solid fa-magnifying-glass"></i> Hiring Posts</a>
+      <a href="https://referral-community.kadegree.in/get" target="_blank" rel="noopener noreferrer" class="quick-pill"><i class="fa-solid fa-users"></i> KaDegree</a>
+      <a href="https://mail.google.com/mail/u/0/#drafts" target="_blank" rel="noopener noreferrer" class="quick-pill"><i class="fa-solid fa-envelope"></i> Gmail Drafts</a>
+      <div id="naukri-quick-pill" class="quick-pill" onclick="triggerNaukriRefresh()" title="Naukri Daily Refresh Active (Click to refresh now)"><i class="fa-solid fa-arrows-rotate"></i> <span id="naukri-pill-label">Naukri: 9 AM Active</span></div>
+      <div class="quick-pill" onclick="openLogCallModal()"><i class="fa-solid fa-phone"></i> Log Recruiter Call</div>
+      <div class="quick-pill" onclick="openCheatsheetModal('PhonePe', 'SDE-1 Backend')" title="Technical & HR Interview Cheat-Sheet"><i class="fa-solid fa-file-code"></i> Tech Cheat-Sheet</div>
+      <div class="quick-pill" onclick="testAlertsFromUI()" title="Test instant alerts to Telegram, WhatsApp & Desktop"><i class="fa-solid fa-bell"></i> Mobile Alerts</div>
+      <div class="quick-pill" onclick="syncGSheetsNow()"><i class="fa-solid fa-table"></i> Google Sheet</div>
+      <div class="quick-pill" onclick="openCustomDraftModal()"><i class="fa-solid fa-pen-nib"></i> Draft Cold Email</div>
+      <div class="quick-pill" onclick="triggerBatchAutoApply()" title="Auto-apply to qualified roles in Brave"><i class="fa-solid fa-play"></i> Auto-Apply</div>
+      <div class="quick-pill" onclick="triggerChannelPoll(event)" title="Poll WhatsApp, Telegram, and Gmail for referral leads"><i class="fa-solid fa-satellite-dish"></i> Poll Channels</div>
     </div>
   </header>
 
   <div class="container">
-    <!-- Energetic Stats Cards -->
+    <!-- Clean KPI Stats Grid -->
     <div class="stats-grid">
       <div class="stat-card">
-        <span class="label">Total Discoveries</span>
-        <span class="val" id="stat-total" style="color: #38bdf8;">0</span>
-      </div>
-      <div class="stat-card" style="border-color: rgba(16, 185, 129, 0.4);">
-        <span class="label">🔥 9/10 Dream Matches</span>
-        <span class="val" id="stat-nine" style="color: #34d399;">0</span>
+        <span class="label">Total Jobs</span>
+        <span class="val" id="stat-total">0</span>
       </div>
       <div class="stat-card">
-        <span class="label">⚡ High Fit (≥ 7)</span>
-        <span class="val" id="stat-high" style="color: #818cf8;">0</span>
+        <span class="label">Top Matches (9-10)</span>
+        <span class="val" id="stat-nine">0</span>
       </div>
       <div class="stat-card">
-        <span class="label">🎯 Approved Shortlist</span>
-        <span class="val" id="stat-approved" style="color: #a855f7;">0</span>
+        <span class="label">Strong Fit (≥ 7)</span>
+        <span class="val" id="stat-high">0</span>
       </div>
       <div class="stat-card">
-        <span class="label">📄 Tailored Resumes</span>
-        <span class="val" id="stat-tailored" style="color: #38bdf8;">0</span>
-      </div>
-      <div class="stat-card" style="border-color: rgba(245, 158, 11, 0.5); cursor: pointer;" onclick="setTab('responses'); filterResponsesCategory('oa');">
-        <span class="label"><i class="fa-solid fa-clock-rotate-left"></i> Active OAs & Tests</span>
-        <span class="val" id="stat-oa" style="color: #fbbf24;">0</span>
-      </div>
-      <div class="stat-card" style="border-color: rgba(52, 211, 153, 0.4); cursor: pointer;" onclick="setTab('responses'); filterResponsesCategory('all');">
-        <span class="label">📬 Recruiter Replies</span>
-        <span class="val" id="stat-responses" style="color: #34d399;">0</span>
-      </div>
-      <div class="stat-card" style="border-color: rgba(217, 119, 6, 0.5); cursor: pointer;" onclick="setTab('kadegree');" title="Click to view live Kannada referral openings">
-        <span class="label"><i class="fa-solid fa-users"></i> 🌟 KaDegree Referrals</span>
-        <span class="val" id="stat-kadegree" style="color: #fbbf24;">0</span>
+        <span class="label">Approved Shortlist</span>
+        <span class="val" id="stat-approved">0</span>
       </div>
       <div class="stat-card">
-        <span class="label">🏆 Applications Applied</span>
-        <span class="val" id="stat-applied" style="color: #fbbf24;">0</span>
+        <span class="label">Tailored Resumes</span>
+        <span class="val" id="stat-tailored">0</span>
+      </div>
+      <div class="stat-card" style="cursor: pointer;" onclick="setTab('responses'); filterResponsesCategory('oa');">
+        <span class="label">Active Assessments</span>
+        <span class="val" id="stat-oa">0</span>
+      </div>
+      <div class="stat-card" style="cursor: pointer;" onclick="setTab('responses'); filterResponsesCategory('all');">
+        <span class="label">Recruiter Replies</span>
+        <span class="val" id="stat-responses">0</span>
+      </div>
+      <div class="stat-card" style="cursor: pointer;" onclick="setTab('kadegree');" title="Click to view live referral openings">
+        <span class="label">Community Referrals</span>
+        <span class="val" id="stat-kadegree">0</span>
+      </div>
+      <div class="stat-card">
+        <span class="label">Applied</span>
+        <span class="val" id="stat-applied">0</span>
       </div>
     </div>
 
-    <!-- Urgent OA Alert Bar (Displays when any pending OA exists) -->
-    <div id="urgent-oa-alert" class="queue-banner" style="display: none; background: linear-gradient(90deg, rgba(180, 83, 9, 0.45), rgba(15, 23, 42, 0.95)); border: 1.5px solid #f59e0b; justify-content: space-between; align-items: center; box-shadow: 0 0 24px rgba(245, 158, 11, 0.25);">
-      <div style="display: flex; align-items: center; gap: 14px;">
-        <i class="fa-solid fa-triangle-exclamation" style="color: #fbbf24; font-size: 22px;"></i>
+    <!-- Urgent OA Alert Bar -->
+    <div id="urgent-oa-alert" class="queue-banner" style="display: none; border-left: 4px solid #f59e0b;">
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <i class="fa-solid fa-triangle-exclamation" style="color: #f59e0b; font-size: 18px;"></i>
         <div>
-          <span style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; color: #fde047; font-weight: 800;">⚡ ACTION REQUIRED: ONLINE ASSESSMENT (OA) DUE</span>
-          <div id="urgent-oa-title" style="font-size: 14.5px; font-weight: 700; color: #fff; margin-top: 2px;"></div>
+          <span style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #f59e0b; font-weight: 700;">Action Required: Online Assessment Due</span>
+          <div id="urgent-oa-title" style="font-size: 14px; font-weight: 600; color: #fff; margin-top: 2px;"></div>
         </div>
       </div>
-      <div style="display: flex; gap: 10px; align-items: center;">
-        <a id="urgent-oa-link" href="#" target="_blank" rel="noopener noreferrer" class="btn btn-brave" style="background: linear-gradient(135deg, #d97706, #f59e0b); border-color: #f59e0b; text-decoration: none; padding: 7px 16px;">
-          <i class="fa-solid fa-code"></i> Open Assessment in Brave
+      <div style="display: flex; gap: 8px; align-items: center;">
+        <a id="urgent-oa-link" href="#" target="_blank" rel="noopener noreferrer" class="btn btn-brave" style="text-decoration: none;">
+          <i class="fa-solid fa-arrow-up-right-from-square"></i> Open Assessment
         </a>
-        <button class="btn btn-preview" onclick="setTab('responses'); filterResponsesCategory('oa');" style="white-space: nowrap;">
+        <button class="btn btn-preview" onclick="setTab('responses'); filterResponsesCategory('oa');">
           <i class="fa-solid fa-list-check"></i> View in Dashboard
         </button>
       </div>
@@ -1285,19 +1043,19 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     <!-- Active Tab Announcement Banner -->
     <div id="queue-banner" class="queue-banner" style="display: none;">
       <div class="queue-banner-title">
-        <i class="fa-solid fa-bullseye" style="color: #c084fc; font-size: 18px;"></i>
-        <span><strong>Approved Shortlist:</strong> Apply to these vetted roles today. Click <strong>[🚀 Open in Brave]</strong> or generate JIT tailored resumes on-demand!</span>
+        <i class="fa-solid fa-check-circle" style="color: #2563eb; font-size: 16px;"></i>
+        <span><strong>Approved Queue:</strong> Qualified roles queued for submission.</span>
       </div>
     </div>
 
     <!-- Gmail Response Announcement Banner -->
-    <div id="responses-banner" class="queue-banner" style="display: none; background: linear-gradient(90deg, rgba(6, 78, 59, 0.35), rgba(15, 23, 42, 0.85)); border-color: rgba(16, 185, 129, 0.4); justify-content: space-between; align-items: center;">
+    <div id="responses-banner" class="queue-banner" style="display: none;">
       <div class="queue-banner-title">
-        <i class="fa-solid fa-envelope-circle-check" style="color: #34d399; font-size: 20px;"></i>
-        <span><strong>Gmail Application Response Tracker:</strong> Monitoring interviews, coding challenges, and recruiter replies from Deepak's connected Gmail (<code>deepakshkarkala@gmail.com</code>).</span>
+        <i class="fa-solid fa-envelope" style="color: #10b981; font-size: 16px;"></i>
+        <span><strong>Gmail Tracker:</strong> Monitoring interview invitations, coding tests, and recruiter responses for <code>deepakshkarkala@gmail.com</code>.</span>
       </div>
-      <button class="btn btn-preview" onclick="syncGmailNow()" style="background: rgba(16, 185, 129, 0.2); border: 1px solid #10b981; color: #34d399; font-weight: 700; white-space: nowrap;">
-        <i class="fa-solid fa-arrows-rotate"></i> Sync Gmail Inbox
+      <button class="btn btn-preview" onclick="syncGmailNow()">
+        <i class="fa-solid fa-arrows-rotate"></i> Sync Inbox
       </button>
     </div>
 
@@ -1305,34 +1063,34 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     <div class="controls">
       <div class="tabs">
         <button class="tab-btn active" onclick="setTab('high')">
-          <i class="fa-solid fa-fire"></i> High Fit (≥ 7)
+          High Fit (≥ 7)
           <span class="tab-badge" id="badge-high">0</span>
         </button>
         <button class="tab-btn" onclick="setTab('top')">
-          <i class="fa-solid fa-bolt"></i> Top Matches (≥ 8)
+          Top Matches (≥ 8)
           <span class="tab-badge" id="badge-top">0</span>
         </button>
-        <button class="tab-btn" onclick="setTab('approved')" style="color: #c084fc;">
-          <i class="fa-solid fa-circle-check"></i> Approved Queue
-          <span class="tab-badge" id="badge-approved" style="background:#7c3aed;color:#fff;">0</span>
+        <button class="tab-btn" onclick="setTab('approved')">
+          Approved Queue
+          <span class="tab-badge" id="badge-approved">0</span>
         </button>
-        <button class="tab-btn" onclick="setTab('responses')" style="color: #34d399;">
-          <i class="fa-solid fa-envelope-open-text"></i> Gmail Tracker
-          <span class="tab-badge" id="badge-responses" style="background:#059669;color:#fff;">0</span>
+        <button class="tab-btn" onclick="setTab('responses')">
+          Gmail Tracker
+          <span class="tab-badge" id="badge-responses">0</span>
         </button>
-        <button class="tab-btn" onclick="setTab('kadegree')" style="color: #fbbf24; border-color: rgba(245, 158, 11, 0.4);">
-          <i class="fa-solid fa-users"></i> KaDegree (ಕನ್ನಡ Referrals)
-          <span class="tab-badge" id="badge-kadegree" style="background: linear-gradient(135deg, #b45309, #d97706); color:#fff;">0</span>
+        <button class="tab-btn" onclick="setTab('kadegree')">
+          KaDegree Referrals
+          <span class="tab-badge" id="badge-kadegree">0</span>
         </button>
-        <button class="tab-btn" onclick="setTab('strategy')" style="color: #fbbf24; border-color: rgba(245, 158, 11, 0.4);">
-          <i class="fa-solid fa-brain"></i> ⚡ Conversion & Gemini Strategy
+        <button class="tab-btn" onclick="setTab('strategy')">
+          Conversion Strategy
         </button>
-        <button class="tab-btn" onclick="setTab('analytics')" style="color: #38bdf8;">
-          <i class="fa-solid fa-chart-pie"></i> Application Analytics
-          <span class="tab-badge" id="badge-analytics" style="background:#0284c7;color:#fff;">0</span>
+        <button class="tab-btn" onclick="setTab('analytics')">
+          Analytics
+          <span class="tab-badge" id="badge-analytics">0</span>
         </button>
         <button class="tab-btn" onclick="setTab('applied')">
-          <i class="fa-solid fa-trophy"></i> Applied
+          Applied
           <span class="tab-badge" id="badge-applied">0</span>
         </button>
         <button class="tab-btn" onclick="setTab('all')">All Opportunities</button>
@@ -1583,7 +1341,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       const job = allJobs.find(j => j.rowid === rowid);
       const comp = job ? job.company : 'Tech Company';
       const title = job ? job.title : 'Software Engineer';
-      const msg = `ನಮಸ್ಕಾರ,\n\nI noticed the referral opening for ${title} at ${comp} in our KaDegree community. I am an SDE-I Backend Engineer at Meesho (RVCE CSE '25, 1.3y exp) working with high-throughput Java, Go, Kafka, and Redis services.\n\nCould you please refer my profile for this position? I have attached my resume and requisition details:\nRequisition: ${comp} - ${title}\nProfile: SDE-I Backend Engineer, Meesho (RVCE '25)\nEmail: deepakshkarkala@gmail.com | Phone: +91 8431433659\n\nಧನ್ಯವಾದಗಳು! (Thank you!)\n- Deepak S H`;
+      const msg = `ನಮಸ್ಕಾರ,\n\nI noticed the referral opening for ${title} at ${comp} in our KaDegree community. I am an SDE-I Backend Engineer at Meesho (RVCE CSE '25, ~2y exp: 1.3y full-time + 6m internship) working with high-throughput Java, Go, Kafka, and Redis services.\n\nCould you please refer my profile for this position? My resume is already attached and present in my profile.\n\nRequisition: ${comp} - ${title}\nProfile: SDE-I Backend Engineer, Meesho (RVCE '25)\nResume: Present in profile\nEmail: deepakshkarkala@gmail.com | Phone: +91 8431433659\nLinkedIn: https://www.linkedin.com/in/deepak-s-h-82b772254\n\nಧನ್ಯವಾದಗಳು! (Thank you!)\n- Deepak S H`;
       navigator.clipboard.writeText(msg).then(() => {
         showToast(`✅ Copied warm Kannada referral pitch for ${comp}!`);
       }).catch(() => {
@@ -1964,24 +1722,8 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       } catch (e) {}
     }, 30000);
 
-        function setPalette(themeName) {
-      document.documentElement.setAttribute('data-theme', themeName);
-      localStorage.setItem('applypilot_theme', themeName);
-      document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
-      const activeBtn = document.getElementById(`btn-theme-${themeName}`);
-      if (activeBtn) activeBtn.classList.add('active');
-      showToast(`Palette switched to: ${themeName.replace('-', ' ').toUpperCase()}`);
-    }
-
-    // Initialize saved theme (default to classic Cyber Indigo)
-    const savedTheme = localStorage.getItem('applypilot_theme') || 'classic';
-    document.documentElement.setAttribute('data-theme', savedTheme);
-    setTimeout(() => {
-      document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
-      const initialBtn = document.getElementById(`btn-theme-${savedTheme}`);
-      if (initialBtn) initialBtn.classList.add('active');
-    }, 50);
-    /* 100% Autonomous Auto-Apply (Kanistus Workflow - does everything itself) */
+    function setPalette(themeName) {}
+    /* 100% Autonomous Auto-Apply */
     async function launchAutonomousApply(rowid) {
       const btn = document.getElementById(`btn-auto-apply-${rowid}`);
       if (btn) {
@@ -2067,6 +1809,29 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         return;
       }
       showToast('🚀 Launching Autonomous Auto-Apply batch for Top 5 matches in Brave...');
+
+      let banner = document.getElementById('batch-live-progress-banner');
+      if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'batch-live-progress-banner';
+        banner.style.cssText = 'background: linear-gradient(135deg, #1e1b4b, #312e81); border: 1px solid #818cf8; border-radius: 10px; padding: 14px 20px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 4px 15px rgba(99,102,241,0.3); color: #fff; font-family: Inter, sans-serif;';
+        const container = document.querySelector('.container') || document.body;
+        container.insertBefore(banner, container.firstChild);
+      }
+      banner.style.display = 'flex';
+      banner.innerHTML = `
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div style="font-size:20px;"><i class="fa-solid fa-spinner fa-spin" style="color:#a5b4fc;"></i></div>
+          <div>
+            <div style="font-weight:700;font-size:14px;color:#e0e7ff;">⚡ Autonomous Mass Auto-Apply Active in Brave</div>
+            <div id="batch-banner-detail" style="font-size:12px;color:#c7d2fe;">Initializing batch runner...</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div id="batch-banner-count" style="font-size:13px;font-weight:700;color:#38bdf8;">0 / 5</div>
+        </div>
+      `;
+
       try {
         const res = await fetch('/api/auto_apply_batch', {
           method: 'POST',
@@ -2076,10 +1841,45 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         const data = await res.json();
         if (data.status === 'batch_launched') {
           showToast('🤖 Batch running! Applications are being submitted and recorded in your database.');
-          setTimeout(() => { loadJobs(); loadStats(); }, 5000);
+          
+          const pollInterval = setInterval(async () => {
+            try {
+              const sRes = await fetch('/api/auto_apply_status');
+              const sData = await sRes.json();
+              const detailEl = document.getElementById('batch-banner-detail');
+              const countEl = document.getElementById('batch-banner-count');
+              if (sData && sData.is_running) {
+                if (detailEl) detailEl.innerText = `${sData.current_job || 'Processing'} — ${sData.current_step || ''}`;
+                if (countEl) countEl.innerText = `${sData.completed} / ${sData.total}`;
+              } else if (sData && !sData.is_running && sData.total > 0) {
+                clearInterval(pollInterval);
+                banner.style.background = 'linear-gradient(135deg, #065f46, #047857)';
+                banner.style.border = '1px solid #34d399';
+                banner.innerHTML = `
+                  <div style="display:flex;align-items:center;gap:12px;">
+                    <div style="font-size:20px;color:#a7f3d0;"><i class="fa-solid fa-circle-check"></i></div>
+                    <div>
+                      <div style="font-weight:700;font-size:14px;color:#ecfdf5;">🎉 Mass Auto-Apply Batch Finished!</div>
+                      <div style="font-size:12px;color:#a7f3d0;">
+                        ${sData.submitted.length} submitted autonomously, ${(sData.half_applied || []).length} prefilled, ${(sData.requires_login || []).length} login gated.
+                      </div>
+                    </div>
+                  </div>
+                  <button onclick="document.getElementById('batch-live-progress-banner').style.display='none'" style="background:transparent;border:none;color:#a7f3d0;cursor:pointer;font-size:16px;">✕</button>
+                `;
+                loadJobs();
+                loadStats();
+                if (typeof loadFunnel === 'function') loadFunnel();
+                setTimeout(() => { if (banner) banner.style.display = 'none'; }, 10000);
+              }
+            } catch (err) {
+              console.error('Batch status poll error:', err);
+            }
+          }, 1500);
         }
       } catch (e) {
         showToast('Batch error: ' + e);
+        if (banner) banner.style.display = 'none';
       }
     }
 
@@ -2867,7 +2667,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       container.innerHTML = filtered.map(job => {
         const score = job.fit_score ?? 0;
         const scoreClass = score >= 9 ? 'score-9' : score >= 8 ? 'score-8' : score >= 7 ? 'score-7' : score >= 5 ? 'score-mid' : 'score-low';
-        const cardClass = score >= 9 ? 'job-card super-match' : score >= 8 ? 'job-card top-match' : 'job-card';
+        const cardClass = 'job-card';
         const hasResume = !!job.tailored_resume_path;
         const hasCover = !!job.cover_letter_path;
         const isApproved = job.apply_status === 'approved';
@@ -3493,7 +3293,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         return;
       }
       const titleEl = document.getElementById('referral-modal-title');
-      const compMatch = titleEl ? titleEl.innerText.match(/Outreach:\s*([^(\n]+)/) : null;
+      const compMatch = titleEl ? titleEl.innerText.match(/Outreach:\s*([^(\\n]+)/) : null;
       const comp = compMatch ? compMatch[1].trim() : '';
       composeLinkedInDM(val, '', comp, 'Backend Engineer', 'referral');
     }
@@ -3839,56 +3639,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       }
     }
 
-    function triggerConfetti() {
-      const canvas = document.getElementById('confetti-canvas');
-      const ctx = canvas.getContext('2d');
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-
-      const particles = [];
-      const colors = ['#6366f1', '#10b981', '#38bdf8', '#f59e0b', '#ec4899', '#a855f7'];
-
-      for (let i = 0; i < 90; i++) {
-        particles.push({
-          x: canvas.width / 2,
-          y: canvas.height * 0.4,
-          r: Math.random() * 6 + 4,
-          dx: (Math.random() - 0.5) * 16,
-          dy: (Math.random() - 0.7) * 16,
-          color: colors[Math.floor(Math.random() * colors.length)],
-          tilt: Math.random() * 10,
-          tiltAngle: 0,
-          tiltAngleIncremental: (Math.random() * 0.07) + 0.05
-        });
-      }
-
-      let animationFrames = 0;
-      function draw() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        particles.forEach(p => {
-          ctx.beginPath();
-          ctx.lineWidth = p.r / 2;
-          ctx.strokeStyle = p.color;
-          ctx.moveTo(p.x + p.tilt + (p.r / 4), p.y);
-          ctx.lineTo(p.x + p.tilt, p.y + p.tilt + (p.r / 4));
-          ctx.stroke();
-
-          p.x += p.dx;
-          p.y += p.dy;
-          p.dy += 0.35; // gravity
-          p.tiltAngle += p.tiltAngleIncremental;
-          p.tilt = Math.sin(p.tiltAngle) * 12;
-        });
-
-        animationFrames++;
-        if (animationFrames < 85) {
-          requestAnimationFrame(draw);
-        } else {
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
-        }
-      }
-      draw();
-    }
+    function triggerConfetti() {}
 
     async function checkNaukriStatus() {
       try {
@@ -4351,7 +4102,6 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         elif path == "/api/channels/poll":
             try:
                 from applypilot.automation.poller import execute_polling_cycle
-                import threading
                 def _bg_poll():
                     execute_polling_cycle(headless=True)
                 threading.Thread(target=_bg_poll, daemon=True).start()
