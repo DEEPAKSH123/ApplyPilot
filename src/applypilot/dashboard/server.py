@@ -633,10 +633,6 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       border: 1px solid #f59e0b;
       color: #fbbf24;
     }
-    .btn-assistant {
-      background: #4f46e5;
-      color: white;
-    }
     .btn-email {
       background: #7c3aed;
       color: white;
@@ -1210,10 +1206,6 @@ HTML_DASHBOARD = """<!DOCTYPE html>
                   <i class="fa-solid fa-check-circle"></i> Mark Applied
                 </button>
               ` : ''}
-
-              <button class="btn btn-assistant" onclick="launchAssistant(${job.rowid})">
-                <i class="fa-solid fa-bolt"></i> Assistant
-              </button>
             </div>
           </div>
         `;
@@ -1284,17 +1276,6 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         showToast('🎉 BOOM! Job recorded as APPLIED! Keep up the momentum, Deepak!');
         triggerConfetti();
         fetchJobs();
-      }
-    }
-
-    async function launchAssistant(rowid) {
-      showToast('Launching 1-Click Playwright Assistant in Brave...');
-      const res = await fetch(`/api/jobs/${rowid}/launch`, { method: 'POST' });
-      const data = await res.json();
-      if (data.status === 'ok') {
-        showToast('Brave launched with candidate profile & multi-page observer!');
-      } else {
-        showToast('Error: ' + data.message);
       }
     }
 
