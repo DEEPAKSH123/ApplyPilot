@@ -14,6 +14,7 @@ import hashlib
 import logging
 import os
 import re
+import shutil
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -211,8 +212,50 @@ def ingest_whatsapp_folder() -> int:
     return 0
 
 
-def scrape_live_whatsapp_web(target_groups: list[str] | None = None, wait_timeout_sec: int = 40) -> int:
+def sync_brave_whatsapp_session() -> bool:
+    """Sync live WhatsApp Web IndexedDB & Local Storage from user's primary Brave profile."""
+    local_app_data = os.environ.get("LOCALAPPDATA")
+    if not local_app_data:
+        return False
+    brave_user_data = Path(local_app_data) / "BraveSoftware" / "Brave-Browser" / "User Data" / "Default"
+    if not brave_user_data.exists():
+        return False
+
+    dest_dir = BRAVE_PROFILE_DIR / "Default"
+    dest_dir.mkdir(parents=True, exist_ok=True)
+
+    # 1. Sync IndexedDB https_web.whatsapp.com
+    src_idb = brave_user_data / "IndexedDB"
+    dest_idb = dest_dir / "IndexedDB"
+    if src_idb.exists():
+        dest_idb.mkdir(parents=True, exist_ok=True)
+        for item in src_idb.glob("*whatsapp*"):
+            try:
+                dest_item = dest_idb / item.name
+                if item.is_dir():
+                    shutil.copytree(item, dest_item, dirs_exist_ok=True)
+                else:
+                    shutil.copy2(item, dest_item)
+            except Exception as e:
+                log.debug("Notice copying WhatsApp idb %s: %s", item.name, e)
+
+    # 2. Sync Local Storage leveldb
+    src_ls = brave_user_data / "Local Storage"
+    dest_ls = dest_dir / "Local Storage"
+    if src_ls.exists():
+        try:
+            shutil.copytree(src_ls, dest_ls, dirs_exist_ok=True)
+        except Exception as e:
+            log.debug("Notice copying WhatsApp local storage: %s", e)
+
+    log.info("Synced live WhatsApp Web session from Brave profile.")
+    return True
+
+
+def scrape_live_whatsapp_web(target_groups: list[str] | None = None, wait_timeout_sec: int = 40, headless: bool = False) -> int:
     """Connect to WhatsApp Web via Brave profile and read recent messages from specific channels."""
+    sync_brave_whatsapp_session()
+
     if not target_groups:
         cfg = load_search_config()
         target_groups = cfg.get("whatsapp_groups", [
@@ -236,7 +279,8 @@ def scrape_live_whatsapp_web(target_groups: list[str] | None = None, wait_timeou
             context = p.chromium.launch_persistent_context(
                 user_data_dir=str(BRAVE_PROFILE_DIR.resolve()),
                 executable_path=exe_path if exe_path else None,
-                headless=False,
+                headless=headless,
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
                 viewport={"width": 1280, "height": 800},
                 args=["--disable-blink-features=AutomationControlled"]
             )
@@ -249,8 +293,16 @@ def scrape_live_whatsapp_web(target_groups: list[str] | None = None, wait_timeou
             try:
                 page.wait_for_selector("#pane-side, div[aria-label='Chat list']", timeout=wait_timeout_sec * 1000)
             except Exception:
-                log.warning("WhatsApp Web not authenticated yet. Please scan QR code in the browser window.")
-                return 0
+                # Also check if loading bar is present
+                loading = page.query_selector("div[role='progressbar']")
+                if loading:
+                    time.sleep(10)
+                try:
+                    page.wait_for_selector("#pane-side, div[aria-label='Chat list']", timeout=15000)
+                except Exception:
+                    log.warning("WhatsApp Web not authenticated or timed out. Please ensure WhatsApp Web is active in Brave.")
+                    context.close()
+                    return 0
 
             log.info("WhatsApp Web session active! Reading target channels...")
             all_found = []

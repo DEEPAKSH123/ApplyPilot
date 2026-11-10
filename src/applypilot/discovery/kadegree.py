@@ -336,6 +336,12 @@ def sync_kadegree_jobs(conn=None) -> dict:
             )
         conn.commit()
 
+        # Sync candidate referral requests (/api/requests/mine)
+        try:
+            sync_my_referral_requests(token=token, conn=conn)
+        except Exception as e:
+            log.warning("Could not sync sent referral requests: %s", e)
+
         # Update opportunities.csv in place
         export_opportunities_csv()
 
@@ -348,6 +354,65 @@ def sync_kadegree_jobs(conn=None) -> dict:
         }
         log.info("KaDegree sync complete: %s", result)
         return result
+    finally:
+        if close_conn:
+            conn.close()
+
+
+def sync_my_referral_requests(token: str | None = None, conn=None) -> dict:
+    """Sync referral requests sent by candidate on KaDegree directly into ApplyPilot tracker."""
+    if not token:
+        token = get_krc_token()
+    if not token:
+        return {"status": "error", "message": "KaDegree token not found."}
+
+    data = fetch_kadegree_api("/requests/mine", token)
+    if not data or not isinstance(data, list):
+        return {"status": "ok", "synced_requests": 0, "items": []}
+
+    close_conn = False
+    if conn is None:
+        conn = get_connection()
+        close_conn = True
+
+    updated_count = 0
+    try:
+        cur = conn.cursor()
+        for req in data:
+            comp = req.get("company") or ""
+            role = req.get("role") or ""
+            req_status = req.get("status") or "requested"
+            op_id = req.get("opening_id") or ""
+            created_at = req.get("created_at") or datetime.now(timezone.utc).isoformat()
+
+            # Map KaDegree referral request status:
+            # requested -> applied (sent outreach / waiting for referrer)
+            # accepted -> interview / referral accepted
+            mapped_status = "applied" if req_status == "requested" else ("interview" if req_status == "accepted" else req_status)
+
+            cur.execute(
+                "SELECT rowid, apply_status FROM jobs WHERE (url LIKE ? OR (site LIKE ? AND title LIKE ?))",
+                (f"%{op_id}%", f"%{comp}%", f"%{role}%")
+            )
+            row = cur.fetchone()
+            if row:
+                rowid, cur_status = row[0], row[1]
+                if cur_status != mapped_status and cur_status != "interview":
+                    cur.execute(
+                        "UPDATE jobs SET apply_status = ?, application_stage = ?, applied_at = COALESCE(applied_at, ?) WHERE rowid = ?",
+                        (mapped_status, mapped_status, created_at, rowid)
+                    )
+                    updated_count += 1
+            else:
+                job_url = f"https://referral-community.kadegree.in/openings/{op_id}" if op_id else f"https://referral-community.kadegree.in/get#{comp}"
+                cur.execute(
+                    """INSERT OR IGNORE INTO jobs (url, title, site, location, strategy, fit_score, apply_status, application_stage, applied_at, discovered_at)
+                    VALUES (?, ?, ?, 'Bengaluru, India', 'kadegree_community', 9, ?, ?, ?, ?)""",
+                    (job_url, role, comp, mapped_status, mapped_status, created_at, created_at)
+                )
+                updated_count += 1
+        conn.commit()
+        return {"status": "ok", "synced_requests": len(data), "updated": updated_count}
     finally:
         if close_conn:
             conn.close()

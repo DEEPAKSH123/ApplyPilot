@@ -24,12 +24,22 @@ log = logging.getLogger(__name__)
 
 def find_gmail_cli() -> str | None:
     """Find the registered Gmail CLI binary."""
-    # 1. Standard PATH lookup
+    # 1. Antigravity plugin registered bin (most direct and persistent)
+    default_bin = Path(os.environ.get("USERPROFILE", "")) / ".gemini" / "antigravity" / "bin" / "gmail.cmd"
+    if default_bin.exists():
+        return str(default_bin)
+
+    # 2. Plugin skill script
+    skill_bin = Path(os.environ.get("USERPROFILE", "")) / ".gemini" / "config" / "plugins" / "gmail" / "skills" / "gmail" / "scripts" / "gmail.cmd"
+    if skill_bin.exists():
+        return str(skill_bin)
+
+    # 3. Standard PATH lookup
     cli = shutil.which("gmail") or shutil.which("gmail.cmd") or shutil.which("gmail.exe")
     if cli and os.path.exists(cli):
         return cli
 
-    # 2. Check Antigravity plugin temp directories on Windows
+    # 4. Check Antigravity plugin temp directories on Windows
     temp_dir = Path(os.environ.get("LOCALAPPDATA", tempfile.gettempdir())) / "Temp"
     for candidate in temp_dir.glob("agy-plugin-cli-*/gmail.cmd"):
         if candidate.exists():
@@ -148,6 +158,8 @@ def create_gmail_draft(
 
         if res.returncode != 0:
             err_msg = res.stderr.strip() or res.stdout.strip() or f"Command failed with code {res.returncode}"
+            if "no credentials found" in err_msg.lower() or "auth login" in err_msg.lower():
+                err_msg = "Gmail CLI authentication required. Run 'gmail auth login' in terminal or check plugin login."
             log.error("Failed to create Gmail draft: %s", err_msg)
             return {"status": "error", "message": err_msg}
 
@@ -178,6 +190,130 @@ def create_gmail_draft(
                 temp_body.unlink()
             except Exception:
                 pass
+
+
+def send_gmail_email(
+    to_email: str,
+    subject: str,
+    body_markdown: str,
+    attachment_path: str | Path | None = None,
+) -> dict[str, Any]:
+    """Send an email directly via the Gmail CLI (with optional attached resume PDF)."""
+    to_email = (to_email or "").strip()
+    if not to_email or "@" not in to_email:
+        return {"status": "error", "message": "A valid recipient email address is required."}
+
+    gmail_bin = find_gmail_cli()
+    if not gmail_bin:
+        return {"status": "error", "message": "Gmail CLI not found on system. Please ensure the gmail plugin is enabled."}
+
+    pdf_to_attach: Path | None = None
+    if attachment_path:
+        cand = Path(attachment_path)
+        if cand.exists() and cand.is_file():
+            pdf_to_attach = cand.resolve()
+        else:
+            cand_rel = (APP_DIR / attachment_path).resolve()
+            if cand_rel.exists() and cand_rel.is_file():
+                pdf_to_attach = cand_rel
+
+    if not pdf_to_attach and RESUME_PDF_PATH.exists():
+        pdf_to_attach = RESUME_PDF_PATH.resolve()
+
+    temp_body = Path(tempfile.gettempdir()) / f"applypilot_send_{os.getpid()}_{hash(to_email) & 0xffffffff}.md"
+    try:
+        temp_body.write_text(body_markdown, encoding="utf-8")
+
+        if pdf_to_attach and pdf_to_attach.exists():
+            cmd = [
+                gmail_bin, "mutate", "send-with-attachment",
+                "--to", to_email,
+                "--subject", subject,
+                "--md",
+                "--body-file", str(temp_body),
+                "--file", str(pdf_to_attach),
+            ]
+        else:
+            cmd = [
+                gmail_bin, "mutate", "send",
+                "--to", to_email,
+                "--subject", subject,
+                "--md",
+                "--body-file", str(temp_body),
+            ]
+
+        res = subprocess.run(cmd, capture_output=True, text=True, shell=True)
+
+        if res.returncode != 0:
+            err_msg = res.stderr.strip() or res.stdout.strip() or f"Command failed with code {res.returncode}"
+            if "no credentials found" in err_msg.lower() or "auth login" in err_msg.lower():
+                err_msg = "Gmail CLI authentication required. Run 'gmail auth login' in terminal or check plugin login."
+            log.error("Failed to send email via Gmail CLI: %s", err_msg)
+            return {"status": "error", "message": err_msg}
+
+        stdout = res.stdout.strip()
+        log.info("Email sent successfully to %s: %s", to_email, stdout)
+        return {
+            "status": "ok",
+            "to": to_email,
+            "subject": subject,
+            "attachment": str(pdf_to_attach) if pdf_to_attach else None,
+            "message": f"Email successfully sent to {to_email} with attached resume!",
+        }
+    except Exception as e:
+        log.exception("Exception sending email via Gmail")
+        return {"status": "error", "message": str(e)}
+    finally:
+        if temp_body.exists():
+            try:
+                temp_body.unlink()
+            except Exception:
+                pass
+
+
+def send_for_job(rowid: int, custom_recipient: str | None = None) -> dict[str, Any]:
+    """Generate and directly send recruiter cold email for a specific job in DB."""
+    conn = get_connection()
+    c = conn.cursor()
+    row = c.execute(
+        """SELECT title, site, location, recruiter_email, application_url, url, tailored_resume_path 
+           FROM jobs WHERE rowid = ?""",
+        (rowid,),
+    ).fetchone()
+
+    if not row:
+        return {"status": "error", "message": f"Job rowid {rowid} not found."}
+
+    title, site, location, recruiter_email, app_url, url, tailored_path = row
+    recipient = (custom_recipient or recruiter_email or "").strip()
+    if not recipient or "@" not in recipient:
+        return {
+            "status": "missing_email",
+            "message": "No recruiter email on file for this job. Please provide a recipient email.",
+        }
+
+    target_url = app_url or url or ""
+    profile = load_profile()
+    email_data = generate_recruiter_email(
+        company=site or "Tech Team",
+        role_title=title or "Backend Engineer",
+        job_url=target_url,
+        candidate_profile=profile,
+    )
+
+    res = send_gmail_email(
+        to_email=recipient,
+        subject=email_data["subject"],
+        body_markdown=email_data["body_markdown"],
+        attachment_path=tailored_path,
+    )
+
+    if res.get("status") == "ok":
+        now = datetime.now(timezone.utc).isoformat()
+        c.execute("UPDATE jobs SET apply_status = 'applied', applied_at = ? WHERE rowid = ?", (now, rowid))
+        conn.commit()
+
+    return res
 
 
 def draft_for_job(rowid: int, custom_recipient: str | None = None) -> dict[str, Any]:

@@ -194,10 +194,7 @@ def apply(
 
     # --- Full apply mode ---
 
-    # Check 1: Tier 3 required (Claude Code CLI + Chrome)
-    check_tier(3, "auto-apply")
-
-    # Check 2: Profile exists
+    # Check: Profile exists
     if not _profile_path.exists():
         console.print(
             "[red]Profile not found.[/red]\n"
@@ -205,63 +202,25 @@ def apply(
         )
         raise typer.Exit(code=1)
 
-    # Check 3: Tailored resumes exist (skip for --gen with --url)
-    if not (gen and url):
-        conn = get_connection()
-        ready = conn.execute(
-            "SELECT COUNT(*) FROM jobs WHERE tailored_resume_path IS NOT NULL AND applied_at IS NULL"
-        ).fetchone()[0]
-        if ready == 0:
-            console.print(
-                "[red]No tailored resumes ready.[/red]\n"
-                "Run [bold]applypilot run score tailor[/bold] first to prepare applications."
-            )
-            raise typer.Exit(code=1)
+    from applypilot.apply.assistant import auto_apply_batch, launch_application_assistant
 
-    if gen:
-        from applypilot.apply.launcher import gen_prompt, BASE_CDP_PORT
-        target = url or ""
-        if not target:
-            console.print("[red]--gen requires --url to specify which job.[/red]")
-            raise typer.Exit(code=1)
-        prompt_file = gen_prompt(target, min_score=min_score, model=model)
-        if not prompt_file:
-            console.print("[red]No matching job found for that URL.[/red]")
-            raise typer.Exit(code=1)
-        mcp_path = _profile_path.parent / ".mcp-apply-0.json"
-        console.print(f"[green]Wrote prompt to:[/green] {prompt_file}")
-        console.print(f"\n[bold]Run manually:[/bold]")
-        console.print(
-            f"  claude --model {model} -p "
-            f"--mcp-config {mcp_path} "
-            f"--permission-mode bypassPermissions < {prompt_file}"
-        )
-        return
+    effective_limit = limit if limit is not None else (0 if continuous else 5)
 
-    from applypilot.apply.launcher import main as apply_main
-
-    effective_limit = limit if limit is not None else (0 if continuous else 1)
-
-    console.print("\n[bold blue]Launching Auto-Apply[/bold blue]")
-    console.print(f"  Limit:    {'unlimited' if continuous else effective_limit}")
-    console.print(f"  Workers:  {workers}")
-    console.print(f"  Model:    {model}")
-    console.print(f"  Headless: {headless}")
-    console.print(f"  Dry run:  {dry_run}")
+    console.print("\n[bold green]⚡ Launching Autonomous Auto-Apply Engine (Playwright + Brave)[/bold green]")
+    console.print(f"  Limit:      {'unlimited' if continuous else effective_limit}")
+    console.print(f"  Min Score:  {min_score}")
+    console.print(f"  Headless:   {headless}")
+    console.print(f"  Auto-Submit:{not dry_run}")
     if url:
-        console.print(f"  Target:   {url}")
+        console.print(f"  Target:     {url}")
     console.print()
 
-    apply_main(
-        limit=effective_limit,
-        target_url=url,
-        min_score=min_score,
-        headless=headless,
-        model=model,
-        dry_run=dry_run,
-        continuous=continuous,
-        workers=workers,
-    )
+    if url:
+        res = launch_application_assistant(url, headed=not headless, auto_submit=not dry_run, is_batch=False)
+        console.print(f"[bold cyan]Result:[/bold cyan] {res}")
+    else:
+        res = auto_apply_batch(limit=effective_limit, min_score=min_score, headed=not headless, auto_submit=not dry_run)
+        console.print(f"[bold green]Batch complete:[/bold green] Attempted {res.get('total_attempted', 0)}, Submitted {res.get('submitted_count', 0)}")
 
 
 @app.command()

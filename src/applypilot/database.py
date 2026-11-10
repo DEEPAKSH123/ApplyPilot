@@ -138,6 +138,7 @@ def init_db(db_path: Path | str | None = None) -> sqlite3.Connection:
 
     # Run migrations for any columns added after initial schema
     ensure_columns(conn)
+    init_auxiliary_tables(conn)
 
     return conn
 
@@ -183,7 +184,55 @@ _ALL_COLUMNS: dict[str, str] = {
     "apply_task_id": "TEXT",
     "verification_confidence": "TEXT",
     "recruiter_email": "TEXT",
+    "half_applied_at": "TEXT",
+    "application_stage": "TEXT",
+    "calendar_event_id": "TEXT",
+    "calendar_event_link": "TEXT",
 }
+
+
+def init_auxiliary_tables(conn: sqlite3.Connection) -> None:
+    """Initialize user activity logs and interview calls tables."""
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS user_activity_logs (
+            id                INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id        TEXT,
+            date              TEXT,
+            action            TEXT,
+            duration_seconds  INTEGER DEFAULT 0,
+            timestamp         TEXT,
+            metadata          TEXT
+        )
+    """)
+
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS interview_calls_log (
+            id                INTEGER PRIMARY KEY AUTOINCREMENT,
+            company           TEXT,
+            role_title        TEXT,
+            call_type         TEXT,
+            date_received     TEXT,
+            scheduled_at      TEXT,
+            recruiter_name    TEXT,
+            recruiter_contact TEXT,
+            notes             TEXT,
+            calendar_event_id TEXT,
+            calendar_event_link TEXT,
+            gsheet_synced     INTEGER DEFAULT 0,
+            created_at        TEXT
+        )
+    """)
+
+    try:
+        conn.execute("ALTER TABLE application_responses ADD COLUMN calendar_event_id TEXT")
+    except Exception:
+        pass
+    try:
+        conn.execute("ALTER TABLE application_responses ADD COLUMN calendar_event_link TEXT")
+    except Exception:
+        pass
+
+    conn.commit()
 
 
 def ensure_columns(conn: sqlite3.Connection | None = None) -> list[str]:

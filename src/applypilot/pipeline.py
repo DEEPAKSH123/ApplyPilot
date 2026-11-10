@@ -156,6 +156,17 @@ def _run_discover(workers: int = 4) -> dict:
             log.error("WhatsApp discovery failed: %s", e)
             stats["whatsapp"] = f"error: {e}"
 
+    # 7. Telegram Tech Channels & SDE Communities
+    if sources.get("telegram", True):
+        console.print("  [cyan]Telegram Tech Channels & SDE Communities discovery...[/cyan]")
+        try:
+            from applypilot.discovery.telegram import run_discovery as run_telegram
+            count = run_telegram()
+            stats["telegram"] = f"ok ({count} found)"
+        except Exception as e:
+            log.error("Telegram discovery failed: %s", e)
+            stats["telegram"] = f"error: {e}"
+
     return stats
 
 

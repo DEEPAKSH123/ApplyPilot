@@ -27,6 +27,32 @@ def _clean_path(p: str | None) -> str:
     return Path(p_str).name
 
 
+def format_job_source(strategy: str | None, site: str | None, url: str | None) -> str:
+    """Derive human-readable job source name."""
+    strat = (strategy or "").lower()
+    s = (site or "").lower()
+    u = (url or "").lower()
+
+    if "kadegree" in strat or "kadegree" in u or "kannada" in s:
+        return "KaDegree Community"
+    elif "whatsapp" in strat or "whatsapp" in s or "whatsapp" in u:
+        return "WhatsApp Community"
+    elif "linkedin" in strat or "linkedin" in s or "linkedin" in u:
+        return "LinkedIn"
+    elif "greenhouse" in strat or "greenhouse.io" in u:
+        return "Greenhouse ATS"
+    elif "workday" in strat or "myworkdayjobs" in u:
+        return "Workday ATS"
+    elif "smartrecruiters" in strat or "smartrecruiters.com" in u:
+        return "SmartRecruiters"
+    elif "jobspy" in strat:
+        if "indeed" in s or "indeed" in u:
+            return "Indeed"
+        return "JobSpy Aggregator"
+    else:
+        return site or "Company Direct"
+
+
 def export_opportunities_csv(output_path: Path | str | None = None) -> Path:
     """Export all opportunities to the single master opportunities.csv file.
 
@@ -40,7 +66,7 @@ def export_opportunities_csv(output_path: Path | str | None = None) -> Path:
     conn = get_connection()
 
     fieldnames = [
-        "Company", "Title", "Location", "Rating (Fit Score 1-10)",
+        "Company", "Title", "Location", "Rating (Fit Score 1-10)", "Source",
         "Recruiter Email", "Apply Link", "Tailored Resume PDF", "Cover Letter PDF",
         "LinkedIn Referral Search", "Discovered At", "Scored At", "Match Reasoning"
     ]
@@ -61,7 +87,9 @@ def export_opportunities_csv(output_path: Path | str | None = None) -> Path:
             COALESCE(scored_at, '') AS scored_at,
             COALESCE(score_reasoning, '') AS match_reasoning,
             COALESCE(full_description, '') AS full_desc,
-            COALESCE(description, '') AS desc
+            COALESCE(description, '') AS desc,
+            COALESCE(strategy, '') AS strategy,
+            COALESCE(url, '') AS raw_url
         FROM jobs
         ORDER BY fit_score DESC NULLS LAST, discovered_at DESC
     """
@@ -103,7 +131,11 @@ def export_opportunities_csv(output_path: Path | str | None = None) -> Path:
             if years and min(years) >= 4:
                 continue
 
-        # Slice off full_desc and desc from CSV row
+        strategy_val = row[13]
+        raw_url_val = row[14]
+        source_name = format_job_source(strategy_val, comp, raw_url_val or row[5])
+
+        # Slice off full_desc, desc, strategy, and raw_url from CSV row
         row = row[:11]
 
         # Sanitize application URLs
@@ -116,16 +148,19 @@ def export_opportunities_csv(output_path: Path | str | None = None) -> Path:
             elif ("phonepe" in u_l or "phonepe" in c_l) and ("sde1" in u_l or u_l.rstrip("/").endswith("/careers")):
                 row[5] = "https://jobs.smartrecruiters.com/PhonePeLimited/1000000000003895"
 
-        # item 6: tailored_resume_pdf
-        row[6] = _clean_path(row[6])
-        # item 7: cover_letter_pdf
+        # Insert Source at index 4 (right after Rating)
+        row.insert(4, source_name)
+
+        # item 7: tailored_resume_pdf (shifted by 1)
         row[7] = _clean_path(row[7])
+        # item 8: cover_letter_pdf (shifted by 1)
+        row[8] = _clean_path(row[8])
 
         # LinkedIn Referral Search Link for RVCE alumni
         ref_searches = generate_linkedin_searches(comp, tit)
         alumni_link = ref_searches.get("alumni_search_url", "")
-        # Insert alumni_link before item 8 (discovered_at)
-        row.insert(8, alumni_link)
+        # Insert alumni_link before discovered_at (which is now at index 9)
+        row.insert(9, alumni_link)
 
         formatted_rows.append(row)
 

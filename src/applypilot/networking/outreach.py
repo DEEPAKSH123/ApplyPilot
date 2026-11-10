@@ -81,6 +81,7 @@ def generate_outreach_messages(
     # Candidate details from Deepak's profile
     full_name = "Deepak S H"
     phone = "8431433659"
+    email = "deepakshkarkala@gmail.com"
     linkedin_url = "https://www.linkedin.com/in/deepak-s-h-82b772254"
     github_url = "https://github.com/Deepak-S-H"
 
@@ -88,6 +89,7 @@ def generate_outreach_messages(
         personal = candidate_profile.get("personal", {})
         full_name = personal.get("full_name", full_name)
         phone = personal.get("phone", phone)
+        email = personal.get("email", email)
         linkedin_url = personal.get("linkedin_url", linkedin_url)
 
     job_ref = ""
@@ -141,7 +143,7 @@ def generate_outreach_messages(
     recruiter_msg = (
         f"Hi [Name],\n\n"
         f"I came across the {role_title} opening at {comp}{job_ref}. "
-        f"I am currently an SDE-I Backend Engineer at Meesho with 1.3 years of experience building high-throughput distributed systems "
+        f"I am currently an SDE-I Backend Engineer at Meesho with 2 years of professional backend experience (1.3 years full-time at Meesho + 6 months internship) building high-throughput distributed systems "
         f"using Java, Go, Kafka, Redis, and Spring Boot, and graduated from RVCE (CGPA 8.92).\n\n"
         f"My background in financial reconciliation, payment pipelines, and high-scale backend services aligns closely with {comp}'s stack. "
         f"I would love to connect and share my tailored resume if you have a brief moment.\n\n"
@@ -155,15 +157,20 @@ def generate_outreach_messages(
     kadegree_msg = (
         f"ನಮಸ್ಕಾರ [Name],\n\n"
         f"Hope you are doing well!\n\n"
-        f"I saw that {comp} has an opening for {role_title}{job_ref}.\n\n"
+        f"I noticed the opening for {role_title} at {comp} in our KaDegree community{job_ref}.\n\n"
         f"I am an SDE-I Backend Engineer at Meesho (RVCE CSE '25, CGPA 8.92) working on distributed reconciliation pipelines and microservices "
         f"using Java, Go, Kafka, Redis, and Spring Boot.\n\n"
-        f"If your team is open to referrals, would you be open to putting in a referral for me? Happy to share my tailored resume and details.\n\n"
-        f"ಧನ್ಯವಾದಗಳು / Thanks a lot for the support!\n\n"
+        f"My resume is already attached and present in my profile. Could you please consider referring my profile for this position?\n\n"
+        f"Requisition & Profile Details:\n"
+        f"• Role: {role_title} @ {comp}\n"
+        f"• Profile: SDE-I Backend Engineer, Meesho (RVCE '25)\n"
+        f"• Resume: Present in profile\n"
+        f"• Email: {email}\n"
+        f"• Phone: {phone}\n"
+        f"• LinkedIn: {linkedin_url}\n\n"
+        f"ಧನ್ಯವಾದಗಳು! (Thank you!)\n"
         f"Best regards,\n"
-        f"{full_name}\n"
-        f"Phone: {phone}\n"
-        f"LinkedIn: {linkedin_url}"
+        f"{full_name}"
     )
 
     return {

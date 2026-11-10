@@ -1294,8 +1294,11 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         <div id="custom-draft-status" style="display:none; margin-bottom: 14px; padding: 10px; border-radius: 8px; font-size: 12px;"></div>
         <div style="display:flex; justify-content: flex-end; gap: 10px;">
           <button class="btn" style="background:#334155; color:#cbd5e1;" onclick="closeCustomDraftModal()">Cancel</button>
-          <button class="btn" id="btn-submit-custom-draft" style="background: linear-gradient(135deg, #ea4335, #dc2626); color:white; font-weight:700; padding: 9px 18px;" onclick="submitCustomDraft()">
-            <i class="fa-solid fa-paper-plane"></i> Create Gmail Draft (w/ Resume)
+          <button class="btn" id="btn-submit-custom-draft" style="background: linear-gradient(135deg, #ea4335, #dc2626); color:white; font-weight:700; padding: 9px 16px;" onclick="submitCustomDraft('draft')">
+            <i class="fa-solid fa-file-pen"></i> Save Draft in Gmail
+          </button>
+          <button class="btn" id="btn-submit-custom-send" style="background: linear-gradient(135deg, #10b981, #059669); color:white; font-weight:700; padding: 9px 16px;" onclick="submitCustomDraft('send')">
+            <i class="fa-solid fa-paper-plane"></i> Send Email Directly
           </button>
         </div>
       </div>
@@ -1805,7 +1808,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     }
 
     async function triggerBatchAutoApply() {
-      if (!confirm('Run Autonomous Auto-Apply batch for Top 5 qualified roles in Brave?\n\nThis will launch Brave, prefill application details, answer screening questions, attach your tailored resume, and submit each application autonomously (Kanistus workflow).')) {
+      if (!confirm('Run Autonomous Auto-Apply batch for Top 5 qualified roles in Brave? This will launch Brave, prefill application details, answer screening questions, attach your tailored resume, and submit each application autonomously.')) {
         return;
       }
       showToast('🚀 Launching Autonomous Auto-Apply batch for Top 5 matches in Brave...');
@@ -2774,12 +2777,15 @@ HTML_DASHBOARD = """<!DOCTYPE html>
               </button>
 
               ${job.recruiter_email ? `
-                <button class="btn btn-email" id="btn-draft-${job.rowid}" onclick="draftEmailForJob(${job.rowid})">
-                  <i class="fa-solid fa-envelope-circle-check"></i> Draft in Gmail (w/ Resume)
+                <button class="btn btn-email" id="btn-draft-${job.rowid}" onclick="draftEmailForJob(${job.rowid})" title="Draft cold email in your Gmail drafts folder with tailored resume attached">
+                  <i class="fa-solid fa-file-pen"></i> Draft in Gmail
+                </button>
+                <button class="btn" id="btn-send-${job.rowid}" onclick="sendEmailForJob(${job.rowid})" style="background: linear-gradient(135deg, #10b981, #059669); color: white; padding: 7px 12px; font-size: 12px; font-weight: 700; border-radius: 8px; border: none; cursor: pointer;" title="Send directly to recruiter if confidence is high (with tailored resume attached)">
+                  <i class="fa-solid fa-paper-plane"></i> Send Email
                 </button>
               ` : `
-                <button class="btn btn-email-ghost" onclick="promptCustomDraft(${job.rowid})">
-                  <i class="fa-regular fa-envelope"></i> Draft to Recruiter
+                <button class="btn btn-email-ghost" onclick="promptCustomDraft(${job.rowid})" title="Draft or send cold email to recruiter with tailored resume">
+                  <i class="fa-regular fa-envelope"></i> Draft / Send
                 </button>
               `}
 
@@ -3084,8 +3090,11 @@ HTML_DASHBOARD = """<!DOCTYPE html>
           </p>
           <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 10px;">
             <input type="email" id="modal-draft-email-${job.rowid}" value="${job.recruiter_email || ''}" placeholder="Enter recruiter or HR email address (e.g. careers@company.com)..." style="flex:1; background: #0f172a; border: 1px solid #dc2626; color: #fff; padding: 8px 12px; border-radius: 8px; font-size: 12px;">
-            <button class="btn" id="btn-modal-draft-${job.rowid}" style="background: linear-gradient(135deg, #dc2626, #b91c1c); color: white; font-weight: 700; padding: 8px 16px; white-space: nowrap;" onclick="draftEmailFromModal(${job.rowid})">
-              <i class="fa-solid fa-paper-plane"></i> Create Gmail Draft (w/ Resume)
+            <button class="btn" id="btn-modal-draft-${job.rowid}" style="background: linear-gradient(135deg, #dc2626, #b91c1c); color: white; font-weight: 700; padding: 8px 14px; white-space: nowrap;" onclick="draftEmailFromModal(${job.rowid}, 'draft')">
+              <i class="fa-solid fa-file-pen"></i> Save Draft
+            </button>
+            <button class="btn" id="btn-modal-send-${job.rowid}" style="background: linear-gradient(135deg, #10b981, #059669); color: white; font-weight: 700; padding: 8px 14px; white-space: nowrap;" onclick="draftEmailFromModal(${job.rowid}, 'send')">
+              <i class="fa-solid fa-paper-plane"></i> Send Now
             </button>
           </div>
           <div id="modal-draft-status-${job.rowid}" style="display: none; padding: 10px; border-radius: 8px; font-size: 12px;"></div>
@@ -3363,11 +3372,11 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     }
 
     /* Confetti Engine */
-    /* Gmail Recruiter Drafting System */
+    /* Gmail Recruiter Drafting & Direct Sending System */
     async function draftEmailForJob(rowid, customEmail = null) {
       const btn = document.getElementById(`btn-draft-${rowid}`);
       if (btn) {
-        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Drafting in Gmail...';
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Drafting...';
         btn.disabled = true;
       }
       showToast('Creating Gmail draft with tailored resume...');
@@ -3381,7 +3390,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         if (data.status === 'ok') {
           showToast('✅ Gmail draft created! Attached: ' + (data.attachment ? 'Resume PDF' : 'None'));
           if (btn) {
-            btn.innerHTML = '<i class="fa-solid fa-check"></i> Draft Created in Gmail!';
+            btn.innerHTML = '<i class="fa-solid fa-check"></i> Draft Created!';
             btn.style.background = '#059669';
           }
           setTimeout(() => {
@@ -3390,89 +3399,160 @@ HTML_DASHBOARD = """<!DOCTYPE html>
             }
           }, 300);
         } else if (data.status === 'missing_email') {
-          promptCustomDraft(rowid);
+          promptCustomDraft(rowid, 'draft');
           if (btn) {
-            btn.innerHTML = '<i class="fa-solid fa-envelope-circle-check"></i> Draft in Gmail';
+            btn.innerHTML = '<i class="fa-solid fa-file-pen"></i> Draft in Gmail';
             btn.disabled = false;
           }
         } else {
           showToast('⚠️ Error: ' + (data.message || 'Failed to draft email'));
           if (btn) {
-            btn.innerHTML = '<i class="fa-solid fa-envelope-circle-check"></i> Retry Draft';
+            btn.innerHTML = '<i class="fa-solid fa-file-pen"></i> Retry Draft';
             btn.disabled = false;
           }
         }
       } catch (e) {
         showToast('Failed to connect: ' + e);
         if (btn) {
-          btn.innerHTML = '<i class="fa-solid fa-envelope-circle-check"></i> Draft in Gmail';
+          btn.innerHTML = '<i class="fa-solid fa-file-pen"></i> Draft in Gmail';
           btn.disabled = false;
         }
       }
     }
 
-    function promptCustomDraft(rowid) {
+    async function sendEmailForJob(rowid, customEmail = null) {
+      const btn = document.getElementById(`btn-send-${rowid}`);
       const job = allJobs.find(j => j.rowid === rowid);
-      const email = prompt(`Enter recruiter or talent email address for ${job ? job.company : 'this role'}:`, job ? job.recruiter_email || '' : '');
-      if (email && email.trim()) {
-        draftEmailForJob(rowid, email.trim());
+      const recipient = (customEmail || (job ? job.recruiter_email : '') || '').trim();
+
+      if (!recipient) {
+        promptCustomDraft(rowid, 'send');
+        return;
+      }
+
+      if (!confirm(`⚡ HIGH CONFIDENCE SEND:\n\nAre you sure you want to send this cold application directly to:\n${recipient}\n\nYour tailored resume will be attached automatically.`)) {
+        return;
+      }
+
+      if (btn) {
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Sending...';
+        btn.disabled = true;
+      }
+      showToast('Sending recruiter email with tailored resume...');
+      try {
+        const res = await fetch(`/api/jobs/${rowid}/send_email`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ custom_email: recipient })
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          showToast('🎉 BOOM! Email successfully sent to ' + data.to);
+          triggerConfetti();
+          if (btn) {
+            btn.innerHTML = '<i class="fa-solid fa-paper-plane-circle-check"></i> Sent!';
+            btn.style.background = '#059669';
+          }
+          fetchJobs();
+        } else {
+          showToast('⚠️ Error: ' + (data.message || 'Failed to send email'));
+          if (btn) {
+            btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Send Email';
+            btn.disabled = false;
+          }
+        }
+      } catch (e) {
+        showToast('Failed to connect: ' + e);
+        if (btn) {
+          btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Send Email';
+          btn.disabled = false;
+        }
       }
     }
 
-    async function draftEmailFromModal(rowid) {
+    function promptCustomDraft(rowid, action = 'draft') {
+      const job = allJobs.find(j => j.rowid === rowid);
+      const comp = job ? job.company : '';
+      const role = job ? job.title : '';
+      const url = job ? (job.apply_url || job.url || '') : '';
+      const email = job ? (job.recruiter_email || '') : '';
+      openCustomDraftModal(comp, role, url, email);
+    }
+
+    async function draftEmailFromModal(rowid, action = 'draft') {
       const input = document.getElementById(`modal-draft-email-${rowid}`);
       const statusEl = document.getElementById(`modal-draft-status-${rowid}`);
-      const btn = document.getElementById(`btn-modal-draft-${rowid}`);
+      const btnDraft = document.getElementById(`btn-modal-draft-${rowid}`);
+      const btnSend = document.getElementById(`btn-modal-send-${rowid}`);
       const email = input ? input.value.trim() : '';
       if (!email || !email.includes('@')) {
         alert('Please enter a valid email address.');
         return;
       }
-      if (btn) {
-        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating Draft...';
-        btn.disabled = true;
+
+      if (action === 'send') {
+        if (!confirm(`Are you sure you want to send cold email directly to ${email}? Resume will be attached.`)) {
+          return;
+        }
+      }
+
+      const activeBtn = action === 'send' ? btnSend : btnDraft;
+      if (activeBtn) {
+        activeBtn.innerHTML = action === 'send' ? '<i class="fa-solid fa-spinner fa-spin"></i> Sending...' : '<i class="fa-solid fa-spinner fa-spin"></i> Drafting...';
+        activeBtn.disabled = true;
       }
       if (statusEl) {
         statusEl.style.display = 'block';
         statusEl.style.background = 'rgba(56, 189, 248, 0.2)';
         statusEl.style.color = '#38bdf8';
-        statusEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Running Gmail CLI to compose draft and attach resume PDF...';
+        statusEl.innerHTML = action === 'send' 
+          ? '<i class="fa-solid fa-spinner fa-spin"></i> Sending email via Gmail CLI with attached tailored resume...'
+          : '<i class="fa-solid fa-spinner fa-spin"></i> Running Gmail CLI to compose draft and attach resume PDF...';
       }
       try {
-        const res = await fetch(`/api/jobs/${rowid}/draft_email`, {
+        const endpoint = action === 'send' ? `/api/jobs/${rowid}/send_email` : `/api/jobs/${rowid}/draft_email`;
+        const res = await fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ custom_email: email })
         });
         const data = await res.json();
         if (data.status === 'ok') {
-          if (btn) {
-            btn.innerHTML = '<i class="fa-solid fa-check"></i> Draft Ready in Gmail!';
-            btn.style.background = '#059669';
+          if (activeBtn) {
+            activeBtn.innerHTML = action === 'send' ? '<i class="fa-solid fa-paper-plane-circle-check"></i> Sent!' : '<i class="fa-solid fa-check"></i> Draft Ready in Gmail!';
+            activeBtn.style.background = '#059669';
           }
           if (statusEl) {
             statusEl.style.background = 'rgba(16, 185, 129, 0.25)';
             statusEl.style.color = '#34d399';
-            statusEl.innerHTML = `<strong>✅ Draft created in Gmail!</strong><br>
-              <span style="font-size:11px;color:#cbd5e1;">Recipient: ${data.to} | Attachment: ${data.attachment ? 'Resume PDF attached' : 'None'}</span><br>
-              <a href="https://mail.google.com/mail/u/0/#drafts" target="_blank" rel="noopener noreferrer" style="color:#38bdf8;text-decoration:underline;display:inline-block;margin-top:6px;font-weight:700;">Open Gmail Drafts to Review & Send &rarr;</a>`;
+            if (action === 'send') {
+              statusEl.innerHTML = `<strong>🎉 Email Sent Successfully!</strong><br>
+                <span style="font-size:11px;color:#cbd5e1;">Delivered to: ${data.to} | Attachment: ${data.attachment ? 'Resume PDF attached' : 'None'}</span><br>
+                <a href="https://mail.google.com/mail/u/0/#sent" target="_blank" rel="noopener noreferrer" style="color:#38bdf8;text-decoration:underline;display:inline-block;margin-top:6px;font-weight:700;">View in Gmail Sent Mail &rarr;</a>`;
+              triggerConfetti();
+              fetchJobs();
+            } else {
+              statusEl.innerHTML = `<strong>✅ Draft created in Gmail!</strong><br>
+                <span style="font-size:11px;color:#cbd5e1;">Recipient: ${data.to} | Attachment: ${data.attachment ? 'Resume PDF attached' : 'None'}</span><br>
+                <a href="https://mail.google.com/mail/u/0/#drafts" target="_blank" rel="noopener noreferrer" style="color:#38bdf8;text-decoration:underline;display:inline-block;margin-top:6px;font-weight:700;">Open Gmail Drafts to Review & Send &rarr;</a>`;
+            }
           }
-          showToast('✅ Draft created for ' + email);
+          showToast((action === 'send' ? '🎉 Email sent to ' : '✅ Draft created for ') + email);
         } else {
-          if (btn) {
-            btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Retry Draft';
-            btn.disabled = false;
+          if (activeBtn) {
+            activeBtn.innerHTML = action === 'send' ? '<i class="fa-solid fa-paper-plane"></i> Send Now' : '<i class="fa-solid fa-file-pen"></i> Save Draft';
+            activeBtn.disabled = false;
           }
           if (statusEl) {
             statusEl.style.background = 'rgba(239, 68, 68, 0.25)';
             statusEl.style.color = '#f87171';
-            statusEl.innerHTML = '⚠️ Error: ' + (data.message || 'Draft creation failed.');
+            statusEl.innerHTML = '⚠️ Error: ' + (data.message || (action === 'send' ? 'Sending failed.' : 'Draft creation failed.'));
           }
         }
       } catch (err) {
-        if (btn) {
-          btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Retry Draft';
-          btn.disabled = false;
+        if (activeBtn) {
+          activeBtn.innerHTML = action === 'send' ? '<i class="fa-solid fa-paper-plane"></i> Send Now' : '<i class="fa-solid fa-file-pen"></i> Save Draft';
+          activeBtn.disabled = false;
         }
         if (statusEl) {
           statusEl.style.background = 'rgba(239, 68, 68, 0.25)';
@@ -3587,52 +3667,77 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       }
     }
 
-    async function submitCustomDraft() {
+    async function submitCustomDraft(action = 'draft') {
       const email = document.getElementById('custom-draft-email').value.trim();
       const comp = document.getElementById('custom-draft-comp').value.trim();
       const role = document.getElementById('custom-draft-role').value.trim();
       const url = document.getElementById('custom-draft-url').value.trim();
       const statusEl = document.getElementById('custom-draft-status');
-      const btn = document.getElementById('btn-submit-custom-draft');
+      const btnDraft = document.getElementById('btn-submit-custom-draft');
+      const btnSend = document.getElementById('btn-submit-custom-send');
 
       if (!email || !email.includes('@')) {
         alert('Please enter a valid recruiter email address.');
         return;
       }
 
-      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Creating Draft...';
-      btn.disabled = true;
+      if (action === 'send') {
+        if (!confirm(`Are you sure you want to send cold application directly to ${email}? Resume will be attached.`)) {
+          return;
+        }
+      }
+
+      const activeBtn = action === 'send' ? btnSend : btnDraft;
+      if (activeBtn) {
+        activeBtn.innerHTML = action === 'send' ? '<i class="fa-solid fa-spinner fa-spin"></i> Sending...' : '<i class="fa-solid fa-spinner fa-spin"></i> Creating Draft...';
+        activeBtn.disabled = true;
+      }
       statusEl.style.display = 'block';
       statusEl.style.background = 'rgba(56, 189, 248, 0.2)';
       statusEl.style.color = '#38bdf8';
-      statusEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Composing draft and attaching resume PDF...';
+      statusEl.innerHTML = action === 'send'
+        ? '<i class="fa-solid fa-spinner fa-spin"></i> Sending email directly via Gmail CLI with attached tailored resume...'
+        : '<i class="fa-solid fa-spinner fa-spin"></i> Composing draft and attaching resume PDF...';
 
       try {
         const res = await fetch('/api/email/custom_draft', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ to_email: email, company: comp, role: role, job_url: url })
+          body: JSON.stringify({ to_email: email, company: comp, role: role, job_url: url, action: action })
         });
         const data = await res.json();
         if (data.status === 'ok') {
-          btn.innerHTML = '<i class="fa-solid fa-check"></i> Draft Created in Gmail!';
-          btn.style.background = '#059669';
+          if (activeBtn) {
+            activeBtn.innerHTML = action === 'send' ? '<i class="fa-solid fa-paper-plane-circle-check"></i> Sent!' : '<i class="fa-solid fa-check"></i> Draft Created in Gmail!';
+            activeBtn.style.background = '#059669';
+          }
           statusEl.style.background = 'rgba(16, 185, 129, 0.25)';
           statusEl.style.color = '#34d399';
-          statusEl.innerHTML = `<strong>✅ Draft created in Gmail!</strong><br>
-            <span style="font-size:11px;color:#cbd5e1;">Recipient: ${data.to} | Resume: Attached</span><br>
-            <a href="https://mail.google.com/mail/u/0/#drafts" target="_blank" rel="noopener noreferrer" style="color:#38bdf8;text-decoration:underline;display:inline-block;margin-top:6px;font-weight:700;">Open Gmail Drafts to Review & Send &rarr;</a>`;
-          showToast('✅ Cold email drafted for ' + email);
+          if (action === 'send') {
+            statusEl.innerHTML = `<strong>🎉 Email Sent Directly!</strong><br>
+              <span style="font-size:11px;color:#cbd5e1;">Recipient: ${data.to} | Resume: Attached</span><br>
+              <a href="https://mail.google.com/mail/u/0/#sent" target="_blank" rel="noopener noreferrer" style="color:#38bdf8;text-decoration:underline;display:inline-block;margin-top:6px;font-weight:700;">View in Gmail Sent Mail &rarr;</a>`;
+            triggerConfetti();
+          } else {
+            statusEl.innerHTML = `<strong>✅ Draft created in Gmail!</strong><br>
+              <span style="font-size:11px;color:#cbd5e1;">Recipient: ${data.to} | Resume: Attached</span><br>
+              <a href="https://mail.google.com/mail/u/0/#drafts" target="_blank" rel="noopener noreferrer" style="color:#38bdf8;text-decoration:underline;display:inline-block;margin-top:6px;font-weight:700;">Open Gmail Drafts to Review & Send &rarr;</a>`;
+          }
+          showToast((action === 'send' ? '🎉 Cold email sent to ' : '✅ Cold email drafted for ') + email);
         } else {
-          btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Retry Draft';
-          btn.disabled = false;
+          if (activeBtn) {
+            activeBtn.innerHTML = action === 'send' ? '<i class="fa-solid fa-paper-plane"></i> Send Email Directly' : '<i class="fa-solid fa-file-pen"></i> Save Draft in Gmail';
+            activeBtn.disabled = false;
+          }
           statusEl.style.background = 'rgba(239, 68, 68, 0.25)';
           statusEl.style.color = '#f87171';
-          statusEl.innerHTML = '⚠️ Error: ' + (data.message || 'Failed to create draft');
+          statusEl.innerHTML = '⚠️ Error: ' + (data.message || (action === 'send' ? 'Failed to send email' : 'Failed to create draft'));
         }
       } catch (err) {
-        btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Retry Draft';
-        btn.disabled = false;
+        if (activeBtn) {
+          activeBtn.innerHTML = action === 'send' ? '<i class="fa-solid fa-paper-plane"></i> Send Email Directly' : '<i class="fa-solid fa-file-pen"></i> Save Draft in Gmail';
+          activeBtn.disabled = false;
+        }
         statusEl.style.background = 'rgba(239, 68, 68, 0.25)';
         statusEl.style.color = '#f87171';
         statusEl.innerHTML = '⚠️ Network Error: ' + err;
@@ -3696,6 +3801,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
+        from applypilot.database import get_connection
 
         if path in ("/", "/index.html", "/dashboard"):
             self.send_response(200)
@@ -4066,6 +4172,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
     def do_POST(self):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
+        from applypilot.database import get_connection
 
         # /api/activity/heartbeat (Track active search time)
         if path == "/api/activity/heartbeat":
@@ -4462,6 +4569,28 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps(res).encode("utf-8"))
             return
 
+        # /api/jobs/{rowid}/send_email (Send cold email directly via Gmail with attached resume)
+        elif path.startswith("/api/jobs/") and path.endswith("/send_email"):
+            parts = path.split("/")
+            rowid = int(parts[3])
+            length = int(self.headers.get("Content-Length", 0))
+            body_data = self.rfile.read(length).decode("utf-8") if length > 0 else "{}"
+            custom_email = ""
+            try:
+                payload = json.loads(body_data)
+                custom_email = payload.get("custom_email", "").strip()
+            except Exception:
+                pass
+
+            from applypilot.networking.gmail_drafter import send_for_job
+            res = send_for_job(rowid, custom_recipient=custom_email or None)
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(json.dumps(res).encode("utf-8"))
+            return
+
         # /api/email/custom_draft (Draft arbitrary cold email in Gmail)
         elif path == "/api/email/custom_draft":
             length = int(self.headers.get("Content-Length", 0))
@@ -4473,7 +4602,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 role_str = data.get("role", "").strip()
                 job_url = data.get("job_url", "").strip()
 
-                from applypilot.networking.gmail_drafter import generate_recruiter_email, create_gmail_draft
+                action_mode = data.get("action", "draft").strip().lower()
+                from applypilot.networking.gmail_drafter import generate_recruiter_email, create_gmail_draft, send_gmail_email
                 from applypilot.config import load_profile
                 email_content = generate_recruiter_email(
                     company=company,
@@ -4481,11 +4611,18 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     job_url=job_url,
                     candidate_profile=load_profile()
                 )
-                res = create_gmail_draft(
-                    to_email=to_email,
-                    subject=email_content["subject"],
-                    body_markdown=email_content["body_markdown"]
-                )
+                if action_mode == "send":
+                    res = send_gmail_email(
+                        to_email=to_email,
+                        subject=email_content["subject"],
+                        body_markdown=email_content["body_markdown"]
+                    )
+                else:
+                    res = create_gmail_draft(
+                        to_email=to_email,
+                        subject=email_content["subject"],
+                        body_markdown=email_content["body_markdown"]
+                    )
             except Exception as e:
                 res = {"status": "error", "message": str(e)}
 
