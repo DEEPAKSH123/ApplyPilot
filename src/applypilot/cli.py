@@ -354,7 +354,7 @@ def ui_cmd(
 
 @app.command("assistant")
 def assistant_cmd(
-    target: str = typer.Argument(..., help="Job rowid or URL to apply for"),
+    target: str = typer.Argument("1", help="Job rank (e.g. '1' for top match), company keyword, rowid, or URL [default: 1]"),
     headed: bool = typer.Option(True, "--headed/--headless", help="Run browser in visible headed mode"),
 ) -> None:
     """Launch Phase 3 Human-in-the-Loop 1-Click Application Assistant."""

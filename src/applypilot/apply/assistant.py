@@ -23,13 +23,48 @@ log = logging.getLogger(__name__)
 
 
 def _find_job(conn: sqlite3.Connection, identifier: str | int) -> dict | None:
-    """Find job by rowid or URL."""
+    """Find job by rank (e.g. 1 for top-rated job), rowid, company keyword, or URL."""
     c = conn.cursor()
-    if isinstance(identifier, int) or (isinstance(identifier, str) and identifier.isdigit()):
-        row = c.execute("SELECT rowid, * FROM jobs WHERE rowid = ?", (int(identifier),)).fetchone()
-    else:
-        row = c.execute("SELECT rowid, * FROM jobs WHERE url = ? OR application_url = ?", (str(identifier), str(identifier))).fetchone()
-    
+    row = None
+
+    # 1. Exact URL / application URL
+    ident_str = str(identifier).strip()
+    if ident_str.startswith("http://") or ident_str.startswith("https://"):
+        row = c.execute(
+            "SELECT rowid, * FROM jobs WHERE url = ? OR application_url = ?",
+            (ident_str, ident_str)
+        ).fetchone()
+
+    # 2. Number (rank or rowid)
+    if not row and ident_str.isdigit():
+        num = int(ident_str)
+        # First check if rowid == num exists and has fit_score >= 7 (e.g. when clicked from dashboard)
+        row = c.execute(
+            "SELECT rowid, * FROM jobs WHERE rowid = ? AND fit_score >= 7",
+            (num,)
+        ).fetchone()
+
+        # Second check: treat as 1-based rank among top-rated opportunities (e.g. '1' = top match)
+        if not row and num >= 1:
+            row = c.execute(
+                "SELECT rowid, * FROM jobs WHERE fit_score IS NOT NULL "
+                "ORDER BY fit_score DESC, rowid ASC LIMIT 1 OFFSET ?",
+                (num - 1,)
+            ).fetchone()
+
+        # Third check: check any rowid regardless of score
+        if not row:
+            row = c.execute("SELECT rowid, * FROM jobs WHERE rowid = ?", (num,)).fetchone()
+
+    # 3. Fuzzy keyword search by company, title, or site (e.g. 'stripe', 'phonepe', 'mastercard', 'cisco')
+    if not row and ident_str:
+        q = f"%{ident_str}%"
+        row = c.execute(
+            "SELECT rowid, * FROM jobs WHERE (site LIKE ? OR title LIKE ? OR url LIKE ? OR full_description LIKE ?) "
+            "ORDER BY fit_score DESC NULLS LAST LIMIT 1",
+            (q, q, q, q)
+        ).fetchone()
+
     if not row:
         return None
     columns = [d[0] for d in c.description]
@@ -196,8 +231,13 @@ def launch_application_assistant(identifier: str | int, headed: bool = True) -> 
             log.info("Prefilled %d fields. Browser is open for Deepak's review.", len(filled))
 
             # Keep browser alive until user closes the window or 10 minutes pass
-            while not page.is_closed():
-                time.sleep(1)
+            try:
+                while True:
+                    if page.is_closed():
+                        break
+                    time.sleep(1)
+            except Exception:
+                pass
 
         except Exception as e:
             if "Target closed" not in str(e):
@@ -221,14 +261,15 @@ def mark_job_applied(identifier: str | int) -> dict:
     conn = get_connection()
     c = conn.cursor()
     now = datetime.now(timezone.utc).isoformat()
-    if isinstance(identifier, int) or (isinstance(identifier, str) and identifier.isdigit()):
-        c.execute("UPDATE jobs SET apply_status = 'applied', applied_at = ? WHERE rowid = ?", (now, int(identifier)))
-    else:
-        c.execute("UPDATE jobs SET apply_status = 'applied', applied_at = ? WHERE url = ? OR application_url = ?", (now, str(identifier), str(identifier)))
-    
+    job = _find_job(conn, identifier)
+    if not job:
+        return {"status": "error", "message": f"Job '{identifier}' not found in database."}
+
+    rowid = job["rowid"]
+    c.execute("UPDATE jobs SET apply_status = 'applied', applied_at = ? WHERE rowid = ?", (now, rowid))
     conn.commit()
 
     from applypilot.export.csv_export import export_opportunities_csv
     export_opportunities_csv()
 
-    return {"status": "ok", "applied_at": now}
+    return {"status": "ok", "job_title": job.get("title"), "company": job.get("site"), "applied_at": now}
