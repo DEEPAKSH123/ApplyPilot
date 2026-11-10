@@ -22,3 +22,13 @@ Refer to `../MEMORY.md` for the complete operational history and candidate perso
 4. **Autonomy Constraint:**
    * NEVER instruct the user to open a terminal or run commands.
    * Perform all setup, migrations, database queries, and background daemon monitoring autonomously.
+
+5. **Seniority & Experience Filter (0–3 YOE):**
+   * Deepak S H has ~1.3 years of experience.
+   * Strictly reject titles with Senior, Lead, Staff, Principal, Manager, Architect, or jobs requiring 4+ YOE.
+   * Maintain only eligible 0–3 YOE roles in `opportunities.csv` and the UI.
+
+6. **Recruiter Outreach & Gmail Drafting:**
+   * Never send emails automatically.
+   * Create drafts in Gmail using `gmail mutate create-draft` with `--body-file <temp_md> --md` and `--file <resume_pdf>` via `applypilot.networking.gmail_drafter`.
+   * On Windows, resolve `gmail` via `shutil.which("gmail")` and pass `shell=True`.

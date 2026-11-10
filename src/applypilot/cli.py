@@ -429,6 +429,30 @@ def inbox_cmd(
 
 
 # ---------------------------------------------------------------------------
+# Recruiter Email Drafter (Gmail CLI Integration)
+# ---------------------------------------------------------------------------
+
+@app.command("draft")
+def draft_cmd(
+    rowid: int = typer.Argument(..., help="Job rowid to create a Gmail draft for"),
+    email: str = typer.Option(None, "--email", "-e", help="Override recruiter email address"),
+) -> None:
+    """Create a recruiter cold email draft in Gmail with attached tailored resume."""
+    _bootstrap()
+    from applypilot.networking.gmail_drafter import draft_for_job
+    console.print(f"[bold cyan]Creating Gmail draft for job rowid {rowid}...[/bold cyan]")
+    res = draft_for_job(rowid, custom_recipient=email)
+    if res.get("status") == "ok":
+        console.print(f"[bold green]✓ Gmail draft created successfully![/bold green] (ID: {res.get('draft_id')})")
+        console.print(f"   Recipient: [bold white]{res.get('to')}[/bold white]")
+        console.print(f"   Subject:   [bold white]{res.get('subject')}[/bold white]")
+        console.print(f"   Attached:  [bold yellow]{res.get('attachment')}[/bold yellow]")
+        console.print(f"   Review at: [link=https://mail.google.com/mail/u/0/#drafts]https://mail.google.com/mail/u/0/#drafts[/link]")
+    else:
+        console.print(f"[bold red]✗ Failed: {res.get('message')}[/bold red]")
+
+
+# ---------------------------------------------------------------------------
 # LinkedIn Network & Post Automation
 # ---------------------------------------------------------------------------
 
@@ -493,6 +517,30 @@ def linkedin_posts_cmd(
     console.print(table)
 
 
+# ---------------------------------------------------------------------------
+# Recruiter Email Drafter (Gmail CLI Integration)
+# ---------------------------------------------------------------------------
+
+@app.command("draft")
+def draft_cmd(
+    rowid: int = typer.Argument(..., help="Job rowid to create a Gmail draft for"),
+    email: str = typer.Option(None, "--email", "-e", help="Override recruiter email address"),
+) -> None:
+    """Create a recruiter cold email draft in Gmail with attached tailored resume."""
+    _bootstrap()
+    from applypilot.networking.gmail_drafter import draft_for_job
+    console.print(f"[bold cyan]Creating Gmail draft for job rowid {rowid}...[/bold cyan]")
+    res = draft_for_job(rowid, custom_recipient=email)
+    if res.get("status") == "ok":
+        console.print(f"[bold green]✓ Gmail draft created successfully![/bold green] (ID: {res.get('draft_id')})")
+        console.print(f"   Recipient: [bold white]{res.get('to')}[/bold white]")
+        console.print(f"   Subject:   [bold white]{res.get('subject')}[/bold white]")
+        console.print(f"   Attached:  [bold yellow]{res.get('attachment')}[/bold yellow]")
+        console.print(f"   Review at: [link=https://mail.google.com/mail/u/0/#drafts]https://mail.google.com/mail/u/0/#drafts[/link]")
+    else:
+        console.print(f"[bold red]✗ Failed: {res.get('message')}[/bold red]")
+
+
 @linkedin_app.command("network")
 def linkedin_network_cmd(
     company: str = typer.Argument(..., help="Target company name (e.g. PhonePe, Stripe, Meesho)"),
@@ -524,6 +572,30 @@ def linkedin_network_cmd(
             person.get("profile_url", "-")
         )
     console.print(table)
+
+
+# ---------------------------------------------------------------------------
+# Recruiter Email Drafter (Gmail CLI Integration)
+# ---------------------------------------------------------------------------
+
+@app.command("draft")
+def draft_cmd(
+    rowid: int = typer.Argument(..., help="Job rowid to create a Gmail draft for"),
+    email: str = typer.Option(None, "--email", "-e", help="Override recruiter email address"),
+) -> None:
+    """Create a recruiter cold email draft in Gmail with attached tailored resume."""
+    _bootstrap()
+    from applypilot.networking.gmail_drafter import draft_for_job
+    console.print(f"[bold cyan]Creating Gmail draft for job rowid {rowid}...[/bold cyan]")
+    res = draft_for_job(rowid, custom_recipient=email)
+    if res.get("status") == "ok":
+        console.print(f"[bold green]✓ Gmail draft created successfully![/bold green] (ID: {res.get('draft_id')})")
+        console.print(f"   Recipient: [bold white]{res.get('to')}[/bold white]")
+        console.print(f"   Subject:   [bold white]{res.get('subject')}[/bold white]")
+        console.print(f"   Attached:  [bold yellow]{res.get('attachment')}[/bold yellow]")
+        console.print(f"   Review at: [link=https://mail.google.com/mail/u/0/#drafts]https://mail.google.com/mail/u/0/#drafts[/link]")
+    else:
+        console.print(f"[bold red]✗ Failed: {res.get('message')}[/bold red]")
 
 
 @app.command()
