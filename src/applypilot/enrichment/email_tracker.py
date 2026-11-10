@@ -374,6 +374,18 @@ def sync_gmail_job_responses(max_results: int = 20) -> list[dict[str, Any]]:
             "action_type": action_type
         }
 
+        # Check if message is newly discovered to trigger instant alert
+        is_new_msg = c.execute("SELECT 1 FROM application_responses WHERE message_id = ?", (msg_id,)).fetchone() is None
+        if is_new_msg:
+            try:
+                from applypilot.notifications.alerts import alert_new_online_assessment, alert_interview_shortlisted
+                if category == "oa":
+                    alert_new_online_assessment(company, role_title, due_date, action_url)
+                elif category == "interview_selected":
+                    alert_interview_shortlisted(company, role_title, summary, action_url)
+            except Exception as alert_err:
+                log.debug("Notification alert dispatch error: %s", alert_err)
+
         # Insert or update in database (preserving existing is_completed status if present)
         c.execute("""
             INSERT INTO application_responses 

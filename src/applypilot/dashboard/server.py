@@ -1579,7 +1579,10 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       renderJobs();
     }
 
-    function copyKannadaPitch(comp, title) {
+    function copyKannadaPitchByRowid(rowid) {
+      const job = allJobs.find(j => j.rowid === rowid);
+      const comp = job ? job.company : 'Tech Company';
+      const title = job ? job.title : 'Software Engineer';
       const msg = `ನಮಸ್ಕಾರ,\n\nI noticed the referral opening for ${title} at ${comp} in our KaDegree community. I am an SDE-I Backend Engineer at Meesho (RVCE CSE '25, 1.3y exp) working with high-throughput Java, Go, Kafka, and Redis services.\n\nCould you please refer my profile for this position? I have attached my resume and requisition details:\nRequisition: ${comp} - ${title}\nProfile: SDE-I Backend Engineer, Meesho (RVCE '25)\nEmail: deepakshkarkala@gmail.com | Phone: +91 8431433659\n\nಧನ್ಯವಾದಗಳು! (Thank you!)\n- Deepak S H`;
       navigator.clipboard.writeText(msg).then(() => {
         showToast(`✅ Copied warm Kannada referral pitch for ${comp}!`);
