@@ -286,11 +286,12 @@ def launch_application_assistant(identifier: str | int, headed: bool = True) -> 
     if not apply_url or apply_url == "None":
         return {"status": "error", "message": "No application URL available for this job."}
 
-    # Special handling for known invalid referral links (e.g. PhonePe mock referral)
+    # Special handling for known invalid referral links (e.g. PhonePe mock referral, Razorpay)
     if "phonepe.com" in apply_url and ("sde1" in apply_url or apply_url.rstrip("/").endswith("/careers")):
         apply_url = "https://jobs.smartrecruiters.com/PhonePeLimited/1000000000003895"
-    elif "razorpay.com" in apply_url and apply_url.rstrip("/").endswith("/jobs"):
-        apply_url = "https://job-boards.greenhouse.io/razorpaysoftwareprivatelimited"
+    elif "razorpay.com" in apply_url or "lever.co/razorpay" in apply_url:
+        if "greenhouse.io" not in apply_url:
+            apply_url = "https://job-boards.greenhouse.io/razorpaysoftwareprivatelimited"
 
     profile = load_profile()
 

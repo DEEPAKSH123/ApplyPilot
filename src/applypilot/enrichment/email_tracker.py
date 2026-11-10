@@ -411,6 +411,21 @@ def sync_gmail_job_responses(max_results: int = 20) -> list[dict[str, Any]]:
     return get_cached_responses()
 
 
+def sanitize_response_url(url: str, company: str = "") -> str:
+    """Sanitize action URLs to ensure no dead mock or broken paths are served."""
+    if not url:
+        return ""
+    u_lower = str(url).lower()
+    c_lower = str(company).lower()
+    if "razorpay" in u_lower or "razorpay" in c_lower:
+        if "lever.co" in u_lower or "backend-sde2" in u_lower or u_lower.rstrip("/").endswith("/jobs"):
+            return "https://job-boards.greenhouse.io/razorpaysoftwareprivatelimited"
+    if "phonepe" in u_lower or "phonepe" in c_lower:
+        if "sde1" in u_lower or u_lower.rstrip("/").endswith("/careers"):
+            return "https://jobs.smartrecruiters.com/PhonePeLimited/1000000000003895"
+    return url
+
+
 def get_cached_responses(category_filter: str | None = None) -> list[dict[str, Any]]:
     """Retrieve already saved responses from database with all metadata."""
     init_email_responses_table()
@@ -432,7 +447,10 @@ def get_cached_responses(category_filter: str | None = None) -> list[dict[str, A
         """).fetchall()
 
     cols = [d[0] for d in c.description]
-    return [dict(zip(cols, r)) for r in rows]
+    results = [dict(zip(cols, r)) for r in rows]
+    for res in results:
+        res["action_url"] = sanitize_response_url(res.get("action_url", ""), res.get("company", ""))
+    return results
 
 
 def toggle_response_completed(message_id: str) -> bool:

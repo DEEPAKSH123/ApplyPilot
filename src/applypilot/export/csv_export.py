@@ -106,6 +106,16 @@ def export_opportunities_csv(output_path: Path | str | None = None) -> Path:
         # Slice off full_desc and desc from CSV row
         row = row[:11]
 
+        # Sanitize application URLs
+        apply_val = row[5]
+        if apply_val:
+            u_l = apply_val.lower()
+            c_l = comp.lower()
+            if ("razorpay" in u_l or "razorpay" in c_l) and "greenhouse.io" not in u_l:
+                row[5] = "https://job-boards.greenhouse.io/razorpaysoftwareprivatelimited"
+            elif ("phonepe" in u_l or "phonepe" in c_l) and ("sde1" in u_l or u_l.rstrip("/").endswith("/careers")):
+                row[5] = "https://jobs.smartrecruiters.com/PhonePeLimited/1000000000003895"
+
         # item 6: tailored_resume_pdf
         row[6] = _clean_path(row[6])
         # item 7: cover_letter_pdf

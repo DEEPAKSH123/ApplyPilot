@@ -149,6 +149,15 @@ def parse_whatsapp_chat_export(content: str, group_name: str = "WhatsApp Tech Co
         # Extract URLs
         urls = URL_REGEX.findall(text)
         apply_url = urls[0] if urls else ""
+        if apply_url:
+            u_lower = apply_url.lower()
+            c_lower = company.lower()
+            if "razorpay" in u_lower or "razorpay" in c_lower:
+                if "greenhouse.io" not in u_lower:
+                    apply_url = "https://job-boards.greenhouse.io/razorpaysoftwareprivatelimited"
+            elif "phonepe" in u_lower or "phonepe" in c_lower:
+                if "sde1" in u_lower or u_lower.rstrip("/").endswith("/careers"):
+                    apply_url = "https://jobs.smartrecruiters.com/PhonePeLimited/1000000000003895"
 
         # Extract Emails
         emails = extract_emails_from_text(text)
