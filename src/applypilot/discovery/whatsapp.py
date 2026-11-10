@@ -1,8 +1,13 @@
 """WhatsApp Community & Group Job Ingestion.
 
 Parses WhatsApp group chat exports and live WhatsApp Web messages from Indian tech
-communities, alumni channels (e.g. RVCE / Bangalore SDE groups), and referral networks.
-Extracts recruiter emails, referral links, role details, and stores them in the pipeline.
+communities, alumni channels (e.g. RVCE / Bangalore SDE groups), and broadcast channels:
+- "Let's Code"
+- "TechFresher/Experienced Job"
+- "Factz and Code"
+
+Includes smart relevance gating to reject support, hardware/silicon, and non-backend roles,
+while extracting legitimate software/backend engineering opportunities for Deepak.
 """
 
 import hashlib
@@ -32,9 +37,58 @@ WA_MSG_REGEX = re.compile(
 # URL extractor
 URL_REGEX = re.compile(r'https?://[^\s<>"]+')
 
+# Strict rejection patterns (NOT applicable to Deepak S H)
+REJECT_PATTERNS = [
+    re.compile(r"\b(?:associate\s+)?support\b", re.IGNORECASE),
+    re.compile(r"\btech(?:nical)?\s+support\b", re.IGNORECASE),
+    re.compile(r"\bcustomer\s+(?:support|care|service)\b", re.IGNORECASE),
+    re.compile(r"\bsilicon\b", re.IGNORECASE),
+    re.compile(r"\bhardware\b", re.IGNORECASE),
+    re.compile(r"\bvlsi\b", re.IGNORECASE),
+    re.compile(r"\bembedded\b", re.IGNORECASE),
+    re.compile(r"\bfirmware\b", re.IGNORECASE),
+    re.compile(r"\b(?:manual\s+)?qa\b|\btester\b|\btest\s+engineer\b", re.IGNORECASE),
+    re.compile(r"\bdata\s+entry\b|\bbpo\b|\btelecaller\b|\bsales\b|\bmarketing\b", re.IGNORECASE),
+    re.compile(r"\b(?:2026|2027)\s*(?:batch|graduate|grad|passout)\b", re.IGNORECASE),
+]
+
+# Strict acceptance patterns (Applicable Software / Backend Engineering)
+ACCEPT_PATTERNS = [
+    re.compile(r"\bbackend\b", re.IGNORECASE),
+    re.compile(r"\bsde[- ]?[123iI]*\b", re.IGNORECASE),
+    re.compile(r"\bsoftware\s+engineer\b", re.IGNORECASE),
+    re.compile(r"\bsoftware\s+developer\b", re.IGNORECASE),
+    re.compile(r"\bjava\b", re.IGNORECASE),
+    re.compile(r"\bgolang\b|\bgo\s+developer\b", re.IGNORECASE),
+    re.compile(r"\bdistributed\s+systems\b", re.IGNORECASE),
+    re.compile(r"\bmicroservices\b", re.IGNORECASE),
+    re.compile(r"\bspring\s+boot\b", re.IGNORECASE),
+    re.compile(r"\bapi\s+developer\b", re.IGNORECASE),
+    re.compile(r"\bfull[- ]?stack\b", re.IGNORECASE),
+    re.compile(r"\bcloud\s+engineer\b", re.IGNORECASE),
+]
+
+
+def is_job_relevant_to_deepak(title: str, text: str) -> bool:
+    """Strict relevance check for Deepak (SDE-1 Backend @ Meesho, Java/Go, RVCE '25)."""
+    combined = f"{title}\n{text}"
+
+    # 1. If matches any reject pattern -> NOT RELEVANT
+    for rp in REJECT_PATTERNS:
+        if rp.search(title) or (rp.search(text) and "software" not in text.lower() and "backend" not in text.lower()):
+            log.debug("Skipping message matching reject pattern %s: title=%s", rp.pattern, title)
+            return False
+
+    # 2. Must match at least one software/backend trigger
+    for ap in ACCEPT_PATTERNS:
+        if ap.search(title) or ap.search(text):
+            return True
+
+    return False
+
 
 def parse_whatsapp_chat_export(content: str, group_name: str = "WhatsApp Tech Community") -> list[dict]:
-    """Parse raw text from a WhatsApp chat export into structured job postings."""
+    """Parse raw text from a WhatsApp chat export or live channel into structured job postings."""
     lines = content.split("\n")
     messages = []
     current_msg = None
@@ -58,39 +112,47 @@ def parse_whatsapp_chat_export(content: str, group_name: str = "WhatsApp Tech Co
     if current_msg:
         messages.append(current_msg)
 
-    # Filter messages for hiring/job content
-    hiring_triggers = ("hiring", "referral", "opening", "openings", "vacancy", "vacancies", "job", "sde", "backend")
-    tech_triggers = ("java", "golang", "go ", "python", "backend", "sde", "engineer", "developer", "microservices")
-
     jobs = []
     for msg in messages:
         text = msg["text"]
-        text_lower = text.lower()
 
-        if not any(h in text_lower for h in hiring_triggers) or not any(t in text_lower for t in tech_triggers):
+        # Parse structured Indian channel format:
+        # "Company Name: Clinisys \n Role: Associate Support"
+        # "Google University Graduate, 2026 Position: Silicon..."
+        company = "Tech Firm"
+        title = "SDE Backend Engineer"
+
+        # 1. Check structured "Company Name:" / "Company:"
+        comp_m = re.search(r"(?:Company\s*Name|Company|Organization)\s*:\s*([^\n\r,]+)", text, re.IGNORECASE)
+        if comp_m:
+            company = comp_m.group(1).strip()
+        else:
+            comp_match = re.search(r"(?:at|@|join)\s+([A-Z][A-Za-z0-9]{2,20})\b", text)
+            if comp_match:
+                cand = comp_match.group(1)
+                if cand.lower() not in ("we", "our", "urgent", "immediate", "remote", "bangalore", "india", "team"):
+                    company = cand
+
+        # 2. Check structured "Role:" / "Position:" / "Job Title:"
+        role_m = re.search(r"(?:Role|Position|Job\s*Title|Designation)\s*:\s*([^\n\r,]+)", text, re.IGNORECASE)
+        if role_m:
+            title = role_m.group(1).strip()
+        else:
+            title_match = re.search(r"\b(sde[- ]?[123iI]+|software engineer|backend engineer|golang developer|java developer|systems engineer)\b", text, re.IGNORECASE)
+            if title_match:
+                title = title_match.group(1).title()
+
+        # 3. Deepak Relevance Gating
+        if not is_job_relevant_to_deepak(title, text):
             continue
 
-        # Extract URLs (Google forms, Lever, Greenhouse, wa.me, etc.)
+        # Extract URLs
         urls = URL_REGEX.findall(text)
         apply_url = urls[0] if urls else ""
 
         # Extract Emails
         emails = extract_emails_from_text(text)
         email_str = ", ".join(emails) if emails else ""
-
-        # Identify company
-        company = "Tech Firm"
-        comp_match = re.search(r"(?:at|@|join|company:?)\s+([A-Z][A-Za-z0-9]{2,20})\b", text)
-        if comp_match:
-            cand = comp_match.group(1)
-            if cand.lower() not in ("we", "our", "urgent", "immediate", "remote", "bangalore", "india"):
-                company = cand
-
-        # Identify title
-        title = "SDE Backend Engineer"
-        title_match = re.search(r"\b(sde[- ]?[123iI]+|software engineer|backend engineer|golang developer|java developer)\b", text, re.IGNORECASE)
-        if title_match:
-            title = title_match.group(1).title()
 
         # Generate unique hash for deduplication
         msg_hash = hashlib.md5(f"{company}_{title}_{msg['date']}_{text[:50]}".encode()).hexdigest()[:12]
@@ -101,9 +163,9 @@ def parse_whatsapp_chat_export(content: str, group_name: str = "WhatsApp Tech Co
             "title": title,
             "site": f"WhatsApp ({group_name})",
             "company": company,
-            "location": "Bengaluru / India (Community Referral)",
+            "location": "Bengaluru / India (Tech Community)",
             "description": text[:500],
-            "full_description": f"Posted by {msg['sender']} in {group_name}:\n\n{text}",
+            "full_description": f"Channel: {group_name} | Posted by {msg['sender']}:\n\n{text}",
             "strategy": "whatsapp_community",
             "recruiter_email": email_str,
             "application_url": apply_url or unique_url,
@@ -145,9 +207,10 @@ def scrape_live_whatsapp_web(target_groups: list[str] | None = None, wait_timeou
     if not target_groups:
         cfg = load_search_config()
         target_groups = cfg.get("whatsapp_groups", [
-            "RVCE Tech Referrals",
-            "Bangalore SDE Jobs",
-            "Tech Jobs & Referrals India"
+            "Let's Code",
+            "TechFresher/Experienced Job",
+            "Factz and Code",
+            "RVCE Tech Referrals"
         ])
 
     from applypilot.apply.assistant import get_browser_executable
@@ -185,12 +248,15 @@ def scrape_live_whatsapp_web(target_groups: list[str] | None = None, wait_timeou
 
             for group in target_groups:
                 try:
-                    log.info("Searching for group: %s", group)
+                    # Clean search keyword (e.g. "TechFresher/Experienced Job" -> "TechFresher")
+                    search_kw = group.split("/")[0].strip()
+                    log.info("Searching for channel: %s (query: %s)", group, search_kw)
+
                     # Search box
                     search_box = page.query_selector("div[contenteditable='true'][role='textbox']")
                     if search_box:
                         search_box.click()
-                        search_box.fill(group)
+                        search_box.fill(search_kw)
                         page.keyboard.press("Enter")
                         time.sleep(2)
 
@@ -206,7 +272,7 @@ def scrape_live_whatsapp_web(target_groups: list[str] | None = None, wait_timeou
                         fake_chat_content = "\n".join([f"01/01/26, 12:00 - Community Member: {m}" for m in raw_texts])
                         parsed = parse_whatsapp_chat_export(fake_chat_content, group_name=group)
                         all_found.extend(parsed)
-                        log.info("Found %d hiring leads in %s", len(parsed), group)
+                        log.info("Found %d applicable backend hiring leads in %s", len(parsed), group)
                 except Exception as ge:
                     log.warning("Error reading group %s: %s", group, ge)
 

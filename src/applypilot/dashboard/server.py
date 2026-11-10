@@ -537,6 +537,65 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       color: white;
     }
 
+    /* Response Cards & Sentiment Badges */
+    .response-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 22px 26px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      position: relative;
+      backdrop-filter: blur(14px);
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .response-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 16px 36px rgba(0,0,0,0.45);
+    }
+    .response-card.sentiment-positive {
+      border: 1.5px solid #10b981;
+      background: linear-gradient(135deg, rgba(6, 78, 59, 0.35), rgba(15, 23, 42, 0.9));
+      box-shadow: 0 0 24px rgba(16, 185, 129, 0.2);
+    }
+    .response-card.sentiment-negative {
+      border: 1.5px solid rgba(244, 63, 94, 0.5);
+      background: linear-gradient(135deg, rgba(136, 19, 55, 0.25), rgba(15, 23, 42, 0.9));
+      box-shadow: 0 0 20px rgba(244, 63, 94, 0.12);
+    }
+    .response-card.sentiment-neutral {
+      border: 1.5px solid rgba(6, 182, 212, 0.4);
+      background: linear-gradient(135deg, rgba(14, 116, 144, 0.2), rgba(15, 23, 42, 0.9));
+      box-shadow: 0 0 20px rgba(6, 182, 212, 0.12);
+    }
+    .sentiment-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 800;
+      padding: 5px 12px;
+      border-radius: 999px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .sentiment-badge.positive {
+      background: linear-gradient(90deg, #059669, #10b981);
+      color: #fff;
+      box-shadow: 0 2px 10px rgba(16, 185, 129, 0.4);
+    }
+    .sentiment-badge.negative {
+      background: linear-gradient(90deg, #be123c, #f43f5e);
+      color: #fff;
+      box-shadow: 0 2px 10px rgba(244, 63, 94, 0.3);
+    }
+    .sentiment-badge.neutral {
+      background: linear-gradient(90deg, #0369a1, #0ea5e9);
+      color: #fff;
+      box-shadow: 0 2px 10px rgba(14, 165, 233, 0.3);
+    }
+
     /* Modal Backdrop */
     .modal-backdrop {
       display: none;
@@ -670,6 +729,10 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         <span class="label">📄 Tailored Resumes</span>
         <span class="val" id="stat-tailored" style="color: #38bdf8;">0</span>
       </div>
+      <div class="stat-card" style="border-color: rgba(52, 211, 153, 0.4); cursor: pointer;" onclick="setTab('responses')">
+        <span class="label">📬 Recruiter Replies</span>
+        <span class="val" id="stat-responses" style="color: #34d399;">0</span>
+      </div>
       <div class="stat-card">
         <span class="label">🏆 Applications Applied</span>
         <span class="val" id="stat-applied" style="color: #fbbf24;">0</span>
@@ -682,6 +745,17 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         <i class="fa-solid fa-bullseye" style="color: #c084fc; font-size: 18px;"></i>
         <span><strong>Approved Shortlist:</strong> Apply to these vetted roles today. Click <strong>[🚀 Open in Brave]</strong> or generate JIT tailored resumes on-demand!</span>
       </div>
+    </div>
+
+    <!-- Gmail Response Announcement Banner -->
+    <div id="responses-banner" class="queue-banner" style="display: none; background: linear-gradient(90deg, rgba(6, 78, 59, 0.35), rgba(15, 23, 42, 0.85)); border-color: rgba(16, 185, 129, 0.4); justify-content: space-between; align-items: center;">
+      <div class="queue-banner-title">
+        <i class="fa-solid fa-envelope-circle-check" style="color: #34d399; font-size: 20px;"></i>
+        <span><strong>Gmail Application Response Tracker:</strong> Monitoring interviews, coding challenges, and recruiter replies from Deepak's connected Gmail (<code>deepakshkarkala@gmail.com</code>).</span>
+      </div>
+      <button class="btn btn-preview" onclick="syncGmailNow()" style="background: rgba(16, 185, 129, 0.2); border: 1px solid #10b981; color: #34d399; font-weight: 700; white-space: nowrap;">
+        <i class="fa-solid fa-arrows-rotate"></i> Sync Gmail Inbox
+      </button>
     </div>
 
     <!-- Tabs & Search -->
@@ -698,6 +772,10 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         <button class="tab-btn" onclick="setTab('approved')" style="color: #c084fc;">
           <i class="fa-solid fa-circle-check"></i> Approved Queue
           <span class="tab-badge" id="badge-approved" style="background:#7c3aed;color:#fff;">0</span>
+        </button>
+        <button class="tab-btn" onclick="setTab('responses')" style="color: #34d399;">
+          <i class="fa-solid fa-envelope-open-text"></i> Gmail Tracker
+          <span class="tab-badge" id="badge-responses" style="background:#059669;color:#fff;">0</span>
         </button>
         <button class="tab-btn" onclick="setTab('applied')">
           <i class="fa-solid fa-trophy"></i> Applied
@@ -744,16 +822,27 @@ HTML_DASHBOARD = """<!DOCTYPE html>
 
   <script>
     let allJobs = [];
+    let allResponses = [];
     let currentTab = 'high';
 
     async function fetchJobs() {
       try {
         const res = await fetch('/api/jobs');
         allJobs = await res.json();
+        await fetchResponses();
         updateStats();
         renderJobs();
       } catch (e) {
         showToast('Error loading jobs: ' + e);
+      }
+    }
+
+    async function fetchResponses() {
+      try {
+        const res = await fetch('/api/responses');
+        allResponses = await res.json();
+      } catch (e) {
+        console.error('Failed to load responses:', e);
       }
     }
 
@@ -764,11 +853,13 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       document.getElementById('stat-tailored').textContent = allJobs.filter(j => !!j.tailored_resume_path).length;
       document.getElementById('stat-approved').textContent = allJobs.filter(j => j.apply_status === 'approved').length;
       document.getElementById('stat-applied').textContent = allJobs.filter(j => j.apply_status === 'applied').length;
+      document.getElementById('stat-responses').textContent = allResponses.length;
 
       document.getElementById('badge-high').textContent = allJobs.filter(j => j.fit_score >= 7).length;
       document.getElementById('badge-top').textContent = allJobs.filter(j => j.fit_score >= 8).length;
       document.getElementById('badge-approved').textContent = allJobs.filter(j => j.apply_status === 'approved').length;
       document.getElementById('badge-applied').textContent = allJobs.filter(j => j.apply_status === 'applied').length;
+      document.getElementById('badge-responses').textContent = allResponses.length;
     }
 
     function setTab(tab) {
@@ -776,17 +867,105 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
       event.currentTarget.classList.add('active');
 
-      const banner = document.getElementById('queue-banner');
+      const qBanner = document.getElementById('queue-banner');
+      const rBanner = document.getElementById('responses-banner');
       if (tab === 'approved') {
-        banner.style.display = 'flex';
+        qBanner.style.display = 'flex';
+        rBanner.style.display = 'none';
+      } else if (tab === 'responses') {
+        qBanner.style.display = 'none';
+        rBanner.style.display = 'flex';
       } else {
-        banner.style.display = 'none';
+        qBanner.style.display = 'none';
+        rBanner.style.display = 'none';
       }
 
       renderJobs();
     }
 
+    function renderResponses() {
+      const q = document.getElementById('search-input').value.toLowerCase().trim();
+      let filtered = allResponses.filter(r => {
+        if (q) {
+          const hay = `${r.company} ${r.role_title} ${r.status} ${r.summary} ${r.body_snippet} ${r.sender}`.toLowerCase();
+          if (!hay.includes(q)) return false;
+        }
+        return true;
+      });
+
+      const container = document.getElementById('jobs-container');
+      if (filtered.length === 0) {
+        container.innerHTML = `
+          <div style="text-align: center; padding: 60px 20px; color: #64748b; background: rgba(15,23,42,0.4); border-radius: 16px; border: 1px dashed #334155;">
+            <i class="fa-regular fa-envelope" style="font-size: 36px; margin-bottom: 12px; opacity: 0.6;"></i>
+            <h3 style="color: #cbd5e1; font-size: 16px;">No application responses found</h3>
+            <p style="font-size: 13px; margin-top: 6px;">Click [🔄 Sync Gmail Inbox] to scan your inbox for updates.</p>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = filtered.map(r => {
+        const sent = r.sentiment || 'neutral';
+        const cardClass = sent === 'positive' ? 'response-card sentiment-positive' : sent === 'negative' ? 'response-card sentiment-negative' : 'response-card sentiment-neutral';
+        const badgeHtml = sent === 'positive'
+          ? `<span class="sentiment-badge positive"><i class="fa-solid fa-circle-check"></i> Positive / Assessment</span>`
+          : sent === 'negative'
+          ? `<span class="sentiment-badge negative"><i class="fa-solid fa-circle-xmark"></i> Not Selected</span>`
+          : `<span class="sentiment-badge neutral"><i class="fa-solid fa-clock"></i> Acknowledged</span>`;
+
+        const initial = (r.company || 'C').charAt(0).toUpperCase();
+
+        return `
+          <div class="${cardClass}">
+            <div class="card-top">
+              <div class="job-meta">
+                <div class="company-avatar" style="background: ${sent === 'positive' ? 'linear-gradient(135deg, #059669, #10b981)' : sent === 'negative' ? 'linear-gradient(135deg, #9f1239, #f43f5e)' : 'linear-gradient(135deg, #0284c7, #38bdf8)'}">${initial}</div>
+                <div>
+                  <div class="job-title-row">
+                    <span class="job-title" style="font-size: 18px;">${r.company}</span>
+                    <span style="font-size: 13px; color: #94a3b8; font-weight: normal; margin-left: 8px;">(${r.role_title || 'Software Engineer'})</span>
+                  </div>
+                  <div class="job-sub">
+                    <span><i class="fa-regular fa-envelope"></i> ${r.sender}</span>
+                    <span><i class="fa-regular fa-calendar"></i> ${r.received_date || ''}</span>
+                  </div>
+                </div>
+              </div>
+              <div>${badgeHtml}</div>
+            </div>
+
+            <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 10px; padding: 14px; font-size: 13px; color: #cbd5e1; line-height: 1.6;">
+              <div style="font-weight: 700; color: #f8fafc; margin-bottom: 6px; display: flex; align-items: center; gap: 8px;">
+                <i class="fa-solid fa-comment-dots" style="color: ${sent === 'positive' ? '#34d399' : sent === 'negative' ? '#fb7185' : '#38bdf8'};"></i>
+                <span>${r.status}: ${r.summary}</span>
+              </div>
+              <div style="color: #94a3b8; font-style: italic; font-size: 12.5px; border-left: 2px solid rgba(255,255,255,0.15); padding-left: 10px; margin-top: 6px;">
+                "${r.body_snippet}"
+              </div>
+            </div>
+
+            <div class="actions-bar" style="margin-top: 4px;">
+              ${r.action_url ? `
+                <button class="btn btn-brave" onclick="openDirectUrl('${r.action_url}')" style="box-shadow: 0 0 16px rgba(16, 185, 129, 0.4);">
+                  <i class="fa-solid fa-rocket"></i> Open Assessment in Brave
+                </button>
+              ` : ''}
+              <button class="btn btn-preview" onclick="showToast('Email Subject: ' + '${(r.subject || '').replace(/'/g, "\\'")}')">
+                <i class="fa-solid fa-envelope"></i> Subject: ${(r.subject || '').substring(0, 45)}...
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
     function renderJobs() {
+      if (currentTab === 'responses') {
+        renderResponses();
+        return;
+      }
+
       const q = document.getElementById('search-input').value.toLowerCase().trim();
       let filtered = allJobs.filter(job => {
         if (currentTab === 'high' && (job.fit_score === null || job.fit_score < 7)) return false;
@@ -1089,8 +1268,37 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       }
     }
 
-    function openDirectUrl(url) {
-      window.open(url, '_blank');
+    async function syncGmailNow() {
+      showToast('Scanning Gmail inbox for new recruiter responses...');
+      try {
+        const res = await fetch('/api/gmail/sync', { method: 'POST' });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          showToast(`✓ Scanned inbox! Synced ${data.synced_count} application responses.`);
+          await fetchResponses();
+          updateStats();
+          if (currentTab === 'responses') renderResponses();
+        } else {
+          showToast('Sync update: ' + (data.message || 'Complete'));
+          await fetchResponses();
+          updateStats();
+        }
+      } catch (err) {
+        showToast('Failed to sync Gmail: ' + err);
+      }
+    }
+
+    async function openDirectUrl(url) {
+      showToast('Opening in your active Brave browser...');
+      try {
+        await fetch('/api/open_url', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: url })
+        });
+      } catch (e) {
+        window.open(url, '_blank');
+      }
     }
 
     function showToast(msg) {
@@ -1219,6 +1427,15 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps(jobs).encode("utf-8"))
             return
 
+        elif path == "/api/responses":
+            from applypilot.enrichment.email_tracker import get_cached_responses
+            responses = get_cached_responses()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(json.dumps(responses).encode("utf-8"))
+            return
+
         elif path.startswith("/files/"):
             # Stream PDF file
             subpath = path[len("/files/"):]
@@ -1343,6 +1560,45 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.send_header("Content-Type", "application/json")
             self.end_headers()
             self.wfile.write(json.dumps({"status": "ok", "rowid": rowid}).encode("utf-8"))
+            return
+
+        # 6. /api/open_url (Directly open URL in running Brave)
+        elif path == "/api/open_url":
+            length = int(self.headers.get("Content-Length", 0))
+            body_data = self.rfile.read(length).decode("utf-8") if length > 0 else "{}"
+            try:
+                data = json.loads(body_data)
+                target_url = data.get("url", "")
+                if target_url:
+                    if os.path.exists(BRAVE_EXE):
+                        subprocess.Popen([BRAVE_EXE, target_url])
+                    else:
+                        webbrowser.open(target_url)
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"status": "ok", "url": target_url}).encode("utf-8"))
+                    return
+            except Exception as e:
+                log.error("Failed to open URL in Brave: %s", e)
+
+            self.send_response(400)
+            self.end_headers()
+            return
+
+        # 7. /api/gmail/sync (Scan Gmail inbox for new employer updates)
+        elif path == "/api/gmail/sync":
+            from applypilot.enrichment.email_tracker import sync_gmail_job_responses
+            try:
+                synced = sync_gmail_job_responses(max_results=15)
+                res = {"status": "ok", "synced_count": len(synced)}
+            except Exception as e:
+                res = {"status": "error", "message": str(e)}
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps(res).encode("utf-8"))
             return
 
         self.send_response(404)

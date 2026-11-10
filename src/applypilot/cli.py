@@ -377,6 +377,57 @@ def whatsapp_cmd(
     console.print(f"[bold cyan]WhatsApp sync complete! Ingested {count} new opportunities.[/bold cyan]")
 
 
+@app.command("inbox")
+def inbox_cmd(
+    sync: bool = typer.Option(False, "--sync", "-s", help="Fetch latest updates from Gmail first"),
+) -> None:
+    """View application responses and feedback from companies (Interviews, Tests, Rejections)."""
+    _bootstrap()
+    from applypilot.enrichment.email_tracker import get_cached_responses, sync_gmail_job_responses
+
+    if sync:
+        console.print("[bold cyan]Scanning Gmail inbox for new job application updates...[/bold cyan]")
+        try:
+            sync_gmail_job_responses()
+        except Exception as e:
+            console.print(f"[yellow]Gmail live sync skipped: {e}[/yellow]")
+
+    responses = get_cached_responses()
+    if not responses:
+        console.print("[yellow]No application responses recorded yet. Run with --sync or check back later.[/yellow]")
+        return
+
+    table = Table(title="📬 Application Responses & Recruiter Replies (Gmail)", show_lines=True)
+    table.add_column("Company", style="bold white", width=22)
+    table.add_column("Role", style="cyan", width=24)
+    table.add_column("Sentiment", style="bold", width=16)
+    table.add_column("Status / Next Step", style="bold magenta", width=34)
+    table.add_column("Date", style="dim", width=18)
+    table.add_column("Action / Assessment Link", style="green")
+
+    for r in responses:
+        sent = r.get("sentiment", "neutral")
+        if sent == "positive":
+            sent_str = "[bold green]🟢 POSITIVE[/bold green]"
+        elif sent == "negative":
+            sent_str = "[bold red]🔴 NOT SELECTED[/bold red]"
+        else:
+            sent_str = "[bold yellow]🟡 ACKNOWLEDGED[/bold yellow]"
+
+        act = r.get("action_url") or "-"
+
+        table.add_row(
+            r.get("company", "Employer"),
+            r.get("role_title", "Software Engineer"),
+            sent_str,
+            r.get("status", "Under Review"),
+            str(r.get("received_date", ""))[:16],
+            act
+        )
+
+    console.print(table)
+
+
 @app.command()
 def doctor() -> None:
     """Check your setup and diagnose missing requirements."""
