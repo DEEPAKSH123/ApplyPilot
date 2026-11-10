@@ -4,6 +4,7 @@ Generates targeted LinkedIn search URLs (1st-degree connections, 2nd-degree mutu
 RVCE alumni, hiring managers, recruiters) and personalized referral messages for each opportunity.
 """
 
+import re
 import urllib.parse
 from typing import Any
 
@@ -12,8 +13,14 @@ def clean_company_name(company: str) -> str:
     """Extract clean company name from raw text."""
     if not company:
         return ""
-    comp_clean = company.replace("WhatsApp (", "").replace(")", "").replace("Recruiter", "").strip()
-    if comp_clean.lower().startswith("whatsapp") or comp_clean.lower() in ("linkedin", "indeed", "glassdoor", "unknown", "tech company", "tech firm", "rvce_tech_referrals"):
+    comp_clean = str(company).replace("WhatsApp (", "").replace("Telegram (", "").replace(")", "").replace("Recruiter", "").strip()
+    
+    # Strip common prefixes like 'Hiring for Swiggy', 'Jobs at Google', 'Careers at Microsoft'
+    comp_clean = re.sub(r'^(?:hiring\s+(?:for|at)|jobs?\s+(?:at|for|in)|careers?\s+(?:at|for)|urgently\s+hiring\s+(?:for|at))\s+', '', comp_clean, flags=re.IGNORECASE).strip()
+    # Strip common suffixes like 'is hiring', 'offcampusjobs4u', etc.
+    comp_clean = re.sub(r'\s+(?:is\s+hiring|careers|jobs|team|offcampus.*)$', '', comp_clean, flags=re.IGNORECASE).strip()
+    
+    if comp_clean.lower().startswith("whatsapp") or comp_clean.lower().startswith("telegram") or comp_clean.lower() in ("linkedin", "indeed", "glassdoor", "unknown", "tech company", "tech firm", "rvce_tech_referrals"):
         return ""
     return comp_clean
 

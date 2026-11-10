@@ -3204,29 +3204,40 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         }
 
         if (data.status === 'ok' && data.connections && data.connections.length > 0) {
-          container.innerHTML = data.connections.map(c => `
-            <div style="background: #0f172a; border: 1px solid #334155; border-radius: 10px; padding: 12px; display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px;">
-              <div>
-                <div style="font-weight: 700; color: #f8fafc; font-size: 13.5px; display: flex; align-items: center; gap: 8px;">
-                  <span>${c.name}</span>
-                  <span style="background: #065f46; color: #34d399; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 700;">Alumni / Connection</span>
-                </div>
-                <div style="color: #94a3b8; font-size: 12px;">${c.headline}</div>
-                <div style="color: #64748b; font-size: 11px;"><i class="fa-solid fa-location-dot"></i> ${c.location}</div>
-              </div>
-              <div style="display: flex; gap: 6px; align-items: center;">
-                <button class="btn" style="background: linear-gradient(135deg, #0284c7, #10b981); color: #fff; padding: 6px 10px; font-size: 11px; font-weight: 700; white-space: nowrap;" onclick="composeLinkedInDM('${c.profile_url}', '${c.name.replace(/'/g, "\\'")}', '${company.replace(/'/g, "\\'")}', 'Backend Engineer', 'alumni')">
-                  <i class="fa-solid fa-wand-magic-sparkles"></i> Auto-Type DM
-                </button>
-                <button class="btn" style="background: #0a66c2; color: #fff; padding: 6px 10px; font-size: 11px; white-space: nowrap;" onclick="openDirectUrl('${c.profile_url}')">
-                  <i class="fa-brands fa-linkedin"></i> View & Chat
-                </button>
-                <button class="btn" style="background: #10b981; color: white; padding: 6px 10px; font-size: 11px; white-space: nowrap;" onclick="copyCustomReferral('${c.name.replace(/'/g, "\\'")}')">
-                  <i class="fa-regular fa-copy"></i> Copy Note
-                </button>
-              </div>
+          container.innerHTML = `
+            <div style="font-size: 12px; color: #94a3b8; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+              <span>Found <strong>${data.connections.length}</strong> active connections @ <strong>${company}</strong> ready for referral:</span>
+              <span style="font-size: 11px; color: #38bdf8;">1-Click Auto-Types customized DM in Brave</span>
             </div>
-          `).join('');
+            ${data.connections.map(c => `
+              <div style="background: #0f172a; border: 1px solid #334155; border-radius: 10px; padding: 12px; display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px;">
+                <div style="flex: 1; min-width: 0;">
+                  <div style="font-weight: 700; color: #f8fafc; font-size: 13.5px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                    <span>${c.name}</span>
+                    <span style="background: ${c.degree === '1st' ? '#065f46' : '#78350f'}; color: ${c.degree === '1st' ? '#34d399' : '#fde68a'}; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 700;">
+                      ${c.degree === '1st' ? '🟢 1st-Degree Connection' : '🟡 2nd-Degree Mutual'}
+                    </span>
+                    ${c.is_alumni ? `<span style="background: #1e3a8a; color: #93c5fd; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 700;">🎓 RVCE Alumnus</span>` : ''}
+                  </div>
+                  <div style="color: #cbd5e1; font-size: 12px; margin-top: 2px;">${c.headline || c.current_role || 'Software Engineering'}</div>
+                  ${c.current_role ? `<div style="color: #38bdf8; font-size: 11px; margin-top: 2px; font-weight: 600;"><i class="fa-solid fa-building"></i> Current: ${c.current_role}</div>` : ''}
+                  ${c.past_role && !c.current_role ? `<div style="color: #94a3b8; font-size: 11px; margin-top: 2px;"><i class="fa-solid fa-clock-rotate-left"></i> Past: ${c.past_role}</div>` : ''}
+                  <div style="color: #64748b; font-size: 11px;"><i class="fa-solid fa-location-dot"></i> ${c.location || 'India'}</div>
+                </div>
+                <div style="display: flex; gap: 6px; align-items: center; flex-shrink: 0;">
+                  <button class="btn" style="background: linear-gradient(135deg, #0284c7, #10b981); color: #fff; padding: 7px 12px; font-size: 11.5px; font-weight: 700; white-space: nowrap; border: none; border-radius: 6px; cursor: pointer;" onclick="composeLinkedInDM('${c.profile_url}', '${c.name.replace(/'/g, "\\'")}', '${company.replace(/'/g, "\\'")}', 'Backend Engineer', '${c.is_alumni ? 'alumni' : 'referral'}')" title="Auto-types referral DM with resume link in Brave chat">
+                    <i class="fa-solid fa-paper-plane"></i> Auto-Type DM
+                  </button>
+                  <button class="btn" style="background: #0a66c2; color: #fff; padding: 7px 10px; font-size: 11.5px; white-space: nowrap; border: none; border-radius: 6px; cursor: pointer;" onclick="openDirectUrl('${c.profile_url}')" title="Open profile in Brave">
+                    <i class="fa-brands fa-linkedin"></i> Profile
+                  </button>
+                  <button class="btn" style="background: #1e293b; color: #e2e8f0; border: 1px solid #475569; padding: 7px 10px; font-size: 11.5px; white-space: nowrap; border-radius: 6px; cursor: pointer;" onclick="copyCustomReferral('${c.name.replace(/'/g, "\\'")}')" title="Copy personalized note to clipboard">
+                    <i class="fa-regular fa-copy"></i> Copy Note
+                  </button>
+                </div>
+              </div>
+            `).join('')}
+          `;
         } else {
           const firstDegUrl = document.getElementById('ref-first-deg-link') ? document.getElementById('ref-first-deg-link').href : '#';
           container.innerHTML = `
@@ -3446,6 +3457,15 @@ HTML_DASHBOARD = """<!DOCTYPE html>
               window.open('https://mail.google.com/mail/u/0/#drafts', '_blank');
             }
           }, 300);
+        } else if (data.status === 'fallback') {
+          showToast('✨ Email draft prepared! Opening in Gmail Web...');
+          if (btn) {
+            btn.innerHTML = '<i class="fa-solid fa-arrow-up-right-from-square"></i> Open in Gmail';
+            btn.style.background = '#0284c7';
+            btn.disabled = false;
+            btn.onclick = () => window.open(data.web_compose_url, '_blank');
+          }
+          window.open(data.web_compose_url, '_blank');
         } else if (data.status === 'missing_email') {
           promptCustomDraft(rowid, 'draft');
           if (btn) {
@@ -3502,6 +3522,15 @@ HTML_DASHBOARD = """<!DOCTYPE html>
             btn.style.background = '#059669';
           }
           fetchJobs();
+        } else if (data.status === 'fallback') {
+          showToast('✨ Email prepared! Opening in Gmail Web for review & send...');
+          if (btn) {
+            btn.innerHTML = '<i class="fa-solid fa-arrow-up-right-from-square"></i> Open in Gmail';
+            btn.style.background = '#0284c7';
+            btn.disabled = false;
+            btn.onclick = () => window.open(data.web_compose_url, '_blank');
+          }
+          window.open(data.web_compose_url, '_blank');
         } else {
           showToast('⚠️ Error: ' + (data.message || 'Failed to send email'));
           if (btn) {

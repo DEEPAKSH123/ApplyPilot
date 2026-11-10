@@ -277,15 +277,22 @@ def search_linkedin_connections(
     school: str = "RV College of Engineering",
     max_results: int = 10
 ) -> list[dict[str, Any]]:
-    """Search LinkedIn for RVCE alumni or engineering connections at a target company."""
+    """Search LinkedIn for 1st-degree and 2nd-degree connections or RVCE alumni at a target company."""
     from playwright.sync_api import sync_playwright
+    from applypilot.networking.outreach import clean_company_name
+
+    comp_clean = clean_company_name(company)
+    if not comp_clean:
+        comp_clean = company.strip()
 
     exe_path, _ = get_browser_executable()
     BRAVE_PROFILE_DIR.mkdir(parents=True, exist_ok=True)
 
-    query = f"{company} {role} {school}".strip()
-    encoded_query = urllib.parse.quote(query)
-    search_url = f"https://www.linkedin.com/search/results/people/?keywords={encoded_query}"
+    if comp_clean:
+        comp_enc = urllib.parse.quote(f'"{comp_clean}"')
+        search_url = f"https://www.linkedin.com/search/results/people/?keywords={comp_enc}&network=%5B%22F%22%5D"
+    else:
+        search_url = "https://www.linkedin.com/search/results/people/?network=%5B%22F%22%5D"
 
     results = []
 
@@ -312,39 +319,112 @@ def search_linkedin_connections(
             context.close()
             return [{"error": "Not authenticated. Run 'applypilot linkedin login' first."}]
 
-        # Extract people cards
-        people_elements = page.query_selector_all("li.reusable-search__result-container, div.entity-result")
-
-        for el in people_elements[:max_results]:
-            try:
-                name_el = el.query_selector("span.entity-result__title-text a, a.app-aware-link")
-                name = name_el.inner_text().strip() if name_el else "LinkedIn Member"
-                profile_url = name_el.get_attribute("href") if name_el else ""
-
-                if profile_url and "?" in profile_url:
-                    profile_url = profile_url.split("?")[0]
-
-                headline_el = el.query_selector("div.entity-result__primary-subtitle")
-                headline = headline_el.inner_text().strip() if headline_el else ""
-
-                location_el = el.query_selector("div.entity-result__secondary-subtitle")
-                location = location_el.inner_text().strip() if location_el else "India"
-
-                results.append({
-                    "name": name,
-                    "headline": headline,
-                    "location": location,
-                    "profile_url": profile_url,
-                    "company": company,
-                    "school": school,
-                    "search_url": search_url
-                })
-            except Exception as ee:
-                log.debug("Error parsing person card: %s", ee)
+        # Robust extraction supporting modern LinkedIn DOM
+        raw_cards = page.evaluate("""
+            () => {
+                const results = [];
+                const candidateLinks = Array.from(document.querySelectorAll('a[href*="/in/"]'));
+                const seenUrls = new Set();
+                
+                for (const a of candidateLinks) {
+                    const href = a.href ? a.href.split('?')[0].replace(/\\/+$/, '') : '';
+                    if (!href || href.includes('/in/mini-profile') || seenUrls.has(href)) continue;
+                    
+                    const text = a.innerText.trim();
+                    if (!text || text.includes('mutual connection') || text.includes('View ') || text.length < 2) continue;
+                    
+                    // The entity text is reliably at 2 levels above the link
+                    let lockup = a.parentElement ? (a.parentElement.parentElement || a.parentElement) : a;
+                    let lockupText = lockup.innerText || '';
+                    
+                    // Also check broader card container for Current/Past roles and message buttons
+                    let container = a.closest('li') || a.closest('div.scaffold-layout__list-item');
+                    if (!container) {
+                        let parent = a.parentElement;
+                        for (let depth = 0; depth < 5 && parent && parent.tagName !== 'LI'; depth++) {
+                            parent = parent.parentElement;
+                        }
+                        container = parent || lockup;
+                    }
+                    const fullCardText = container ? container.innerText : lockupText;
+                    
+                    // Only the primary person on the card has '1st' or '2nd' in their own entity lockup (excludes mutuals)
+                    if (!lockupText.includes('1st') && !lockupText.includes('2nd') && !lockupText.includes('3rd')) {
+                        continue;
+                    }
+                    
+                    seenUrls.add(href);
+                    
+                    const lockupLines = lockupText.split('\\n').map(l => l.trim()).filter(Boolean);
+                    const fullLines = fullCardText.split('\\n').map(l => l.trim()).filter(Boolean);
+                    
+                    let name = text.split('\\n')[0].replace(/•.*/, '').trim();
+                    let degree = '1st';
+                    if (lockupText.includes('2nd') || fullCardText.includes('2nd')) degree = '2nd';
+                    else if (lockupText.includes('3rd') || fullCardText.includes('3rd')) degree = '3rd';
+                    
+                    let headline = '';
+                    let location = 'Bengaluru, India';
+                    let currentRole = '';
+                    let pastRole = '';
+                    
+                    for (let i = 0; i < lockupLines.length; i++) {
+                        const l = lockupLines[i];
+                        if (l.includes('1st') || l.includes('2nd') || l.includes('3rd')) {
+                            if (i + 1 < lockupLines.length) {
+                                headline = lockupLines[i+1];
+                            }
+                            if (i + 2 < lockupLines.length) {
+                                location = lockupLines[i+2];
+                            }
+                            break;
+                        }
+                    }
+                    
+                    for (const l of fullLines) {
+                        if (l.startsWith('Current:')) currentRole = l.replace('Current:', '').trim();
+                        if (l.startsWith('Past:')) pastRole = l.replace('Past:', '').trim();
+                    }
+                    
+                    const isAlumni = fullCardText.toLowerCase().includes('rvce') || fullCardText.toLowerCase().includes('rv college') || headline.toLowerCase().includes('rvce');
+                    
+                    results.push({
+                        name: name,
+                        headline: headline,
+                        location: location,
+                        current_role: currentRole,
+                        past_role: pastRole,
+                        profile_url: href,
+                        degree: degree,
+                        is_alumni: isAlumni
+                    });
+                }
+                return results;
+            }
+        """)
 
         context.close()
 
-    return results
+        for c in raw_cards:
+            c["company"] = comp_clean
+            c["school"] = school
+            c["search_url"] = search_url
+            results.append(c)
+
+    # Sort: 1st-degree first, RVCE alumni first, current employee first
+    def sort_score(c):
+        score = 0
+        if c.get("degree") == "1st":
+            score += 10
+        if c.get("is_alumni"):
+            score += 8
+        if c.get("current_role"):
+            score += 5
+        return score
+
+    results.sort(key=sort_score, reverse=True)
+    log.info("Extracted %d connections for company '%s'", len(results), comp_clean)
+    return results[:max_results]
 
 
 def _save_lead_to_db(lead: dict) -> None:
