@@ -43,21 +43,96 @@ HTML_DASHBOARD = """<!DOCTYPE html>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
   <style>
-    :root {
-      --bg: #07090e;
-      --panel: rgba(15, 23, 42, 0.75);
-      --panel-border: rgba(255, 255, 255, 0.09);
-      --card-bg: rgba(18, 26, 47, 0.85);
-      --card-border: rgba(99, 102, 241, 0.2);
-      --text: #f8fafc;
+    /* Dynamic Theme Palettes */
+    :root, [data-theme="aurora"] {
+      --bg: #060913;
+      --bg-gradient: radial-gradient(circle at 10% 12%, rgba(6, 182, 212, 0.22) 0%, transparent 45%),
+                     radial-gradient(circle at 90% 15%, rgba(16, 185, 129, 0.18) 0%, transparent 45%),
+                     radial-gradient(circle at 50% 85%, rgba(59, 130, 246, 0.14) 0%, transparent 55%),
+                     #060913;
+      --panel: rgba(11, 19, 38, 0.82);
+      --panel-border: rgba(56, 189, 248, 0.16);
+      --card-bg: rgba(13, 22, 44, 0.88);
+      --card-border: rgba(56, 189, 248, 0.18);
+      --text: #f0fdf4;
       --text-muted: #94a3b8;
-      --accent: #6366f1;
-      --accent-glow: rgba(99, 102, 241, 0.35);
+      --accent: #06b6d4;
+      --accent-glow: rgba(6, 182, 212, 0.35);
+      --brand-grad: linear-gradient(135deg, #00f2fe, #38bdf8, #34d399);
+      --tab-active: linear-gradient(135deg, #0284c7, #0d9488);
       --emerald: #10b981;
       --emerald-glow: rgba(16, 185, 129, 0.35);
       --amber: #f59e0b;
       --cyan: #06b6d4;
+      --purple: #38bdf8;
+      --rose: #f43f5e;
+    }
+
+    [data-theme="cyberpunk"] {
+      --bg: #090615;
+      --bg-gradient: radial-gradient(ellipse at 15% 0%, rgba(168, 85, 247, 0.25) 0%, transparent 55%),
+                     radial-gradient(ellipse at 85% 100%, rgba(244, 63, 94, 0.2) 0%, transparent 55%),
+                     #090615;
+      --panel: rgba(22, 13, 41, 0.85);
+      --panel-border: rgba(168, 85, 247, 0.2);
+      --card-bg: rgba(26, 16, 49, 0.9);
+      --card-border: rgba(168, 85, 247, 0.25);
+      --text: #faf5ff;
+      --text-muted: #a8a29e;
+      --accent: #a855f7;
+      --accent-glow: rgba(168, 85, 247, 0.4);
+      --brand-grad: linear-gradient(135deg, #f43f5e, #c084fc, #38bdf8);
+      --tab-active: linear-gradient(135deg, #7c3aed, #ec4899);
+      --emerald: #10b981;
+      --emerald-glow: rgba(16, 185, 129, 0.35);
+      --amber: #f59e0b;
+      --cyan: #38bdf8;
       --purple: #a855f7;
+      --rose: #f43f5e;
+    }
+
+    [data-theme="space-black"] {
+      --bg: #000000;
+      --bg-gradient: radial-gradient(circle at 50% 12%, rgba(34, 197, 94, 0.14) 0%, transparent 60%),
+                     #000000;
+      --panel: rgba(16, 16, 20, 0.95);
+      --panel-border: rgba(255, 255, 255, 0.14);
+      --card-bg: rgba(20, 20, 26, 0.95);
+      --card-border: rgba(255, 255, 255, 0.16);
+      --text: #ffffff;
+      --text-muted: #9ca3af;
+      --accent: #22c55e;
+      --accent-glow: rgba(34, 197, 94, 0.35);
+      --brand-grad: linear-gradient(135deg, #22c55e, #10b981, #06b6d4);
+      --tab-active: linear-gradient(135deg, #15803d, #047857);
+      --emerald: #22c55e;
+      --emerald-glow: rgba(34, 197, 94, 0.35);
+      --amber: #eab308;
+      --cyan: #06b6d4;
+      --purple: #a855f7;
+      --rose: #f43f5e;
+    }
+
+    [data-theme="sunset-slate"] {
+      --bg: #0c0e12;
+      --bg-gradient: radial-gradient(circle at 12% 15%, rgba(249, 115, 22, 0.2) 0%, transparent 50%),
+                     radial-gradient(circle at 88% 85%, rgba(217, 70, 239, 0.15) 0%, transparent 50%),
+                     #0c0e12;
+      --panel: rgba(20, 24, 33, 0.85);
+      --panel-border: rgba(249, 115, 22, 0.18);
+      --card-bg: rgba(25, 30, 42, 0.9);
+      --card-border: rgba(249, 115, 22, 0.22);
+      --text: #fff7ed;
+      --text-muted: #a1a1aa;
+      --accent: #f97316;
+      --accent-glow: rgba(249, 115, 22, 0.35);
+      --brand-grad: linear-gradient(135deg, #f97316, #fb923c, #fbbf24);
+      --tab-active: linear-gradient(135deg, #ea580c, #c026d3);
+      --emerald: #10b981;
+      --emerald-glow: rgba(16, 185, 129, 0.35);
+      --amber: #f59e0b;
+      --cyan: #38bdf8;
+      --purple: #d946ef;
       --rose: #f43f5e;
     }
 
@@ -65,14 +140,13 @@ HTML_DASHBOARD = """<!DOCTYPE html>
 
     body {
       font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
-      background: radial-gradient(ellipse at 15% 0%, rgba(99, 102, 241, 0.22) 0%, transparent 55%),
-                  radial-gradient(ellipse at 85% 100%, rgba(236, 72, 153, 0.16) 0%, transparent 55%),
-                  var(--bg);
+      background: var(--bg-gradient);
       color: var(--text);
       line-height: 1.5;
       padding-bottom: 80px;
       min-height: 100vh;
       background-attachment: fixed;
+      transition: background 0.3s ease, color 0.3s ease;
     }
 
     /* Header */
@@ -103,7 +177,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       font-size: 21px;
       font-weight: 800;
       letter-spacing: -0.5px;
-      background: linear-gradient(135deg, #38bdf8, #818cf8, #c084fc);
+      background: var(--brand-grad);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
     }
@@ -263,9 +337,40 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       color: #fff;
     }
     .tab-btn.active {
-      background: linear-gradient(135deg, #4f46e5, #7c3aed);
+      background: var(--tab-active);
       color: white;
-      box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);
+      box-shadow: 0 4px 14px var(--accent-glow);
+    }
+
+    /* Palette Switcher */
+    .theme-picker {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid var(--panel-border);
+      border-radius: 999px;
+      padding: 3px 4px;
+    }
+    .theme-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 999px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+    .theme-btn:hover {
+      color: #fff;
+    }
+    .theme-btn.active {
+      background: var(--accent);
+      color: #fff;
+      box-shadow: 0 0 10px var(--accent-glow);
     }
     .tab-badge {
       background: rgba(255, 255, 255, 0.2);
@@ -695,14 +800,22 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       </div>
     </div>
 
-    <!-- Quick Copy Drawer for Candidate Info -->
+    <!-- Quick Copy Drawer & Theme Picker -->
     <div class="quick-bar">
-      <div class="quick-pill" onclick="copyText('8431433659', 'Phone Number')"><i class="fa-solid fa-phone"></i> 8431433659</div>
-      <div class="quick-pill" onclick="copyText('deepaksh2002@gmail.com', 'Email')"><i class="fa-solid fa-envelope"></i> deepaksh2002@gmail.com</div>
-      <div class="quick-pill" onclick="copyText('https://www.linkedin.com/in/deepak-s-h-851a76201', 'LinkedIn URL')"><i class="fa-brands fa-linkedin"></i> LinkedIn</div>
-      <div class="quick-pill" onclick="copyText('20 LPA', 'Current CTC')"><i class="fa-solid fa-indian-rupee-sign"></i> 20 LPA</div>
-      <div class="quick-pill" onclick="copyText('Immediate', 'Notice Period')"><i class="fa-solid fa-bolt"></i> Immediate Notice</div>
+      <div class="quick-pill" onclick="copyText('8431433659', 'Phone Number')"><i class="fa-solid fa-phone" style="color:#38bdf8;"></i> 8431433659</div>
+      <div class="quick-pill" onclick="copyText('deepakshkarkala@gmail.com', 'Email')"><i class="fa-solid fa-envelope" style="color:#34d399;"></i> deepakshkarkala@gmail.com</div>
+      <div class="quick-pill" onclick="copyText('https://www.linkedin.com/in/deepak-s-h-82b772254', 'LinkedIn URL')"><i class="fa-brands fa-linkedin" style="color:#60a5fa;"></i> LinkedIn</div>
+      <div class="quick-pill" onclick="copyText('20 LPA', 'Current CTC')"><i class="fa-solid fa-indian-rupee-sign" style="color:#f59e0b;"></i> 20 LPA</div>
+      <div class="quick-pill" onclick="copyText('Immediate', 'Notice Period')"><i class="fa-solid fa-bolt" style="color:#ec4899;"></i> Immediate Notice</div>
       <div class="quick-pill" onclick="openDirectUrl('https://www.linkedin.com/feed/')" style="background: #0a66c2; color: #fff; font-weight: 700;"><i class="fa-brands fa-linkedin"></i> Open LinkedIn</div>
+
+      <!-- Theme Switcher Pill -->
+      <div class="theme-picker">
+        <button class="theme-btn active" id="btn-theme-aurora" onclick="setPalette('aurora')" title="Nordic Aurora (Cyan & Emerald)">🌊 Aurora</button>
+        <button class="theme-btn" id="btn-theme-cyberpunk" onclick="setPalette('cyberpunk')" title="Cyberpunk Neon (Violet & Pink)">🔮 Neon</button>
+        <button class="theme-btn" id="btn-theme-sunset-slate" onclick="setPalette('sunset-slate')" title="Sunset Amber (Warm Carbon)">🌅 Sunset</button>
+        <button class="theme-btn" id="btn-theme-space-black" onclick="setPalette('space-black')" title="OLED True Black (High Contrast)">🪐 OLED</button>
+      </div>
     </div>
   </header>
 
@@ -824,6 +937,24 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     let allJobs = [];
     let allResponses = [];
     let currentTab = 'high';
+
+    function setPalette(themeName) {
+      document.documentElement.setAttribute('data-theme', themeName);
+      localStorage.setItem('applypilot_theme', themeName);
+      document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
+      const activeBtn = document.getElementById(`btn-theme-${themeName}`);
+      if (activeBtn) activeBtn.classList.add('active');
+      showToast(`Palette switched to: ${themeName.replace('-', ' ').toUpperCase()}`);
+    }
+
+    // Initialize saved theme
+    const savedTheme = localStorage.getItem('applypilot_theme') || 'aurora';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+    setTimeout(() => {
+      document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
+      const initialBtn = document.getElementById(`btn-theme-${savedTheme}`);
+      if (initialBtn) initialBtn.classList.add('active');
+    }, 50);
 
     async function fetchJobs() {
       try {
