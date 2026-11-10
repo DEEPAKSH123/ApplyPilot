@@ -2,6 +2,7 @@
 
 Maintains ONE single master sheet: opportunities.csv.
 Updated in place every day with all jobs, sorted by fit score (top matches first).
+Includes Recruiter Email for direct cold-email reach-out.
 Paths are kept short and clean (e.g. tailored_resumes\\file.pdf).
 """
 
@@ -40,7 +41,7 @@ def export_opportunities_csv(output_path: Path | str | None = None) -> Path:
 
     fieldnames = [
         "Company", "Title", "Location", "Rating (Fit Score 1-10)",
-        "Apply Link", "Tailored Resume PDF", "Cover Letter PDF",
+        "Recruiter Email", "Apply Link", "Tailored Resume PDF", "Cover Letter PDF",
         "Discovered At", "Scored At", "Match Reasoning"
     ]
 
@@ -50,6 +51,7 @@ def export_opportunities_csv(output_path: Path | str | None = None) -> Path:
             COALESCE(title, 'N/A') AS title,
             COALESCE(location, 'N/A') AS location,
             fit_score AS rating,
+            COALESCE(recruiter_email, '') AS recruiter_email,
             COALESCE(application_url, url) AS apply_link,
             COALESCE(tailored_resume_path, '') AS tailored_resume_pdf,
             COALESCE(cover_letter_path, '') AS cover_letter_pdf,
@@ -64,10 +66,10 @@ def export_opportunities_csv(output_path: Path | str | None = None) -> Path:
     formatted_rows = []
     for r in rows:
         row = list(r)
-        # item 5: tailored_resume_pdf
-        row[5] = _clean_path(row[5])
-        # item 6: cover_letter_pdf
+        # item 6: tailored_resume_pdf
         row[6] = _clean_path(row[6])
+        # item 7: cover_letter_pdf
+        row[7] = _clean_path(row[7])
         formatted_rows.append(row)
 
     try:
@@ -78,7 +80,14 @@ def export_opportunities_csv(output_path: Path | str | None = None) -> Path:
                 writer.writerow(r)
     except PermissionError:
         log.warning("File %s is currently open in Excel. Please close it so it can be updated directly.", target_path.name)
-        raise PermissionError(f"Could not update {target_path.name} because it is currently open in Excel. Please close Excel and try again.")
+        # Fall back to writing safely if open
+        alt_path = target_path.with_name(f"{target_path.stem}_latest.csv")
+        with open(alt_path, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(fieldnames)
+            for r in formatted_rows:
+                writer.writerow(r)
+        return alt_path
 
-    log.info("Updated master sheet %s with %d opportunities", target_path.name, len(formatted_rows))
+    log.info("Updated master sheet %s with %d opportunities (including recruiter emails)", target_path.name, len(formatted_rows))
     return target_path

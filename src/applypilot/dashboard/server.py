@@ -499,6 +499,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
               </div>
 
               <div class="badges-row">
+                ${job.recruiter_email ? `<span class="artifact-tag" style="background:#581c87;color:#f5d0fe;"><i class="fa-solid fa-envelope"></i> ${job.recruiter_email}</span>` : ''}
                 ${hasResume ? `<span class="artifact-tag tag-resume"><i class="fa-solid fa-file-pdf"></i> Tailored Resume</span>` : ''}
                 ${hasCover ? `<span class="artifact-tag tag-cover"><i class="fa-solid fa-envelope-open-text"></i> Cover Letter</span>` : ''}
                 ${isApplied ? `<span class="artifact-tag tag-applied"><i class="fa-solid fa-check-double"></i> Applied</span>` : isApproved ? `<span class="artifact-tag tag-approved"><i class="fa-solid fa-thumbs-up"></i> Approved</span>` : ''}
@@ -510,6 +511,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
             <div class="actions-bar">
               ${hasResume ? `<button class="btn btn-preview" onclick="previewPDF('${job.tailored_resume_path}', '${job.company} - ${job.title} Resume')"><i class="fa-solid fa-eye"></i> Resume PDF</button>` : ''}
               ${hasCover ? `<button class="btn btn-preview" onclick="previewPDF('${job.cover_letter_path}', '${job.company} - Cover Letter')"><i class="fa-solid fa-eye"></i> Cover PDF</button>` : ''}
+              ${job.recruiter_email ? `<a class="btn" style="background:#7c3aed;color:white;" href="mailto:${job.recruiter_email}?subject=Application for ${encodeURIComponent(job.title)} - Deepak S H&body=Hi,%0D%0A%0D%0AI came across the ${encodeURIComponent(job.title)} opening at ${encodeURIComponent(job.company)}. I am an SDE-I Backend Engineer at Meesho with 1.3 years of experience in Java, Go, Kafka, Redis, and Distributed Systems, and graduated from RVCE (CGPA 8.92).%0D%0A%0D%0AI would love to connect and share my resume.%0D%0A%0D%0ABest regards,%0D%0ADeepak S H%0D%0A8431433659"><i class="fa-solid fa-paper-plane"></i> Email Recruiter</a>` : ''}
               
               <button class="btn btn-apply" onclick="launchAssistant(${job.rowid})">
                 <i class="fa-solid fa-bolt"></i> 1-Click Apply
@@ -609,6 +611,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     COALESCE(site, 'Unknown') AS company,
                     COALESCE(title, 'N/A') AS title,
                     COALESCE(location, 'N/A') AS location,
+                    COALESCE(recruiter_email, '') AS recruiter_email,
                     fit_score,
                     score_reasoning,
                     COALESCE(application_url, url) AS apply_url,

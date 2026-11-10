@@ -134,6 +134,28 @@ def _run_discover(workers: int = 4) -> dict:
             console.print(f"  [red]Smart extract error:[/red] {e}")
             stats["smartextract"] = f"error: {e}"
 
+    # 5. LinkedIn Hiring Posts & Recruiter discovery
+    if sources.get("linkedin_posts", True):
+        console.print("  [cyan]LinkedIn Posts & Recruiter discovery...[/cyan]")
+        try:
+            from applypilot.discovery.linkedin_posts import run_discovery as run_linkedin_posts
+            count = run_linkedin_posts()
+            stats["linkedin_posts"] = f"ok ({count} found)"
+        except Exception as e:
+            log.error("LinkedIn Posts discovery failed: %s", e)
+            stats["linkedin_posts"] = f"error: {e}"
+
+    # 6. WhatsApp Tech Communities & Referral Groups
+    if sources.get("whatsapp", True):
+        console.print("  [cyan]WhatsApp Tech Communities & Referral Groups discovery...[/cyan]")
+        try:
+            from applypilot.discovery.whatsapp import run_discovery as run_whatsapp
+            count = run_whatsapp()
+            stats["whatsapp"] = f"ok ({count} found)"
+        except Exception as e:
+            log.error("WhatsApp discovery failed: %s", e)
+            stats["whatsapp"] = f"error: {e}"
+
     return stats
 
 
@@ -150,6 +172,13 @@ def _run_enrich(workers: int = 1) -> dict:
               AND LENGTH(description) > 30
         """)
         conn.commit()
+
+        # Recruiter email extraction across all jobs
+        try:
+            from applypilot.enrichment.email_extractor import run_email_extraction
+            run_email_extraction(conn=conn)
+        except Exception as ee:
+            log.warning("Email extraction warning: %s", ee)
 
         from applypilot.enrichment.detail import run_enrichment
         run_enrichment(workers=workers)

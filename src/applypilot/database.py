@@ -130,7 +130,8 @@ def init_db(db_path: Path | str | None = None) -> sqlite3.Connection:
             last_attempted_at     TEXT,
             apply_duration_ms     INTEGER,
             apply_task_id         TEXT,
-            verification_confidence TEXT
+            verification_confidence TEXT,
+            recruiter_email       TEXT
         )
     """)
     conn.commit()
@@ -181,6 +182,7 @@ _ALL_COLUMNS: dict[str, str] = {
     "apply_duration_ms": "INTEGER",
     "apply_task_id": "TEXT",
     "verification_confidence": "TEXT",
+    "recruiter_email": "TEXT",
 }
 
 
@@ -440,10 +442,10 @@ def store_jobs_deduped(conn: sqlite3.Connection, jobs: list[dict],
         # 3. Insert new unique job
         try:
             conn.execute(
-                "INSERT INTO jobs (url, title, salary, description, location, site, strategy, discovered_at, full_description, application_url) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO jobs (url, title, salary, description, location, site, strategy, discovered_at, full_description, application_url, recruiter_email) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (url, raw_title, job.get("salary"), job.get("description"),
-                 raw_loc, job_site, strategy, now, full_desc, app_url),
+                 raw_loc, job_site, strategy, now, full_desc, app_url, job.get("recruiter_email")),
             )
             new += 1
         except sqlite3.IntegrityError:
