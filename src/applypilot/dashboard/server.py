@@ -1922,7 +1922,10 @@ def start_dashboard_server(port: int = PORT, open_browser: bool = True):
     print("   Press Ctrl+C to stop the dashboard server.\n")
 
     if open_browser:
-        webbrowser.open(url)
+        if os.path.exists(BRAVE_EXE):
+            subprocess.Popen([BRAVE_EXE, url])
+        else:
+            webbrowser.open(url)
 
     try:
         server.serve_forever()
