@@ -22,14 +22,14 @@ def generate_linkedin_searches(company: str, role_title: str) -> dict[str, str]:
     """Generate targeted LinkedIn search URLs with official degree and alumni filters."""
     comp_clean = clean_company_name(company)
     if not comp_clean:
-        role_enc = urllib.parse.quote(role_title or "Backend Engineer")
         return {
-            "first_degree_url": f"https://www.linkedin.com/search/results/people/?keywords={role_enc}&network=%5B%22F%22%5D",
-            "second_degree_url": f"https://www.linkedin.com/search/results/people/?keywords={role_enc}&network=%5B%22S%22%5D",
-            "alumni_search_url": f"https://www.linkedin.com/search/results/people/?keywords=RVCE%20{role_enc}",
+            "first_degree_url": "https://www.linkedin.com/search/results/people/?network=%5B%22F%22%5D",
+            "second_degree_url": "https://www.linkedin.com/search/results/people/?network=%5B%22S%22%5D",
+            "alumni_search_url": "https://www.linkedin.com/search/results/people/?keywords=RVCE",
             "recruiter_search_url": "https://www.linkedin.com/search/results/people/?keywords=technical%20recruiter%20backend%20bangalore",
             "lead_search_url": "https://www.linkedin.com/search/results/people/?keywords=engineering%20manager%20backend%20bangalore",
-            "company_clean": "Hiring Team",
+            "hiring_posts_url": 'https://www.linkedin.com/search/results/content/?keywords=backend%20engineer%20AND%20(%22hiring%22%20OR%20%22requirement%22)&sortBy=%22date_posted%22',
+            "company_clean": "",
         }
 
     comp_encoded = urllib.parse.quote(f'"{comp_clean}"')
@@ -41,19 +41,19 @@ def generate_linkedin_searches(company: str, role_title: str) -> dict[str, str]:
     second_deg_url = f"https://www.linkedin.com/search/results/people/?keywords={comp_encoded}&network=%5B%22S%22%5D"
 
     # 3. RVCE Alumni at target company (highest referral acceptance rate)
-    alumni_kw = f"RVCE {comp_clean} software engineer".strip()
+    alumni_kw = f"RVCE {comp_clean}".strip()
     alumni_url = f"https://www.linkedin.com/search/results/people/?keywords={urllib.parse.quote(alumni_kw)}"
 
     # 4. Tech Recruiters / Talent Acquisition
-    recruiter_kw = f"{comp_clean} technical recruiter backend".strip()
+    recruiter_kw = f'"{comp_clean}" technical recruiter backend'.strip()
     recruiter_url = f"https://www.linkedin.com/search/results/people/?keywords={urllib.parse.quote(recruiter_kw)}"
 
     # 5. Engineering Managers / Leads
-    lead_kw = f"{comp_clean} engineering manager backend".strip()
+    lead_kw = f'"{comp_clean}" engineering manager backend'.strip()
     lead_url = f"https://www.linkedin.com/search/results/people/?keywords={urllib.parse.quote(lead_kw)}"
 
     # 6. Recruiter Hiring & Requirement Posts
-    query_str = f'{comp_clean} backend engineer AND ("hiring" OR "requirement")'
+    query_str = f'"{comp_clean}" backend engineer AND ("hiring" OR "requirement")'
     hiring_posts_url = f"https://www.linkedin.com/search/results/content/?keywords={urllib.parse.quote(query_str)}&sortBy=%22date_posted%22"
 
     return {
@@ -184,6 +184,7 @@ def generate_outreach_messages(
         "alumni_search_url": searches["alumni_search_url"],
         "recruiter_search_url": searches["recruiter_search_url"],
         "lead_search_url": searches["lead_search_url"],
+        "hiring_posts_url": searches.get("hiring_posts_url", ""),
         "kadegree_url": "https://referral-community.kadegree.in/get",
         "company_clean": comp,
     }

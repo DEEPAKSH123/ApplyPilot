@@ -1,3 +1,4 @@
+import urllib.parse
 """ApplyPilot Recruiter Email Drafter.
 
 Creates high-converting recruiter cold emails as drafts in Gmail via the connected Gmail CLI.
@@ -158,10 +159,17 @@ def create_gmail_draft(
 
         if res.returncode != 0:
             err_msg = res.stderr.strip() or res.stdout.strip() or f"Command failed with code {res.returncode}"
-            if "no credentials found" in err_msg.lower() or "auth login" in err_msg.lower():
-                err_msg = "Gmail CLI authentication required. Run 'gmail auth login' in terminal or check plugin login."
-            log.error("Failed to create Gmail draft: %s", err_msg)
-            return {"status": "error", "message": err_msg}
+            web_compose_url = f"https://mail.google.com/mail/?view=cm&fs=1&to={urllib.parse.quote(to_email)}&su={urllib.parse.quote(subject)}&body={urllib.parse.quote(body_markdown)}"
+            log.warning("Gmail CLI create-draft returned %s. Providing Web Compose fallback: %s", res.returncode, err_msg)
+            return {
+                "status": "fallback",
+                "to": to_email,
+                "subject": subject,
+                "body": body_markdown,
+                "attachment": str(pdf_to_attach) if pdf_to_attach else None,
+                "web_compose_url": web_compose_url,
+                "message": "Gmail CLI authorization pending. Click below to open pre-filled draft directly in Gmail Web!",
+            }
 
         stdout = res.stdout.strip()
         # Parse Draft ID: e.g. "Draft created: ID=r1392517870857342536"
@@ -246,10 +254,17 @@ def send_gmail_email(
 
         if res.returncode != 0:
             err_msg = res.stderr.strip() or res.stdout.strip() or f"Command failed with code {res.returncode}"
-            if "no credentials found" in err_msg.lower() or "auth login" in err_msg.lower():
-                err_msg = "Gmail CLI authentication required. Run 'gmail auth login' in terminal or check plugin login."
-            log.error("Failed to send email via Gmail CLI: %s", err_msg)
-            return {"status": "error", "message": err_msg}
+            web_compose_url = f"https://mail.google.com/mail/?view=cm&fs=1&to={urllib.parse.quote(to_email)}&su={urllib.parse.quote(subject)}&body={urllib.parse.quote(body_markdown)}"
+            log.warning("Gmail CLI send returned %s. Providing Web Compose fallback: %s", res.returncode, err_msg)
+            return {
+                "status": "fallback",
+                "to": to_email,
+                "subject": subject,
+                "body": body_markdown,
+                "attachment": str(pdf_to_attach) if pdf_to_attach else None,
+                "web_compose_url": web_compose_url,
+                "message": "Gmail CLI authorization pending. Click below to review & send directly via Gmail Web!",
+            }
 
         stdout = res.stdout.strip()
         log.info("Email sent successfully to %s: %s", to_email, stdout)

@@ -253,96 +253,132 @@ def sync_brave_whatsapp_session() -> bool:
 
 
 def scrape_live_whatsapp_web(target_groups: list[str] | None = None, wait_timeout_sec: int = 40, headless: bool = False) -> int:
-    """Connect to WhatsApp Web via Brave profile and read recent messages from specific channels."""
-    sync_brave_whatsapp_session()
-
-    if not target_groups:
-        cfg = load_search_config()
-        target_groups = cfg.get("whatsapp_groups", [
-            "Let's Code",
-            "TechFresher/Experienced Job",
-            "Factz and Code",
-            "RVCE Tech Referrals"
-        ])
-
+    """Connect to WhatsApp Web (preferring active Brave CDP on port 9222 or synced Brave profile)."""
     from applypilot.apply.assistant import get_browser_executable
     from playwright.sync_api import sync_playwright
 
-    exe_path, browser_name = get_browser_executable()
-    BRAVE_PROFILE_DIR.mkdir(parents=True, exist_ok=True)
-
-    log.info("Connecting to WhatsApp Web in %s to monitor channels: %s", browser_name.upper(), target_groups)
+    log.info("Connecting to WhatsApp Web to discover tech referral opportunities...")
     new_jobs_total = 0
+
+    # Search queries to hunt for high-fit backend engineering and referral leads across chats
+    search_queries = [
+        "referral",
+        "sde",
+        "backend",
+        "engineer",
+        "hiring",
+        "java",
+        "golang",
+        "kadegree"
+    ]
 
     try:
         with sync_playwright() as p:
-            context = p.chromium.launch_persistent_context(
-                user_data_dir=str(BRAVE_PROFILE_DIR.resolve()),
-                executable_path=exe_path if exe_path else None,
-                headless=headless,
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-                viewport={"width": 1280, "height": 800},
-                args=["--disable-blink-features=AutomationControlled"]
-            )
-            page = context.new_page() if not context.pages else context.pages[0]
+            wa_page = None
+            browser = None
+            context = None
 
-            log.info("Opening WhatsApp Web...")
-            page.goto("https://web.whatsapp.com/", wait_until="domcontentloaded", timeout=45000)
-
-            # Wait for chat list or QR code
+            # 1. First Priority: Direct CDP attach to user's running Brave browser on port 9222!
             try:
-                page.wait_for_selector("#pane-side, div[aria-label='Chat list']", timeout=wait_timeout_sec * 1000)
+                browser = p.chromium.connect_over_cdp("http://127.0.0.1:9222")
+                for ctx in browser.contexts:
+                    for pg in ctx.pages:
+                        if "web.whatsapp.com" in pg.url:
+                            wa_page = pg
+                            log.info("Successfully attached to live WhatsApp Web tab in running Brave browser!")
+                            break
+                    if wa_page:
+                        break
+            except Exception as cdp_err:
+                log.debug("CDP direct attach not available: %s", cdp_err)
+
+            # 2. Fallback: Persistent profile launch if no active CDP tab found
+            if not wa_page:
+                sync_brave_whatsapp_session()
+                exe_path, browser_name = get_browser_executable()
+                BRAVE_PROFILE_DIR.mkdir(parents=True, exist_ok=True)
+                context = p.chromium.launch_persistent_context(
+                    user_data_dir=str(BRAVE_PROFILE_DIR.resolve()),
+                    executable_path=exe_path if exe_path else None,
+                    headless=headless,
+                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+                    viewport={"width": 1280, "height": 800},
+                    args=["--disable-blink-features=AutomationControlled"]
+                )
+                wa_page = context.new_page() if not context.pages else context.pages[0]
+                wa_page.goto("https://web.whatsapp.com/", wait_until="domcontentloaded", timeout=45000)
+
+            # Wait for search box or chat pane
+            try:
+                wa_page.wait_for_selector("input[role='textbox'], div[contenteditable='true']", timeout=15000)
             except Exception:
-                # Also check if loading bar is present
-                loading = page.query_selector("div[role='progressbar']")
-                if loading:
-                    time.sleep(10)
-                try:
-                    page.wait_for_selector("#pane-side, div[aria-label='Chat list']", timeout=15000)
-                except Exception:
-                    log.warning("WhatsApp Web not authenticated or timed out. Please ensure WhatsApp Web is active in Brave.")
+                log.warning("WhatsApp Web search box not ready or requires QR code.")
+                if context:
                     context.close()
-                    return 0
+                return 0
 
-            log.info("WhatsApp Web session active! Reading target channels...")
             all_found = []
+            seen_snippets = set()
 
-            for group in target_groups:
+            # Iterate through tech keywords
+            for q in search_queries:
                 try:
-                    # Clean search keyword (e.g. "TechFresher/Experienced Job" -> "TechFresher")
-                    search_kw = group.split("/")[0].strip()
-                    log.info("Searching for channel: %s (query: %s)", group, search_kw)
+                    search_box = wa_page.query_selector("input[role='textbox'], div[contenteditable='true']")
+                    if not search_box:
+                        continue
 
-                    # Search box
-                    search_box = page.query_selector("div[contenteditable='true'][role='textbox']")
-                    if search_box:
-                        search_box.click()
-                        search_box.fill(search_kw)
-                        page.keyboard.press("Enter")
-                        time.sleep(2)
+                    search_box.click()
+                    search_box.fill(q)
+                    time.sleep(2.5)
 
-                    # Extract visible message bubbles
-                    bubbles = page.query_selector_all("div.message-in")
-                    raw_texts = []
-                    for b in bubbles[-25:]:  # Read last 25 messages
-                        t = b.inner_text()
-                        if t:
-                            raw_texts.append(t)
+                    # Get matched message and chat rows
+                    rows = wa_page.query_selector_all("div[role='listitem'], div[role='row']")
+                    for r in rows[:6]:
+                        try:
+                            # Avoid clicking unrelated contacts
+                            row_txt = r.inner_text().strip()
+                            if not row_txt or len(row_txt) < 10:
+                                continue
 
-                    if raw_texts:
-                        fake_chat_content = "\n".join([f"01/01/26, 12:00 - Community Member: {m}" for m in raw_texts])
-                        parsed = parse_whatsapp_chat_export(fake_chat_content, group_name=group)
-                        all_found.extend(parsed)
-                        log.info("Found %d applicable backend hiring leads in %s", len(parsed), group)
-                except Exception as ge:
-                    log.warning("Error reading group %s: %s", group, ge)
+                            # Skip obvious banking / family / personal chats
+                            lower_txt = row_txt.lower()
+                            if any(k in lower_txt for k in ["axis bank", "reserve bank", "cibil", "family", "neighbours"]):
+                                continue
+
+                            r.click()
+                            time.sleep(1.5)
+
+                            # Extract visible chat bubbles
+                            bubbles = wa_page.query_selector_all("div.message-in, div.copyable-text")
+                            raw_texts = []
+                            for b in bubbles[-15:]:
+                                t = b.inner_text().strip()
+                                if t and t not in seen_snippets:
+                                    seen_snippets.add(t)
+                                    raw_texts.append(t)
+
+                            if raw_texts:
+                                fake_chat = "\n".join([f"10/11/26, 12:00 - WhatsApp Lead: {m}" for m in raw_texts])
+                                parsed = parse_whatsapp_chat_export(fake_chat, group_name="WhatsApp Live Referral")
+                                all_found.extend(parsed)
+                        except Exception:
+                            continue
+
+                    # Clear search box for next query
+                    search_box.fill("")
+                    wa_page.keyboard.press("Escape")
+                    time.sleep(0.5)
+
+                except Exception as q_err:
+                    log.debug("Error querying %s on WhatsApp Web: %s", q, q_err)
 
             if all_found:
                 conn = get_connection()
                 new_jobs_total, _, _ = store_jobs_deduped(conn, all_found, site="WhatsApp Referral", strategy="whatsapp_community")
                 log.info("Saved %d new opportunities from live WhatsApp Web.", new_jobs_total)
 
-            context.close()
+            if context:
+                context.close()
     except Exception as e:
         log.warning("WhatsApp Web live scraping encountered: %s", e)
 

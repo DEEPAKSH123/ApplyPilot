@@ -23,9 +23,11 @@ import webbrowser
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from applypilot.config import APP_DIR, DB_PATH, TAILORED_DIR, COVER_LETTER_DIR, load_profile
+from applypilot.config import APP_DIR, DB_PATH, TAILORED_DIR, COVER_LETTER_DIR, load_profile, load_env
 from applypilot.database import get_connection
 from applypilot.export.csv_export import export_opportunities_csv
+
+load_env()
 from applypilot.networking.outreach import generate_outreach_messages
 from applypilot.scoring.jit_tailor import tailor_single_job
 
@@ -1337,7 +1339,11 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       document.querySelectorAll('.source-pill').forEach(p => p.classList.remove('active'));
       const activePill = document.getElementById('src-' + src);
       if (activePill) activePill.classList.add('active');
-      renderJobs();
+      if (src !== 'all' && (currentTab === 'high' || currentTab === 'top')) {
+        setTab('all');
+      } else {
+        renderJobs();
+      }
     }
 
     function copyKannadaPitchByRowid(rowid) {
@@ -2954,6 +2960,38 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     }
 
     /* Referral & LinkedIn Modal */
+    function updateModalOutreachLinks(companyName) {
+      const comp = companyName.trim();
+      if (!comp) return;
+      const compEnc = encodeURIComponent(`"${comp}"`);
+      
+      const firstDeg = document.getElementById('ref-first-deg-link');
+      if (firstDeg) {
+        firstDeg.href = `https://www.linkedin.com/search/results/people/?keywords=${compEnc}&network=%5B%22F%22%5D`;
+      }
+      const secondDeg = document.getElementById('ref-second-deg-link');
+      if (secondDeg) {
+        secondDeg.href = `https://www.linkedin.com/search/results/people/?keywords=${compEnc}&network=%5B%22S%22%5D`;
+      }
+      const alumni = document.getElementById('ref-alumni-link');
+      if (alumni) {
+        alumni.href = `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent('RVCE ' + comp)}`;
+      }
+      const recruiter = document.getElementById('ref-recruiter-link');
+      if (recruiter) {
+        recruiter.href = `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent('"' + comp + '" technical recruiter backend')}`;
+      }
+      const lead = document.getElementById('ref-lead-link');
+      if (lead) {
+        lead.href = `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent('"' + comp + '" engineering manager backend')}`;
+      }
+      const hiring = document.getElementById('ref-hiring-posts-link');
+      if (hiring) {
+        hiring.href = `https://www.linkedin.com/search/results/content/?keywords=${encodeURIComponent('"' + comp + '" backend engineer AND ("hiring" OR "requirement")')}&sortBy=%22date_posted%22`;
+      }
+      document.querySelectorAll('.lbl-modal-comp').forEach(el => el.textContent = comp);
+    }
+
     function openReferralModal(rowid) {
       const job = allJobs.find(j => j.rowid === rowid);
       if (!job) return;
@@ -2964,36 +3002,46 @@ HTML_DASHBOARD = """<!DOCTYPE html>
 
       const html = `
         <!-- Section 1: Active Connections & Network Filters -->
-        <div style="background: rgba(30, 41, 59, 0.75); border: 1.5px solid rgba(56, 189, 248, 0.3); border-radius: 12px; padding: 18px; margin-bottom: 20px;">
+        <div style="background: #111827; border: 1px solid #1f2937; border-radius: 8px; padding: 18px; margin-bottom: 20px;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <h4 style="margin: 0; color: #38bdf8; font-size: 15px;"><i class="fa-solid fa-filter"></i> 1. Targeted LinkedIn Network Filters (Opens in active Brave)</h4>
-            <span style="font-size: 11px; background: rgba(56,189,248,0.15); color: #38bdf8; padding: 3px 8px; border-radius: 6px; font-weight: 700;">Deepak's Active Network</span>
+            <h4 style="margin: 0; color: #f8fafc; font-size: 15px;"><i class="fa-solid fa-filter"></i> 1. Targeted LinkedIn Network Filters</h4>
+            <span style="font-size: 11px; background: #1e293b; color: #94a3b8; padding: 3px 8px; border-radius: 4px; font-weight: 600;">Deepak's Active Network</span>
           </div>
-          <p style="margin: 0 0 14px 0; font-size: 13px; color: #94a3b8;">
-            🎯 <em>Filters your live LinkedIn account for 1st-degree friends, 2nd-degree mutuals, and RVCE alumni currently working at ${comp}.</em>
+
+          <!-- Target Company Filter Bar -->
+          <div style="background: #0f172a; border: 1px solid #1f2937; border-radius: 6px; padding: 8px 12px; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;">
+            <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 260px;">
+              <span style="font-size: 12px; font-weight: 700; color: #94a3b8; white-space: nowrap;"><i class="fa-solid fa-building"></i> Filter by Company:</span>
+              <input type="text" id="modal-company-filter" value="${comp}" style="background: #1e293b; border: 1px solid #334155; color: #fff; padding: 5px 10px; border-radius: 4px; font-size: 13px; font-weight: 600; flex: 1;" oninput="updateModalOutreachLinks(this.value)">
+            </div>
+            <span style="font-size: 11px; color: #64748b;">Live company filter</span>
+          </div>
+
+          <p style="margin: 0 0 12px 0; font-size: 13px; color: #94a3b8;">
+            Filters your LinkedIn account for connections, mutuals, and alumni working at <strong class="lbl-modal-comp" style="color:#f8fafc;">${comp}</strong>.
           </p>
-          <div style="display: flex; flex-wrap: wrap; gap: 10px;">
-            <a href="${o.first_degree_url || '#'}" id="ref-first-deg-link" target="_blank" class="btn" style="background: linear-gradient(135deg, #059669, #10b981); color: white; text-decoration: none; padding: 9px 14px; font-weight: 700; box-shadow: 0 2px 8px rgba(16,185,129,0.3);">
-              🟢 Find My 1st Degree Connections @ ${comp}
+          <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+            <a href="${o.first_degree_url || '#'}" id="ref-first-deg-link" target="_blank" class="btn" style="background: #065f46; color: #6ee7b7; border: 1px solid #047857; text-decoration: none; padding: 7px 12px; font-weight: 600;">
+              <i class="fa-solid fa-user-group"></i> 1st-Degree Connections @ <span class="lbl-modal-comp">${comp}</span>
             </a>
-            <a href="${o.second_degree_url || '#'}" target="_blank" class="btn" style="background: linear-gradient(135deg, #d97706, #f59e0b); color: white; text-decoration: none; padding: 9px 14px; font-weight: 700;">
-              🟡 Find 2nd Degree (Mutual) Connections @ ${comp}
+            <a href="${o.second_degree_url || '#'}" id="ref-second-deg-link" target="_blank" class="btn" style="background: #78350f; color: #fde68a; border: 1px solid #92400e; text-decoration: none; padding: 7px 12px; font-weight: 600;">
+              <i class="fa-solid fa-users"></i> 2nd-Degree Mutuals @ <span class="lbl-modal-comp">${comp}</span>
             </a>
-            <a href="${o.alumni_search_url || '#'}" target="_blank" class="btn" style="background: #0284c7; color: white; text-decoration: none; padding: 9px 14px; font-weight: 700;">
-              🎓 Find RVCE Alumni @ ${comp}
+            <a href="${o.alumni_search_url || '#'}" id="ref-alumni-link" target="_blank" class="btn" style="background: #1e3a8a; color: #bfdbfe; border: 1px solid #1d4ed8; text-decoration: none; padding: 7px 12px; font-weight: 600;">
+              <i class="fa-solid fa-graduation-cap"></i> RVCE Alumni @ <span class="lbl-modal-comp">${comp}</span>
             </a>
-            <a href="${o.recruiter_search_url || '#'}" target="_blank" class="btn" style="background: #7c3aed; color: white; text-decoration: none; padding: 9px 14px; font-weight: 700;">
-              🎯 Find Tech Recruiters @ ${comp}
+            <a href="${o.recruiter_search_url || '#'}" id="ref-recruiter-link" target="_blank" class="btn" style="background: #312e81; color: #c7d2fe; border: 1px solid #4338ca; text-decoration: none; padding: 7px 12px; font-weight: 600;">
+              <i class="fa-solid fa-user-tie"></i> Recruiters @ <span class="lbl-modal-comp">${comp}</span>
             </a>
-            <a href="${o.lead_search_url || '#'}" target="_blank" class="btn" style="background: #334155; color: white; text-decoration: none; padding: 9px 14px;">
-              ⚡ Engineering Managers
+            <a href="${o.lead_search_url || '#'}" id="ref-lead-link" target="_blank" class="btn" style="background: #1e293b; color: #cbd5e1; border: 1px solid #334155; text-decoration: none; padding: 7px 12px; font-weight: 600;">
+              <i class="fa-solid fa-briefcase"></i> Engineering Managers
             </a>
-            <a href="https://referral-community.kadegree.in/get" target="_blank" rel="noopener noreferrer" class="btn" style="background: linear-gradient(135deg, #b45309, #d97706); color: white; text-decoration: none; padding: 9px 14px; font-weight: 700;">
-              🟡 KaDegree Community (${comp})
+            <a href="https://referral-community.kadegree.in/get" target="_blank" rel="noopener noreferrer" class="btn" style="background: #1e293b; color: #cbd5e1; border: 1px solid #334155; text-decoration: none; padding: 7px 12px; font-weight: 600;">
+              <i class="fa-solid fa-users"></i> KaDegree Community
             </a>
             ${o.hiring_posts_url ? `
-            <a href="${o.hiring_posts_url}" target="_blank" class="btn" style="background: linear-gradient(135deg, #0284c7, #06b6d4); color: white; text-decoration: none; padding: 9px 14px; font-weight: 700;">
-              💼 Hiring / Requirement Posts @ ${comp}
+            <a href="${o.hiring_posts_url}" id="ref-hiring-posts-link" target="_blank" class="btn" style="background: #075985; color: #bae6fd; border: 1px solid #0284c7; text-decoration: none; padding: 7px 12px; font-weight: 600;">
+              <i class="fa-solid fa-bullhorn"></i> Hiring Posts @ <span class="lbl-modal-comp">${comp}</span>
             </a>
             ` : ''}
           </div>
@@ -3538,6 +3586,27 @@ HTML_DASHBOARD = """<!DOCTYPE html>
             }
           }
           showToast((action === 'send' ? '🎉 Email sent to ' : '✅ Draft created for ') + email);
+        } else if (data.status === 'fallback') {
+          if (activeBtn) {
+            activeBtn.innerHTML = '<i class="fa-solid fa-arrow-up-right-from-square"></i> Open in Gmail Web';
+            activeBtn.style.background = '#0284c7';
+            activeBtn.disabled = false;
+            activeBtn.onclick = () => window.open(data.web_compose_url, '_blank');
+          }
+          if (statusEl) {
+            statusEl.style.background = 'rgba(2, 132, 199, 0.2)';
+            statusEl.style.border = '1px solid #38bdf8';
+            statusEl.style.color = '#e0f2fe';
+            statusEl.innerHTML = `<strong>✨ Recruiter Email Generated & Ready!</strong><br>
+              <div style="font-size:11px;color:#cbd5e1;margin:6px 0;">Subject: <strong>${data.subject}</strong></div>
+              <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
+                <a href="${data.web_compose_url}" target="_blank" rel="noopener noreferrer" style="background:#0284c7;color:#fff;padding:6px 14px;border-radius:6px;font-weight:700;text-decoration:none;font-size:12px;display:inline-flex;align-items:center;gap:6px;"><i class="fa-solid fa-arrow-up-right-from-square"></i> Open Pre-filled Draft in Gmail Web</a>
+                <button onclick="navigator.clipboard.writeText('${(data.subject || '').replace(/'/g, "\\'")}\n\n' + decodeURIComponent('${encodeURIComponent(data.body || '')}')); showToast('Email copied to clipboard!');" style="background:#334155;color:#e2e8f0;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;font-weight:600;font-size:12px;"><i class="fa-solid fa-copy"></i> Copy Text</button>
+              </div>
+              <div style="font-size:11px;color:#a5b4fc;margin-top:6px;">📎 Tailored Resume PDF: ${data.attachment || 'Master Resume (RVCE)'}</div>`;
+          }
+          showToast('✨ Email prepared! Click "Open in Gmail Web" to review & send.');
+          window.open(data.web_compose_url, '_blank');
         } else {
           if (activeBtn) {
             activeBtn.innerHTML = action === 'send' ? '<i class="fa-solid fa-paper-plane"></i> Send Now' : '<i class="fa-solid fa-file-pen"></i> Save Draft';
@@ -3724,6 +3793,25 @@ HTML_DASHBOARD = """<!DOCTYPE html>
               <a href="https://mail.google.com/mail/u/0/#drafts" target="_blank" rel="noopener noreferrer" style="color:#38bdf8;text-decoration:underline;display:inline-block;margin-top:6px;font-weight:700;">Open Gmail Drafts to Review & Send &rarr;</a>`;
           }
           showToast((action === 'send' ? '🎉 Cold email sent to ' : '✅ Cold email drafted for ') + email);
+        } else if (data.status === 'fallback') {
+          if (activeBtn) {
+            activeBtn.innerHTML = '<i class="fa-solid fa-arrow-up-right-from-square"></i> Open in Gmail Web';
+            activeBtn.style.background = '#0284c7';
+            activeBtn.disabled = false;
+            activeBtn.onclick = () => window.open(data.web_compose_url, '_blank');
+          }
+          statusEl.style.background = 'rgba(2, 132, 199, 0.2)';
+          statusEl.style.border = '1px solid #38bdf8';
+          statusEl.style.color = '#e0f2fe';
+          statusEl.innerHTML = `<strong>✨ Recruiter Email Generated & Ready!</strong><br>
+            <div style="font-size:11px;color:#cbd5e1;margin:6px 0;">Subject: <strong>${data.subject}</strong></div>
+            <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
+              <a href="${data.web_compose_url}" target="_blank" rel="noopener noreferrer" style="background:#0284c7;color:#fff;padding:6px 14px;border-radius:6px;font-weight:700;text-decoration:none;font-size:12px;display:inline-flex;align-items:center;gap:6px;"><i class="fa-solid fa-arrow-up-right-from-square"></i> Open Pre-filled Draft in Gmail Web</a>
+              <button onclick="navigator.clipboard.writeText('${(data.subject || '').replace(/'/g, "\\'")}\n\n' + decodeURIComponent('${encodeURIComponent(data.body || '')}')); showToast('Email copied to clipboard!');" style="background:#334155;color:#e2e8f0;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;font-weight:600;font-size:12px;"><i class="fa-solid fa-copy"></i> Copy Text</button>
+            </div>
+            <div style="font-size:11px;color:#a5b4fc;margin-top:6px;">📎 Tailored Resume PDF: ${data.attachment || 'Master Resume (RVCE)'}</div>`;
+          showToast('✨ Email prepared! Click "Open in Gmail Web" to review & send.');
+          window.open(data.web_compose_url, '_blank');
         } else {
           if (activeBtn) {
             activeBtn.innerHTML = action === 'send' ? '<i class="fa-solid fa-paper-plane"></i> Send Email Directly' : '<i class="fa-solid fa-file-pen"></i> Save Draft in Gmail';
@@ -3901,9 +3989,28 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                         continue
 
                 # Derive Source & Job Related Info
+                c_raw = (j.get("company") or "").strip()
+                if c_raw.lower() in ("linkedin", "indeed", "jobspy", "unknown", "company direct", ""):
+                    t_full = (j.get("desc") or "") + "\n" + (j.get("full_desc") or "")
+                    inferred_comp = None
+                    m_url = re.search(r'-at-([a-zA-Z0-9\-]+)-\d+', j.get("url") or "")
+                    if m_url:
+                        cand = m_url.group(1).replace('-', ' ').strip().title()
+                        if cand.lower() not in ('jobs', 'careers', 'hiring', 'linkedin', 'indeed'):
+                            inferred_comp = cand
+                    if not inferred_comp and t_full:
+                        m_txt = re.search(r'^\s*([A-Z][a-zA-Z0-9\.\s&]{2,25}?)\s+is\s+(?:the|a|an|one|rapidly|seeking|building|leading)\b', t_full.strip())
+                        if m_txt:
+                            cand = m_txt.group(1).strip()
+                            if cand.lower() not in ('this', 'the role', 'the company', 'the position', 'our client', 'summary', 'about the job'):
+                                inferred_comp = cand
+                    if inferred_comp:
+                        j["company"] = inferred_comp
+                        c_raw = inferred_comp
+
                 strat = (j.get("strategy") or "").lower()
                 u_str = (j.get("url") or j.get("apply_url") or "").lower()
-                c_str = (j.get("company") or "").lower()
+                c_str = c_raw.lower()
 
                 if "kadegree" in strat or "kadegree" in u_str or "kannada" in c_str:
                     j["source"] = "KaDegree Community"
@@ -4741,14 +4848,16 @@ def start_dashboard_server(port: int = PORT, open_browser: bool = True):
     if open_browser:
         launch_url_in_brave(url)
 
-    try:
-        server.serve_forever()
-    except KeyboardInterrupt:
-        print("\nStopping dashboard server...")
-        server.shutdown()
-    except Exception as e:
-        print(f"\nServer error: {e}")
+    while True:
         try:
-            server.shutdown()
-        except Exception:
-            pass
+            server.serve_forever()
+        except KeyboardInterrupt:
+            print("\nStopping dashboard server...")
+            try:
+                server.shutdown()
+            except Exception:
+                pass
+            break
+        except Exception as e:
+            print(f"\nServer error: {e}", file=sys.stderr)
+            time.sleep(1)
