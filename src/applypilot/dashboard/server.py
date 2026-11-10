@@ -594,20 +594,84 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       transform: translateY(-2px);
       box-shadow: 0 16px 36px rgba(0,0,0,0.45);
     }
-    .response-card.sentiment-positive {
+    .response-card.sentiment-positive, .response-card.cat-interview {
       border: 1.5px solid #10b981;
-      background: linear-gradient(135deg, rgba(6, 78, 59, 0.35), rgba(15, 23, 42, 0.9));
-      box-shadow: 0 0 24px rgba(16, 185, 129, 0.2);
+      background: linear-gradient(135deg, rgba(6, 78, 59, 0.35), rgba(15, 23, 42, 0.95));
+      box-shadow: 0 0 24px rgba(16, 185, 129, 0.25);
     }
-    .response-card.sentiment-negative {
+    .response-card.cat-oa {
+      border: 1.5px solid #f59e0b;
+      background: linear-gradient(135deg, rgba(120, 53, 15, 0.35), rgba(15, 23, 42, 0.95));
+      box-shadow: 0 0 26px rgba(245, 158, 11, 0.25);
+    }
+    .response-card.cat-oa.is-done {
+      opacity: 0.65;
+      border: 1px solid #059669;
+      box-shadow: none;
+    }
+    .response-card.sentiment-negative, .response-card.cat-rejected {
       border: 1.5px solid rgba(244, 63, 94, 0.5);
-      background: linear-gradient(135deg, rgba(136, 19, 55, 0.25), rgba(15, 23, 42, 0.9));
+      background: linear-gradient(135deg, rgba(136, 19, 55, 0.25), rgba(15, 23, 42, 0.95));
       box-shadow: 0 0 20px rgba(244, 63, 94, 0.12);
     }
-    .response-card.sentiment-neutral {
-      border: 1.5px solid rgba(6, 182, 212, 0.4);
-      background: linear-gradient(135deg, rgba(14, 116, 144, 0.2), rgba(15, 23, 42, 0.9));
-      box-shadow: 0 0 20px rgba(6, 182, 212, 0.12);
+    .response-card.cat-apply {
+      border: 1.5px solid #06b6d4;
+      background: linear-gradient(135deg, rgba(14, 116, 144, 0.25), rgba(15, 23, 42, 0.95));
+      box-shadow: 0 0 22px rgba(6, 182, 212, 0.2);
+    }
+    .response-card.sentiment-neutral, .response-card.cat-acknowledged {
+      border: 1.5px solid rgba(148, 163, 184, 0.25);
+      background: linear-gradient(135deg, rgba(30, 41, 59, 0.35), rgba(15, 23, 42, 0.9));
+      box-shadow: 0 0 16px rgba(148, 163, 184, 0.08);
+    }
+    .resp-filter-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 16px;
+      padding: 12px 16px;
+      background: rgba(15, 23, 42, 0.75);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 12px;
+    }
+    .resp-pill {
+      background: rgba(30, 41, 59, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: #94a3b8;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 7px 15px;
+      border-radius: 999px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+    .resp-pill:hover, .resp-pill.active {
+      background: rgba(6, 182, 212, 0.25);
+      border-color: #06b6d4;
+      color: #fff;
+    }
+    .resp-pill.pill-oa.active {
+      background: rgba(245, 158, 11, 0.25);
+      border-color: #f59e0b;
+      color: #fde047;
+    }
+    .resp-pill.pill-interview.active {
+      background: rgba(16, 185, 129, 0.25);
+      border-color: #10b981;
+      color: #6ee7b7;
+    }
+    .resp-pill.pill-rejected.active {
+      background: rgba(244, 63, 94, 0.25);
+      border-color: #f43f5e;
+      color: #fca5a5;
+    }
+    .resp-pill.pill-apply.active {
+      background: rgba(56, 189, 248, 0.25);
+      border-color: #38bdf8;
+      color: #bae6fd;
     }
     .sentiment-badge {
       display: inline-flex;
@@ -774,13 +838,36 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         <span class="label">📄 Tailored Resumes</span>
         <span class="val" id="stat-tailored" style="color: #38bdf8;">0</span>
       </div>
-      <div class="stat-card" style="border-color: rgba(52, 211, 153, 0.4); cursor: pointer;" onclick="setTab('responses')">
+      <div class="stat-card" style="border-color: rgba(245, 158, 11, 0.5); cursor: pointer;" onclick="setTab('responses'); filterResponsesCategory('oa');">
+        <span class="label"><i class="fa-solid fa-clock-rotate-left"></i> Active OAs & Tests</span>
+        <span class="val" id="stat-oa" style="color: #fbbf24;">0</span>
+      </div>
+      <div class="stat-card" style="border-color: rgba(52, 211, 153, 0.4); cursor: pointer;" onclick="setTab('responses'); filterResponsesCategory('all');">
         <span class="label">📬 Recruiter Replies</span>
         <span class="val" id="stat-responses" style="color: #34d399;">0</span>
       </div>
       <div class="stat-card">
         <span class="label">🏆 Applications Applied</span>
         <span class="val" id="stat-applied" style="color: #fbbf24;">0</span>
+      </div>
+    </div>
+
+    <!-- Urgent OA Alert Bar (Displays when any pending OA exists) -->
+    <div id="urgent-oa-alert" class="queue-banner" style="display: none; background: linear-gradient(90deg, rgba(180, 83, 9, 0.45), rgba(15, 23, 42, 0.95)); border: 1.5px solid #f59e0b; justify-content: space-between; align-items: center; box-shadow: 0 0 24px rgba(245, 158, 11, 0.25);">
+      <div style="display: flex; align-items: center; gap: 14px;">
+        <i class="fa-solid fa-triangle-exclamation" style="color: #fbbf24; font-size: 22px;"></i>
+        <div>
+          <span style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; color: #fde047; font-weight: 800;">⚡ ACTION REQUIRED: ONLINE ASSESSMENT (OA) DUE</span>
+          <div id="urgent-oa-title" style="font-size: 14.5px; font-weight: 700; color: #fff; margin-top: 2px;"></div>
+        </div>
+      </div>
+      <div style="display: flex; gap: 10px; align-items: center;">
+        <a id="urgent-oa-link" href="#" target="_blank" rel="noopener noreferrer" class="btn btn-brave" style="background: linear-gradient(135deg, #d97706, #f59e0b); border-color: #f59e0b; text-decoration: none; padding: 7px 16px;">
+          <i class="fa-solid fa-code"></i> Open Assessment in Brave
+        </a>
+        <button class="btn btn-preview" onclick="setTab('responses'); filterResponsesCategory('oa');" style="white-space: nowrap;">
+          <i class="fa-solid fa-list-check"></i> View in Dashboard
+        </button>
       </div>
     </div>
 
@@ -836,6 +923,16 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     </div>
 
     <!-- Injected Cards -->
+    <!-- Sub-category filter pills for Gmail Tracker -->
+    <div id="resp-filter-bar" class="resp-filter-bar" style="display: none;">
+      <div class="resp-pill active" id="rp-all" onclick="filterResponsesCategory('all')"><i class="fa-solid fa-list-check"></i> All Updates (<span id="cnt-resp-all">0</span>)</div>
+      <div class="resp-pill pill-oa" id="rp-oa" onclick="filterResponsesCategory('oa')"><i class="fa-solid fa-laptop-code"></i> ⚡ Online Assessments / OAs (<span id="cnt-resp-oa">0</span>)</div>
+      <div class="resp-pill pill-interview" id="rp-interview" onclick="filterResponsesCategory('interview_selected')"><i class="fa-solid fa-trophy"></i> 🎯 Selected & Next Rounds (<span id="cnt-resp-interview">0</span>)</div>
+      <div class="resp-pill pill-rejected" id="rp-rejected" onclick="filterResponsesCategory('rejected')"><i class="fa-solid fa-circle-xmark"></i> ❌ Rejections (<span id="cnt-resp-rejected">0</span>)</div>
+      <div class="resp-pill pill-apply" id="rp-apply" onclick="filterResponsesCategory('apply_link')"><i class="fa-solid fa-link"></i> 🔗 Direct Apply Links (<span id="cnt-resp-apply">0</span>)</div>
+      <div class="resp-pill" id="rp-ack" onclick="filterResponsesCategory('acknowledged')"><i class="fa-regular fa-envelope"></i> 📬 Acknowledged (<span id="cnt-resp-ack">0</span>)</div>
+    </div>
+
     <div id="jobs-container" class="jobs-grid"></div>
   </div>
 
@@ -980,6 +1077,32 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       }
     }
 
+    let responseCategoryFilter = 'all';
+
+    function filterResponsesCategory(cat) {
+      responseCategoryFilter = cat;
+      document.querySelectorAll('.resp-pill').forEach(p => p.classList.remove('active'));
+      let pillId = 'rp-' + (cat === 'interview_selected' ? 'interview' : cat === 'apply_link' ? 'apply' : cat);
+      const activePill = document.getElementById(pillId);
+      if (activePill) activePill.classList.add('active');
+      renderResponses();
+    }
+
+    async function toggleResponseCompleted(messageId) {
+      try {
+        const res = await fetch(`/api/responses/${messageId}/toggle_completed`, { method: 'POST' });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          showToast('Updated assessment status!');
+          await fetchResponses();
+          updateStats();
+          if (currentTab === 'responses') renderResponses();
+        }
+      } catch (err) {
+        showToast('Error updating status: ' + err);
+      }
+    }
+
     function updateStats() {
       document.getElementById('stat-total').textContent = allJobs.length;
       document.getElementById('stat-nine').textContent = allJobs.filter(j => j.fit_score >= 9).length;
@@ -994,24 +1117,74 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       document.getElementById('badge-approved').textContent = allJobs.filter(j => j.apply_status === 'approved').length;
       document.getElementById('badge-applied').textContent = allJobs.filter(j => j.apply_status === 'applied').length;
       document.getElementById('badge-responses').textContent = allResponses.length;
+
+      // Calculate response category counts
+      const activeOAs = allResponses.filter(r => r.category === 'oa' && !r.is_completed);
+      const totalOAs = allResponses.filter(r => r.category === 'oa');
+      const totalInterviews = allResponses.filter(r => r.category === 'interview_selected');
+      const totalRejected = allResponses.filter(r => r.category === 'rejected');
+      const totalApply = allResponses.filter(r => r.category === 'apply_link');
+      const totalAck = allResponses.filter(r => r.category === 'acknowledged');
+
+      const statOaElem = document.getElementById('stat-oa');
+      if (statOaElem) statOaElem.textContent = activeOAs.length;
+
+      const cntAll = document.getElementById('cnt-resp-all');
+      if (cntAll) cntAll.textContent = allResponses.length;
+      const cntOa = document.getElementById('cnt-resp-oa');
+      if (cntOa) cntOa.textContent = activeOAs.length;
+      const cntInt = document.getElementById('cnt-resp-interview');
+      if (cntInt) cntInt.textContent = totalInterviews.length;
+      const cntRej = document.getElementById('cnt-resp-rejected');
+      if (cntRej) cntRej.textContent = totalRejected.length;
+      const cntApp = document.getElementById('cnt-resp-apply');
+      if (cntApp) cntApp.textContent = totalApply.length;
+      const cntAck = document.getElementById('cnt-resp-ack');
+      if (cntAck) cntAck.textContent = totalAck.length;
+
+      // Update Top Urgent OA Banner
+      const urgentBanner = document.getElementById('urgent-oa-alert');
+      if (urgentBanner) {
+        if (activeOAs.length > 0) {
+          urgentBanner.style.display = 'flex';
+          const firstOa = activeOAs[0];
+          const urgentTitle = document.getElementById('urgent-oa-title');
+          if (urgentTitle) {
+            urgentTitle.innerHTML = `<strong>${firstOa.company}</strong> (${firstOa.role_title || 'Software Engineer'}) &mdash; <span style="color:#fde047; font-weight:800;"><i class="fa-solid fa-clock"></i> Deadline: ${firstOa.due_date || 'Urgent assessment'}</span>`;
+          }
+          const urgentLink = document.getElementById('urgent-oa-link');
+          if (urgentLink) {
+            urgentLink.href = firstOa.action_url || '#';
+            urgentLink.style.display = firstOa.action_url ? 'inline-flex' : 'none';
+          }
+        } else {
+          urgentBanner.style.display = 'none';
+        }
+      }
     }
 
     function setTab(tab) {
       currentTab = tab;
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-      event.currentTarget.classList.add('active');
+      const activeBtn = Array.from(document.querySelectorAll('.tab-btn')).find(b => b.getAttribute('onclick') && b.getAttribute('onclick').includes(`'${tab}'`));
+      if (activeBtn) activeBtn.classList.add('active');
 
       const qBanner = document.getElementById('queue-banner');
       const rBanner = document.getElementById('responses-banner');
+      const respFilterBar = document.getElementById('resp-filter-bar');
+
       if (tab === 'approved') {
         qBanner.style.display = 'flex';
         rBanner.style.display = 'none';
+        if (respFilterBar) respFilterBar.style.display = 'none';
       } else if (tab === 'responses') {
         qBanner.style.display = 'none';
         rBanner.style.display = 'flex';
+        if (respFilterBar) respFilterBar.style.display = 'flex';
       } else {
         qBanner.style.display = 'none';
         rBanner.style.display = 'none';
+        if (respFilterBar) respFilterBar.style.display = 'none';
       }
 
       renderJobs();
@@ -1020,8 +1193,14 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     function renderResponses() {
       const q = document.getElementById('search-input').value.toLowerCase().trim();
       let filtered = allResponses.filter(r => {
+        if (responseCategoryFilter === 'oa' && r.category !== 'oa') return false;
+        if (responseCategoryFilter === 'interview_selected' && r.category !== 'interview_selected') return false;
+        if (responseCategoryFilter === 'rejected' && r.category !== 'rejected') return false;
+        if (responseCategoryFilter === 'apply_link' && r.category !== 'apply_link') return false;
+        if (responseCategoryFilter === 'acknowledged' && r.category !== 'acknowledged') return false;
+
         if (q) {
-          const hay = `${r.company} ${r.role_title} ${r.status} ${r.summary} ${r.body_snippet} ${r.sender}`.toLowerCase();
+          const hay = `${r.company} ${r.role_title} ${r.status} ${r.summary} ${r.body_snippet} ${r.sender} ${r.due_date || ''}`.toLowerCase();
           if (!hay.includes(q)) return false;
         }
         return true;
@@ -1032,29 +1211,107 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         container.innerHTML = `
           <div style="text-align: center; padding: 60px 20px; color: #64748b; background: rgba(15,23,42,0.4); border-radius: 16px; border: 1px dashed #334155;">
             <i class="fa-regular fa-envelope" style="font-size: 36px; margin-bottom: 12px; opacity: 0.6;"></i>
-            <h3 style="color: #cbd5e1; font-size: 16px;">No application responses found</h3>
-            <p style="font-size: 13px; margin-top: 6px;">Click [🔄 Sync Gmail Inbox] to scan your inbox for updates.</p>
+            <h3 style="color: #cbd5e1; font-size: 16px;">No application responses found in this category</h3>
+            <p style="font-size: 13px; margin-top: 6px;">Click [🔄 Sync Gmail Inbox] to scan your inbox for updates, or switch category filter.</p>
           </div>
         `;
         return;
       }
 
       container.innerHTML = filtered.map(r => {
-        const sent = r.sentiment || 'neutral';
-        const cardClass = sent === 'positive' ? 'response-card sentiment-positive' : sent === 'negative' ? 'response-card sentiment-negative' : 'response-card sentiment-neutral';
-        const badgeHtml = sent === 'positive'
-          ? `<span class="sentiment-badge positive"><i class="fa-solid fa-circle-check"></i> Positive / Assessment</span>`
-          : sent === 'negative'
-          ? `<span class="sentiment-badge negative"><i class="fa-solid fa-circle-xmark"></i> Not Selected</span>`
-          : `<span class="sentiment-badge neutral"><i class="fa-solid fa-clock"></i> Acknowledged</span>`;
-
+        const cat = r.category || 'acknowledged';
+        const isDone = !!r.is_completed;
         const initial = (r.company || 'C').charAt(0).toUpperCase();
+
+        let cardClass = 'response-card ';
+        let badgeHtml = '';
+        let extraBanner = '';
+        let actionButtons = '';
+
+        if (cat === 'oa') {
+          cardClass += 'cat-oa' + (isDone ? ' is-done' : '');
+          badgeHtml = `<span class="sentiment-badge oa"><i class="fa-solid fa-laptop-code"></i> Online Assessment</span>`;
+          extraBanner = `
+            <div style="background: rgba(245, 158, 11, 0.15); border: 1.5px solid #f59e0b; border-radius: 10px; padding: 12px 16px; margin-top: 10px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+              <div>
+                <div style="font-size: 11px; text-transform: uppercase; color: #fde047; font-weight: 800; letter-spacing: 0.5px;">
+                  <i class="fa-solid fa-clock"></i> Assessment Due Date / Deadline
+                </div>
+                <div style="font-size: 15px; font-weight: 800; color: #fff; margin-top: 2px;">
+                  ${r.due_date || 'Check email for window / completion deadline'}
+                </div>
+              </div>
+              <div>
+                ${isDone 
+                  ? '<span style="background: #059669; color: #fff; font-size: 11px; font-weight: 800; padding: 5px 12px; border-radius: 999px;"><i class="fa-solid fa-circle-check"></i> COMPLETED</span>'
+                  : '<span style="background: #dc2626; color: #fff; font-size: 11px; font-weight: 800; padding: 5px 12px; border-radius: 999px; animation: pulseAlert 2s infinite;"><i class="fa-solid fa-triangle-exclamation"></i> ACTION REQUIRED</span>'
+                }
+              </div>
+            </div>
+          `;
+          actionButtons = `
+            ${r.action_url ? `
+              <a href="${r.action_url}" target="_blank" rel="noopener noreferrer" class="btn btn-brave" style="background: linear-gradient(135deg, #d97706, #b45309); border-color: #f59e0b; text-decoration: none;">
+                <i class="fa-solid fa-code"></i> Open Assessment in Brave
+              </a>
+            ` : ''}
+            <button class="btn btn-preview" onclick="toggleResponseCompleted('${r.message_id}')" style="background: ${isDone ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255,255,255,0.06)'}; border-color: ${isDone ? '#10b981' : 'rgba(255,255,255,0.15)'};">
+              <i class="fa-solid ${isDone ? 'fa-arrow-rotate-left' : 'fa-check'}"></i> ${isDone ? 'Mark as Pending' : 'Mark as Completed'}
+            </button>
+          `;
+        } else if (cat === 'interview_selected') {
+          cardClass += 'cat-interview';
+          badgeHtml = `<span class="sentiment-badge positive"><i class="fa-solid fa-trophy"></i> Selected / Next Round</span>`;
+          extraBanner = `
+            <div style="background: rgba(16, 185, 129, 0.15); border: 1.5px solid #10b981; border-radius: 10px; padding: 12px 16px; margin-top: 10px;">
+              <i class="fa-solid fa-calendar-check" style="color: #34d399; font-size: 16px; margin-right: 8px;"></i>
+              <strong style="color: #6ee7b7;">Next Step:</strong> <span style="color: #fff; font-weight: 700;">${r.due_date || 'Technical Interview / Discussion Scheduled'}</span>
+            </div>
+          `;
+          actionButtons = `
+            ${r.action_url ? `
+              <a href="${r.action_url}" target="_blank" rel="noopener noreferrer" class="btn btn-brave" style="background: linear-gradient(135deg, #059669, #10b981); text-decoration: none;">
+                <i class="fa-solid fa-calendar-days"></i> Schedule Interview in Brave
+              </a>
+            ` : ''}
+          `;
+        } else if (cat === 'rejected') {
+          cardClass += 'cat-rejected';
+          badgeHtml = `<span class="sentiment-badge negative"><i class="fa-solid fa-circle-xmark"></i> Not Selected / Rejected</span>`;
+          actionButtons = `
+            ${r.action_url ? `
+              <a href="${r.action_url}" target="_blank" rel="noopener noreferrer" class="btn btn-preview" style="text-decoration: none;">
+                <i class="fa-solid fa-building"></i> View Company Portal
+              </a>
+            ` : ''}
+          `;
+        } else if (cat === 'apply_link') {
+          cardClass += 'cat-apply';
+          badgeHtml = `<span class="sentiment-badge apply"><i class="fa-solid fa-link"></i> Direct Apply Link</span>`;
+          if (r.due_date) {
+            extraBanner = `
+              <div style="background: rgba(6, 182, 212, 0.15); border: 1.5px solid #06b6d4; border-radius: 10px; padding: 10px 14px; margin-top: 10px; font-size: 13px; color: #bae6fd;">
+                <i class="fa-solid fa-clock" style="margin-right: 6px;"></i> <strong>Application Deadline:</strong> ${r.due_date}
+              </div>
+            `;
+          }
+          actionButtons = `
+            ${r.action_url ? `
+              <a href="${r.action_url}" target="_blank" rel="noopener noreferrer" class="btn btn-brave" style="background: linear-gradient(135deg, #0284c7, #06b6d4); text-decoration: none;">
+                <i class="fa-solid fa-arrow-up-right-from-square"></i> Open Application in Brave
+              </a>
+            ` : ''}
+          `;
+        } else {
+          cardClass += 'cat-acknowledged';
+          badgeHtml = `<span class="sentiment-badge neutral"><i class="fa-regular fa-envelope"></i> Application Acknowledged</span>`;
+        }
 
         return `
           <div class="${cardClass}">
             <div class="card-top">
               <div class="job-meta">
-                <div class="company-avatar" style="background: ${sent === 'positive' ? 'linear-gradient(135deg, #059669, #10b981)' : sent === 'negative' ? 'linear-gradient(135deg, #9f1239, #f43f5e)' : 'linear-gradient(135deg, #0284c7, #38bdf8)'}">${initial}</div>
+                <div class="company-avatar" style="background: ${cat === 'oa' ? 'linear-gradient(135deg, #d97706, #f59e0b)' : cat === 'interview_selected' ? 'linear-gradient(135deg, #059669, #10b981)' : cat === 'rejected' ? 'linear-gradient(135deg, #9f1239, #f43f5e)' : cat === 'apply_link' ? 'linear-gradient(135deg, #0284c7, #06b6d4)' : 'linear-gradient(135deg, #334155, #64748b)'}">${initial}</div>
                 <div>
                   <div class="job-title-row">
                     <span class="job-title" style="font-size: 18px;">${r.company}</span>
@@ -1069,9 +1326,11 @@ HTML_DASHBOARD = """<!DOCTYPE html>
               <div>${badgeHtml}</div>
             </div>
 
+            ${extraBanner}
+
             <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 10px; padding: 14px; font-size: 13px; color: #cbd5e1; line-height: 1.6;">
               <div style="font-weight: 700; color: #f8fafc; margin-bottom: 6px; display: flex; align-items: center; gap: 8px;">
-                <i class="fa-solid fa-comment-dots" style="color: ${sent === 'positive' ? '#34d399' : sent === 'negative' ? '#fb7185' : '#38bdf8'};"></i>
+                <i class="fa-solid fa-comment-dots" style="color: ${cat === 'oa' ? '#fbbf24' : cat === 'interview_selected' ? '#34d399' : cat === 'rejected' ? '#fb7185' : '#38bdf8'};"></i>
                 <span>${r.status}: ${r.summary}</span>
               </div>
               <div style="color: #94a3b8; font-style: italic; font-size: 12.5px; border-left: 2px solid rgba(255,255,255,0.15); padding-left: 10px; margin-top: 6px;">
@@ -1080,13 +1339,9 @@ HTML_DASHBOARD = """<!DOCTYPE html>
             </div>
 
             <div class="actions-bar" style="margin-top: 4px;">
-              ${r.action_url ? `
-                <a href="${r.action_url}" target="_blank" rel="noopener noreferrer" class="btn btn-brave" style="box-shadow: 0 0 16px rgba(16, 185, 129, 0.4); text-decoration: none;">
-                  <i class="fa-solid fa-rocket"></i> Open Assessment in Brave
-                </a>
-              ` : ''}
-              <button class="btn btn-preview" onclick="showToast('Email Subject: ' + '${(r.subject || '').replace(/'/g, "\\'")}')">
-                <i class="fa-solid fa-envelope"></i> Subject: ${(r.subject || '').substring(0, 45)}...
+              ${actionButtons}
+              <button class="btn btn-preview" onclick="showToast('Email Subject: ' + '${(r.subject || '').replace(/'/g, "\'")}')">
+                <i class="fa-solid fa-envelope"></i> Subject: ${(r.subject || '').substring(0, 42)}...
               </button>
             </div>
           </div>
@@ -2290,6 +2545,18 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.send_header("Content-Type", "application/json")
             self.end_headers()
             self.wfile.write(json.dumps(res).encode("utf-8"))
+            return
+
+        # 7b. /api/responses/{message_id}/toggle_completed (Mark OA as completed / pending)
+        elif path.startswith("/api/responses/") and path.endswith("/toggle_completed"):
+            parts = path.split("/")
+            msg_id = parts[3]
+            from applypilot.enrichment.email_tracker import toggle_response_completed
+            success = toggle_response_completed(msg_id)
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(json.dumps({"status": "ok", "message_id": msg_id, "success": success}).encode("utf-8"))
             return
 
         # /api/jobs/{rowid}/draft_email (Draft cold email in Gmail with attached resume)
