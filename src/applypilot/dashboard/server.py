@@ -1093,6 +1093,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       <a href="https://www.linkedin.com/feed/" target="_blank" rel="noopener noreferrer" class="quick-pill" style="background: #0a66c2; color: #fff; font-weight: 700; text-decoration: none;"><i class="fa-brands fa-linkedin"></i> Open LinkedIn</a>
       <a href="https://referral-community.kadegree.in/get" target="_blank" rel="noopener noreferrer" class="quick-pill" style="background: linear-gradient(135deg, #b45309, #d97706); color: #fff; font-weight: 700; text-decoration: none;"><i class="fa-solid fa-users"></i> KaDegree (ಕನ್ನಡ Community)</a>
       <a href="https://mail.google.com/mail/u/0/#drafts" target="_blank" rel="noopener noreferrer" class="quick-pill" style="background: #ea4335; color: #fff; font-weight: 700; text-decoration: none;"><i class="fa-solid fa-envelope"></i> Gmail Drafts</a>
+      <div id="naukri-quick-pill" class="quick-pill" onclick="triggerNaukriRefresh()" style="background: linear-gradient(135deg, #0284c7, #2563eb); color: #fff; font-weight: 700; cursor: pointer;" title="Naukri 9:00 AM Daily Refresh Active (Click to refresh now)"><i class="fa-solid fa-arrows-rotate"></i> <span id="naukri-pill-label">Naukri: 9 AM Active ⚡</span></div>
       <div class="quick-pill" onclick="openCustomDraftModal()" style="background: rgba(234, 67, 53, 0.2); border: 1px solid #ea4335; color: #fca5a5; font-weight: 700; cursor: pointer;"><i class="fa-solid fa-pen-nib"></i> + Draft Cold Email</div>
 
       <!-- Theme Switcher Pill -->
@@ -1314,9 +1315,23 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     let analyticsStageFilter = 'all';
     let currentTab = 'high';
 
-    
+    function setPalette(themeName) {
+      document.documentElement.setAttribute('data-theme', themeName);
+      localStorage.setItem('applypilot_theme', themeName);
+      document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
+      const activeBtn = document.getElementById(`btn-theme-${themeName}`);
+      if (activeBtn) activeBtn.classList.add('active');
+      showToast(`Palette switched to: ${themeName.replace('-', ' ').toUpperCase()}`);
+    }
 
-    
+    // Initialize saved theme (default to classic Cyber Indigo)
+    const savedTheme = localStorage.getItem('applypilot_theme') || 'classic';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+    setTimeout(() => {
+      document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
+      const initialBtn = document.getElementById(`btn-theme-${savedTheme}`);
+      if (initialBtn) initialBtn.classList.add('active');
+    }, 50);
     /* 1-Click Application Assistant Autofill */
     async function launchAutofill(rowid) {
       const btn = document.getElementById(`btn-autofill-${rowid}`);
@@ -2889,9 +2904,39 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       draw();
     }
 
+    async function checkNaukriStatus() {
+      try {
+        const res = await fetch('/api/naukri/status');
+        const data = await res.json();
+        const lbl = document.getElementById('naukri-pill-label');
+        if (lbl) {
+          if (data.last_update && data.last_update.status === 'success') {
+            lbl.innerText = 'Naukri: Refreshed Today ✓';
+          } else if (data.task && data.task.registered) {
+            lbl.innerText = 'Naukri: 9 AM Active ⚡';
+          }
+        }
+      } catch (e) {}
+    }
+
+    async function triggerNaukriRefresh() {
+      showToast('⚡ Triggering Naukri profile & resume refresh in background...');
+      const lbl = document.getElementById('naukri-pill-label');
+      if (lbl) lbl.innerText = 'Naukri: Updating...';
+      try {
+        const res = await fetch('/api/naukri/refresh', { method: 'POST' });
+        const data = await res.json();
+        showToast('🚀 ' + (data.message || 'Naukri refresh initiated'));
+      } catch (e) {
+        showToast('⚠️ Could not trigger Naukri refresh: ' + e);
+      }
+    }
+
     // Initial load
     fetchJobs();
+    checkNaukriStatus();
     setInterval(fetchJobs, 25000); // live sync every 25s
+    setInterval(checkNaukriStatus, 60000); // check Naukri status every min
   </script>
 </body>
 </html>
@@ -2922,6 +2967,18 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.send_header("Content-Type", "application/json; charset=utf-8")
             self.end_headers()
             self.wfile.write(json.dumps({"authenticated": is_linkedin_authenticated()}).encode("utf-8"))
+            return
+
+        elif path == "/api/naukri/status":
+            from applypilot.automation.naukri_updater import get_windows_task_status, get_last_update_status
+            data = {
+                "task": get_windows_task_status(),
+                "last_update": get_last_update_status(),
+            }
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(json.dumps(data).encode("utf-8"))
             return
 
         elif path == "/api/jobs":
@@ -2990,6 +3047,15 @@ class DashboardHandler(SimpleHTTPRequestHandler):
 
             # Attach LinkedIn referral outreach data to each job
             for j in jobs:
+                u_str = (j.get("apply_url") or "").lower()
+                c_str = (j.get("company") or "").lower()
+                if "razorpay" in u_str or "razorpay" in c_str:
+                    if "greenhouse.io" not in u_str:
+                        j["apply_url"] = "https://job-boards.greenhouse.io/razorpaysoftwareprivatelimited"
+                elif "phonepe" in u_str or "phonepe" in c_str:
+                    if "sde1" in u_str or u_str.rstrip("/").endswith("/careers"):
+                        j["apply_url"] = "https://jobs.smartrecruiters.com/PhonePeLimited/1000000000003895"
+
                 j["outreach"] = generate_outreach_messages(
                     company=j.get("company", ""),
                     role_title=j.get("title", ""),
@@ -3161,7 +3227,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             rowid = int(parts[3])
             conn = get_connection()
             c = conn.cursor()
-            row = c.execute("SELECT application_url, url, tailored_resume_path FROM jobs WHERE rowid = ?", (rowid,)).fetchone()
+            row = c.execute("SELECT application_url, url, tailored_resume_path, site FROM jobs WHERE rowid = ?", (rowid,)).fetchone()
             if not row:
                 self.send_response(404)
                 self.end_headers()
@@ -3176,6 +3242,14 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     if u_str.startswith("http://") or u_str.startswith("https://"):
                         apply_url = u_str
                         break
+
+            if apply_url:
+                u_lower = apply_url.lower()
+                site_lower = (row[3] or "").lower()
+                if ("razorpay" in u_lower or "razorpay" in site_lower) and "greenhouse.io" not in u_lower:
+                    apply_url = "https://job-boards.greenhouse.io/razorpaysoftwareprivatelimited"
+                elif ("phonepe" in u_lower or "phonepe" in site_lower) and ("sde1" in u_lower or u_lower.rstrip("/").endswith("/careers")):
+                    apply_url = "https://jobs.smartrecruiters.com/PhonePeLimited/1000000000003895"
 
             if not apply_url:
                 self.send_response(200)
