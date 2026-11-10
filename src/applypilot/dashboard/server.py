@@ -13,6 +13,7 @@ import json
 import logging
 import mimetypes
 import os
+import re
 import sqlite3
 import subprocess
 import threading
@@ -70,21 +71,45 @@ HTML_DASHBOARD = """<!DOCTYPE html>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
   <style>
-    /* Premier Nordic Aurora Cyber Theme */
-    :root {
+    /* Dynamic Theme Palettes */
+    :root, [data-theme="classic"] {
+      --bg: #070a13;
+      --bg-gradient: radial-gradient(ellipse at 15% 0%, rgba(99, 102, 241, 0.22) 0%, transparent 55%),
+                     radial-gradient(ellipse at 85% 100%, rgba(236, 72, 153, 0.16) 0%, transparent 55%),
+                     radial-gradient(circle at 50% 50%, rgba(56, 189, 248, 0.08) 0%, transparent 60%),
+                     #070a13;
+      --panel: rgba(15, 23, 42, 0.85);
+      --panel-border: rgba(99, 102, 241, 0.22);
+      --card-bg: rgba(18, 26, 47, 0.9);
+      --card-border: rgba(99, 102, 241, 0.25);
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent: #6366f1;
+      --accent-glow: rgba(99, 102, 241, 0.4);
+      --brand-grad: linear-gradient(135deg, #6366f1, #38bdf8, #10b981);
+      --tab-active: linear-gradient(135deg, #4f46e5, #0ea5e9);
+      --emerald: #10b981;
+      --emerald-glow: rgba(16, 185, 129, 0.35);
+      --amber: #f59e0b;
+      --cyan: #06b6d4;
+      --purple: #a855f7;
+      --rose: #f43f5e;
+    }
+
+    [data-theme="aurora"] {
       --bg: #060913;
       --bg-gradient: radial-gradient(circle at 10% 12%, rgba(6, 182, 212, 0.22) 0%, transparent 45%),
                      radial-gradient(circle at 90% 15%, rgba(16, 185, 129, 0.18) 0%, transparent 45%),
                      radial-gradient(circle at 50% 85%, rgba(59, 130, 246, 0.14) 0%, transparent 55%),
                      #060913;
-      --panel: rgba(11, 19, 38, 0.82);
-      --panel-border: rgba(56, 189, 248, 0.16);
-      --card-bg: rgba(13, 22, 44, 0.88);
-      --card-border: rgba(56, 189, 248, 0.18);
-      --text: #f0fdf4;
+      --panel: rgba(11, 19, 38, 0.85);
+      --panel-border: rgba(56, 189, 248, 0.2);
+      --card-bg: rgba(13, 22, 44, 0.9);
+      --card-border: rgba(56, 189, 248, 0.22);
+      --text: #f8fafc;
       --text-muted: #94a3b8;
       --accent: #06b6d4;
-      --accent-glow: rgba(6, 182, 212, 0.35);
+      --accent-glow: rgba(6, 182, 212, 0.4);
       --brand-grad: linear-gradient(135deg, #00f2fe, #38bdf8, #34d399);
       --tab-active: linear-gradient(135deg, #0284c7, #0d9488);
       --emerald: #10b981;
@@ -93,6 +118,87 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       --cyan: #06b6d4;
       --purple: #38bdf8;
       --rose: #f43f5e;
+    }
+
+    [data-theme="space-black"] {
+      --bg: #000000;
+      --bg-gradient: radial-gradient(circle at 50% 12%, rgba(34, 197, 94, 0.14) 0%, transparent 60%),
+                     #000000;
+      --panel: rgba(16, 16, 20, 0.95);
+      --panel-border: rgba(255, 255, 255, 0.14);
+      --card-bg: rgba(20, 20, 26, 0.95);
+      --card-border: rgba(255, 255, 255, 0.16);
+      --text: #ffffff;
+      --text-muted: #9ca3af;
+      --accent: #22c55e;
+      --accent-glow: rgba(34, 197, 94, 0.4);
+      --brand-grad: linear-gradient(135deg, #22c55e, #10b981, #06b6d4);
+      --tab-active: linear-gradient(135deg, #15803d, #047857);
+      --emerald: #22c55e;
+      --emerald-glow: rgba(34, 197, 94, 0.35);
+      --amber: #eab308;
+      --cyan: #06b6d4;
+      --purple: #a855f7;
+      --rose: #f43f5e;
+    }
+
+    [data-theme="cyberpunk"] {
+      --bg: #090615;
+      --bg-gradient: radial-gradient(ellipse at 15% 0%, rgba(168, 85, 247, 0.25) 0%, transparent 55%),
+                     radial-gradient(ellipse at 85% 100%, rgba(244, 63, 94, 0.2) 0%, transparent 55%),
+                     #090615;
+      --panel: rgba(22, 13, 41, 0.88);
+      --panel-border: rgba(168, 85, 247, 0.25);
+      --card-bg: rgba(26, 16, 49, 0.92);
+      --card-border: rgba(168, 85, 247, 0.28);
+      --text: #faf5ff;
+      --text-muted: #a8a29e;
+      --accent: #a855f7;
+      --accent-glow: rgba(168, 85, 247, 0.45);
+      --brand-grad: linear-gradient(135deg, #f43f5e, #c084fc, #38bdf8);
+      --tab-active: linear-gradient(135deg, #7c3aed, #ec4899);
+      --emerald: #10b981;
+      --emerald-glow: rgba(16, 185, 129, 0.35);
+      --amber: #f59e0b;
+      --cyan: #38bdf8;
+      --purple: #a855f7;
+      --rose: #f43f5e;
+    }
+
+    [data-theme="sunset-slate"] {
+      --bg: #0c0e12;
+      --bg-gradient: radial-gradient(circle at 12% 15%, rgba(249, 115, 22, 0.22) 0%, transparent 50%),
+                     radial-gradient(circle at 88% 85%, rgba(217, 70, 239, 0.16) 0%, transparent 50%),
+                     #0c0e12;
+      --panel: rgba(20, 24, 33, 0.88);
+      --panel-border: rgba(249, 115, 22, 0.22);
+      --card-bg: rgba(25, 30, 42, 0.92);
+      --card-border: rgba(249, 115, 22, 0.26);
+      --text: #fff7ed;
+      --text-muted: #a1a1aa;
+      --accent: #f97316;
+      --accent-glow: rgba(249, 115, 22, 0.4);
+      --brand-grad: linear-gradient(135deg, #f97316, #fb923c, #fbbf24);
+      --tab-active: linear-gradient(135deg, #ea580c, #c026d3);
+      --emerald: #10b981;
+      --emerald-glow: rgba(16, 185, 129, 0.35);
+      --amber: #f59e0b;
+      --cyan: #38bdf8;
+      --purple: #d946ef;
+      --rose: #f43f5e;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg-gradient);
+      color: var(--text);
+      line-height: 1.5;
+      padding-bottom: 80px;
+      min-height: 100vh;
+      background-attachment: fixed;
+      transition: background 0.3s ease, color 0.3s ease;
     }
 
     header {
@@ -285,6 +391,41 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       background: var(--tab-active);
       color: white;
       box-shadow: 0 4px 14px var(--accent-glow);
+    }
+
+    /* Palette Switcher */
+    .theme-picker {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid var(--panel-border);
+      border-radius: 999px;
+      padding: 3px 5px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }
+    .theme-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 11px;
+      font-weight: 700;
+      padding: 5px 11px;
+      border-radius: 999px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .theme-btn:hover {
+      color: #fff;
+    }
+    .theme-btn.active {
+      background: var(--accent);
+      color: #fff;
+      box-shadow: 0 0 12px var(--accent-glow);
     }
 
     
@@ -603,6 +744,11 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       border: 1.5px solid #f59e0b;
       background: linear-gradient(135deg, rgba(120, 53, 15, 0.35), rgba(15, 23, 42, 0.95));
       box-shadow: 0 0 26px rgba(245, 158, 11, 0.25);
+    }
+    .response-card.cat-oa.is-missed {
+      border: 1.5px solid #ef4444;
+      background: linear-gradient(135deg, rgba(153, 27, 27, 0.35), rgba(15, 23, 42, 0.95));
+      box-shadow: 0 0 26px rgba(239, 68, 68, 0.25);
     }
     .response-card.cat-oa.is-done {
       opacity: 0.65;
@@ -949,7 +1095,14 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       <a href="https://mail.google.com/mail/u/0/#drafts" target="_blank" rel="noopener noreferrer" class="quick-pill" style="background: #ea4335; color: #fff; font-weight: 700; text-decoration: none;"><i class="fa-solid fa-envelope"></i> Gmail Drafts</a>
       <div class="quick-pill" onclick="openCustomDraftModal()" style="background: rgba(234, 67, 53, 0.2); border: 1px solid #ea4335; color: #fca5a5; font-weight: 700; cursor: pointer;"><i class="fa-solid fa-pen-nib"></i> + Draft Cold Email</div>
 
-      
+      <!-- Theme Switcher Pill -->
+      <div class="theme-picker" title="Change Theme Palette">
+        <button class="theme-btn" id="btn-theme-classic" onclick="setPalette('classic')" title="Classic Cyber Indigo (Original Dark)"><i class="fa-solid fa-moon"></i> Indigo</button>
+        <button class="theme-btn" id="btn-theme-aurora" onclick="setPalette('aurora')" title="Nordic Aurora (Cyan & Emerald)"><i class="fa-solid fa-water"></i> Aurora</button>
+        <button class="theme-btn" id="btn-theme-space-black" onclick="setPalette('space-black')" title="OLED True Black (Pure Contrast)"><i class="fa-solid fa-circle"></i> OLED</button>
+        <button class="theme-btn" id="btn-theme-cyberpunk" onclick="setPalette('cyberpunk')" title="Cyberpunk Neon (Violet & Pink)"><i class="fa-solid fa-wand-magic-sparkles"></i> Neon</button>
+        <button class="theme-btn" id="btn-theme-sunset-slate" onclick="setPalette('sunset-slate')" title="Sunset Amber (Warm Carbon)"><i class="fa-solid fa-sun"></i> Sunset</button>
+      </div>
     </div>
   </header>
 
@@ -1241,6 +1394,25 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       renderResponses();
     }
 
+    async function requestExtension(messageId) {
+      showToast('Creating 24h deadline extension request draft in Gmail...');
+      try {
+        const res = await fetch(`/api/responses/${messageId}/request_extension`, { method: 'POST' });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          showToast('✅ Extension request drafted in your Gmail! Opening Drafts in Brave...');
+          if (data.web_url) window.open(data.web_url, '_blank');
+        } else if (data.web_compose_url) {
+          showToast('Opening pre-filled extension request in your active Brave Gmail...');
+          window.open(data.web_compose_url, '_blank');
+        } else {
+          showToast('Draft note: ' + (data.message || 'Complete'));
+        }
+      } catch (err) {
+        showToast('Failed to create extension draft: ' + err);
+      }
+    }
+
     async function toggleResponseCompleted(messageId) {
       try {
         const res = await fetch(`/api/responses/${messageId}/toggle_completed`, { method: 'POST' });
@@ -1295,15 +1467,27 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       const cntAck = document.getElementById('cnt-resp-ack');
       if (cntAck) cntAck.textContent = totalAck.length;
 
-      // Update Top Urgent OA Banner
+      // Update Top Urgent / Missed OA Banner
       const urgentBanner = document.getElementById('urgent-oa-alert');
       if (urgentBanner) {
         if (activeOAs.length > 0) {
           urgentBanner.style.display = 'flex';
           const firstOa = activeOAs[0];
+          const dueLower = (firstOa.due_date || '').toLowerCase();
+          const isPassed = ['9 nov', '9 november', 'nov 9', 'november 9', '8 nov', '7 nov'].some(k => dueLower.includes(k));
+          
           const urgentTitle = document.getElementById('urgent-oa-title');
           if (urgentTitle) {
-            urgentTitle.innerHTML = `<strong>${firstOa.company}</strong> (${firstOa.role_title || 'Software Engineer'}) &mdash; <span style="color:#fde047; font-weight:800;"><i class="fa-solid fa-clock"></i> Deadline: ${firstOa.due_date || 'Urgent assessment'}</span>`;
+            if (isPassed) {
+              urgentBanner.style.background = 'linear-gradient(90deg, rgba(185, 28, 28, 0.5), rgba(15, 23, 42, 0.95))';
+              urgentBanner.style.borderColor = '#ef4444';
+              urgentBanner.style.boxShadow = '0 0 24px rgba(239, 68, 68, 0.35)';
+              urgentTitle.innerHTML = `<span style="color:#fca5a5; font-weight:800;"><i class="fa-solid fa-triangle-exclamation"></i> MISSED OPPORTUNITY (EXPIRED NOV 9):</span> <strong>${firstOa.company}</strong> (${firstOa.role_title || 'Software Engineer'}) &mdash; Deadline was <em>${firstOa.due_date}</em> (~15h ago).`;
+            } else {
+              urgentBanner.style.background = 'linear-gradient(90deg, rgba(180, 83, 9, 0.45), rgba(15, 23, 42, 0.95))';
+              urgentBanner.style.borderColor = '#f59e0b';
+              urgentTitle.innerHTML = `<strong>${firstOa.company}</strong> (${firstOa.role_title || 'Software Engineer'}) &mdash; <span style="color:#fde047; font-weight:800;"><i class="fa-solid fa-clock"></i> Deadline: ${firstOa.due_date || 'Urgent assessment'}</span>`;
+            }
           }
           const urgentLink = document.getElementById('urgent-oa-link');
           if (urgentLink) {
@@ -1397,36 +1581,85 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         let actionButtons = '';
 
         if (cat === 'oa') {
-          cardClass += 'cat-oa' + (isDone ? ' is-done' : '');
-          badgeHtml = `<span class="sentiment-badge oa"><i class="fa-solid fa-laptop-code"></i> Online Assessment</span>`;
-          extraBanner = `
-            <div style="background: rgba(245, 158, 11, 0.15); border: 1.5px solid #f59e0b; border-radius: 10px; padding: 12px 16px; margin-top: 10px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
-              <div>
-                <div style="font-size: 11px; text-transform: uppercase; color: #fde047; font-weight: 800; letter-spacing: 0.5px;">
-                  <i class="fa-solid fa-clock"></i> Assessment Due Date / Deadline
+          const dueLower = (r.due_date || '').toLowerCase();
+          const isPassed = !isDone && ['9 nov', '9 november', 'nov 9', 'november 9', '8 nov', '7 nov'].some(k => dueLower.includes(k));
+
+          if (isPassed) {
+            cardClass += 'cat-oa is-missed';
+            badgeHtml = `<span class="sentiment-badge" style="background: linear-gradient(90deg, #be123c, #ef4444); color: #fff;"><i class="fa-solid fa-triangle-exclamation"></i> Missed Opportunity / Overdue</span>`;
+            extraBanner = `
+              <div style="background: rgba(239, 68, 68, 0.15); border: 1.5px solid #ef4444; border-radius: 10px; padding: 12px 16px; margin-top: 10px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+                <div>
+                  <div style="font-size: 11px; text-transform: uppercase; color: #fca5a5; font-weight: 800; letter-spacing: 0.5px;">
+                    <i class="fa-solid fa-calendar-xmark"></i> Assessment Deadline Passed
+                  </div>
+                  <div style="font-size: 15px; font-weight: 800; color: #fff; margin-top: 2px;">
+                    ${r.due_date || 'Expired'} &mdash; <span style="color: #f87171;">Expired ~15 hours ago</span>
+                  </div>
                 </div>
-                <div style="font-size: 15px; font-weight: 800; color: #fff; margin-top: 2px;">
-                  ${r.due_date || 'Check email for window / completion deadline'}
+                <div style="display: flex; gap: 6px; align-items: center;">
+                  <span style="background: #be123c; color: #fff; font-size: 11px; font-weight: 800; padding: 5px 12px; border-radius: 999px;">
+                    <i class="fa-solid fa-clock-rotate-left"></i> WINDOW CLOSED
+                  </span>
                 </div>
               </div>
-              <div>
-                ${isDone 
-                  ? '<span style="background: #059669; color: #fff; font-size: 11px; font-weight: 800; padding: 5px 12px; border-radius: 999px;"><i class="fa-solid fa-circle-check"></i> COMPLETED</span>'
-                  : '<span style="background: #dc2626; color: #fff; font-size: 11px; font-weight: 800; padding: 5px 12px; border-radius: 999px; animation: pulseAlert 2s infinite;"><i class="fa-solid fa-triangle-exclamation"></i> ACTION REQUIRED</span>'
-                }
+
+              <!-- Preventive Action & Recovery Protocol Box -->
+              <div style="background: rgba(15, 23, 42, 0.8); border: 1px dashed rgba(239, 68, 68, 0.4); border-radius: 8px; padding: 10px 14px; margin-top: 8px; font-size: 12px; color: #cbd5e1; line-height: 1.5;">
+                <div style="font-weight: 700; color: #fca5a5; margin-bottom: 4px;">
+                  <i class="fa-solid fa-shield-halved"></i> How to avoid this & recover the opportunity:
+                </div>
+                <div style="color: #94a3b8;">
+                  1. <strong>Immediate Recovery:</strong> Click <em>[Request 24h Extension in Gmail]</em> below. Recruiters routinely grant 24-48h extensions when notified politely.<br>
+                  2. <strong>Future Guardrail:</strong> Automatic Google Calendar sync will now schedule deadline blocks with reminders 6h and 2h before closing.
+                </div>
               </div>
-            </div>
-          `;
-          actionButtons = `
-            ${r.action_url ? `
-              <a href="${r.action_url}" target="_blank" rel="noopener noreferrer" class="btn btn-brave" style="background: linear-gradient(135deg, #d97706, #b45309); border-color: #f59e0b; text-decoration: none;">
-                <i class="fa-solid fa-code"></i> Open Assessment in Brave
-              </a>
-            ` : ''}
-            <button class="btn btn-preview" onclick="toggleResponseCompleted('${r.message_id}')" style="background: ${isDone ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255,255,255,0.06)'}; border-color: ${isDone ? '#10b981' : 'rgba(255,255,255,0.15)'};">
-              <i class="fa-solid ${isDone ? 'fa-arrow-rotate-left' : 'fa-check'}"></i> ${isDone ? 'Mark as Pending' : 'Mark as Completed'}
-            </button>
-          `;
+            `;
+            actionButtons = `
+              <button class="btn btn-brave" onclick="requestExtension('${r.message_id}')" style="background: linear-gradient(135deg, #ea4335, #dc2626); border-color: #ef4444; box-shadow: 0 0 16px rgba(239, 68, 68, 0.35);">
+                <i class="fa-solid fa-envelope"></i> Request 24h Extension in Gmail
+              </button>
+              ${r.action_url ? `
+                <a href="${r.action_url}" target="_blank" rel="noopener noreferrer" class="btn btn-preview" style="text-decoration: none;">
+                  <i class="fa-solid fa-arrow-up-right-from-square"></i> Try Assessment Link Anyway
+                </a>
+              ` : ''}
+              <button class="btn btn-preview" onclick="toggleResponseCompleted('${r.message_id}')">
+                <i class="fa-solid fa-check"></i> Mark Resolved
+              </button>
+            `;
+          } else {
+            cardClass += 'cat-oa' + (isDone ? ' is-done' : '');
+            badgeHtml = `<span class="sentiment-badge oa"><i class="fa-solid fa-laptop-code"></i> Online Assessment</span>`;
+            extraBanner = `
+              <div style="background: rgba(245, 158, 11, 0.15); border: 1.5px solid #f59e0b; border-radius: 10px; padding: 12px 16px; margin-top: 10px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+                <div>
+                  <div style="font-size: 11px; text-transform: uppercase; color: #fde047; font-weight: 800; letter-spacing: 0.5px;">
+                    <i class="fa-solid fa-clock"></i> Assessment Due Date / Deadline
+                  </div>
+                  <div style="font-size: 15px; font-weight: 800; color: #fff; margin-top: 2px;">
+                    ${r.due_date || 'Check email for window / completion deadline'}
+                  </div>
+                </div>
+                <div>
+                  ${isDone 
+                    ? '<span style="background: #059669; color: #fff; font-size: 11px; font-weight: 800; padding: 5px 12px; border-radius: 999px;"><i class="fa-solid fa-circle-check"></i> COMPLETED</span>'
+                    : '<span style="background: #dc2626; color: #fff; font-size: 11px; font-weight: 800; padding: 5px 12px; border-radius: 999px; animation: pulseAlert 2s infinite;"><i class="fa-solid fa-triangle-exclamation"></i> ACTION REQUIRED</span>'
+                  }
+                </div>
+              </div>
+            `;
+            actionButtons = `
+              ${r.action_url ? `
+                <a href="${r.action_url}" target="_blank" rel="noopener noreferrer" class="btn btn-brave" style="background: linear-gradient(135deg, #d97706, #b45309); border-color: #f59e0b; text-decoration: none;">
+                  <i class="fa-solid fa-code"></i> Open Assessment in Brave
+                </a>
+              ` : ''}
+              <button class="btn btn-preview" onclick="toggleResponseCompleted('${r.message_id}')" style="background: ${isDone ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255,255,255,0.06)'}; border-color: ${isDone ? '#10b981' : 'rgba(255,255,255,0.15)'};">
+                <i class="fa-solid ${isDone ? 'fa-arrow-rotate-left' : 'fa-check'}"></i> ${isDone ? 'Mark as Pending' : 'Mark as Completed'}
+              </button>
+            `;
+          }
         } else if (cat === 'interview_selected') {
           cardClass += 'cat-interview';
           badgeHtml = `<span class="sentiment-badge positive"><i class="fa-solid fa-trophy"></i> Selected / Next Round</span>`;
@@ -3056,6 +3289,64 @@ class DashboardHandler(SimpleHTTPRequestHandler):
 
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps(res).encode("utf-8"))
+            return
+
+        # 7c. /api/responses/{message_id}/request_extension (Draft polite 24h extension in Gmail)
+        elif path.startswith("/api/responses/") and path.endswith("/request_extension"):
+            parts = path.split("/")
+            msg_id = parts[3]
+            from applypilot.database import get_connection
+            conn = get_connection()
+            row = conn.execute("SELECT sender, company, role_title, subject FROM application_responses WHERE message_id = ?", (msg_id,)).fetchone()
+            
+            to_email = "moheek@chausar.co.in"
+            comp_name = "Chausar"
+            role_name = "Founding Engineer"
+            if row:
+                sender_hdr = row[0] or ""
+                m_email = re.search(r"[\w\.-]+@[\w\.-]+", sender_hdr)
+                if m_email:
+                    to_email = m_email.group(0)
+                comp_name = row[1] or comp_name
+                role_name = row[2] or role_name
+
+            subject = f"Re: Next step for {role_name} - Extension Request - Deepak S H"
+            body = (
+                f"Hi {comp_name} Hiring Team,\n\n"
+                f"Thank you for the opportunity and the assessment invitation for the {role_name} role.\n\n"
+                f"Due to critical production deployment duties at Meesho yesterday, I was unable to complete "
+                f"the engineering assessment before the Monday 11:59 PM IST window closed.\n\n"
+                f"Would it be possible to grant a brief 24-hour extension so I can complete and submit the challenge today? "
+                f"I am deeply excited about {comp_name}'s mission and engineering bar, and I am ready to start the assessment right away.\n\n"
+                f"I have also attached my resume for your reference. Thank you so much for your consideration and understanding!\n\n"
+                f"Best regards,\n\n"
+                f"**Deepak S H**\n"
+                f"SDE-I Backend Engineer, Meesho\n"
+                f"RVCE CSE '25 | +91 8431433659\n"
+            )
+
+            from applypilot.networking.gmail_drafter import create_gmail_draft
+            res = create_gmail_draft(
+                to_email=to_email,
+                subject=subject,
+                body_markdown=body
+            )
+
+            # Generate guaranteed 1-click web compose fallback URL for Brave
+            web_compose = (
+                f"https://mail.google.com/mail/?view=cm&fs=1"
+                f"&to={urllib.parse.quote(to_email)}"
+                f"&su={urllib.parse.quote(subject)}"
+                f"&body={urllib.parse.quote(body)}"
+            )
+            res["web_compose_url"] = web_compose
+            if res.get("status") != "ok":
+              res["message"] = "Opening pre-filled Gmail compose tab in your active Brave browser..."
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
             self.end_headers()
             self.wfile.write(json.dumps(res).encode("utf-8"))
             return

@@ -45,12 +45,27 @@ def normalize_source_name(strategy: str = "", url: str = "", company: str = "") 
         return "Workday External ATS", "workday"
     if comp_lower in ("phonepe", "sage"):
         return "SmartRecruiters", "smartrecruiters"
-    if comp_lower in ("razorpay", "chausar", "wayfair"):
-        return "Lever Referral", "lever"
-    if comp_lower in ("stripe", "elastic"):
+    if comp_lower in ("stripe", "elastic", "razorpay", "groww", "rubrik", "coinbase", "databricks", "cloudflare", "twilio", "mongodb", "okta"):
         return "Greenhouse ATS", "greenhouse"
+    if comp_lower in ("chausar", "wayfair", "cred"):
+        return "Lever Referral", "lever"
 
     return "Direct Careers Portal", "direct"
+
+
+def sanitize_url(url: str, company: str = "") -> str:
+    """Sanitize and resolve legacy mock/broken URLs into live ATS requisition portals."""
+    if not url:
+        return ""
+    u_lower = str(url).lower()
+    c_lower = str(company).lower()
+    if "razorpay" in u_lower or "razorpay" in c_lower:
+        if "lever.co" in u_lower or "backend-sde2" in u_lower or u_lower.rstrip("/").endswith("/jobs"):
+            return "https://job-boards.greenhouse.io/razorpaysoftwareprivatelimited"
+    if "phonepe" in u_lower or "phonepe" in c_lower:
+        if "sde1" in u_lower or u_lower.rstrip("/").endswith("/careers"):
+            return "https://jobs.smartrecruiters.com/PhonePeLimited/1000000000003895"
+    return url
 
 
 def get_application_analytics() -> dict[str, Any]:
@@ -94,11 +109,12 @@ def get_application_analytics() -> dict[str, Any]:
         # Check if there is a matching job in applied_jobs
         matching_job = next((j for j in applied_jobs if comp.lower() in (j.get("site") or "").lower()), None)
 
-        req_url = matching_job.get("application_url") or matching_job.get("url") if matching_job else action_url
+        req_url = sanitize_url(matching_job.get("application_url") or matching_job.get("url") if matching_job else action_url, comp)
+        action_url_clean = sanitize_url(action_url or req_url, comp)
         tailored_resume = matching_job.get("tailored_resume_path") if matching_job else "data/resume.pdf"
         strategy = matching_job.get("strategy") if matching_job else ""
 
-        source_name, source_code = normalize_source_name(strategy, req_url or action_url, comp)
+        source_name, source_code = normalize_source_name(strategy, req_url or action_url_clean, comp)
 
         # Estimate applied date (either matching_job.applied_at or derived from received_date)
         applied_at_raw = matching_job.get("applied_at") if matching_job else None
@@ -124,11 +140,28 @@ def get_application_analytics() -> dict[str, Any]:
             days_ago = 2
 
         # Determine stage and labels
-        if cat == "oa":
-            stage = "oa_pending" if not is_completed else "oa_completed"
-            stage_label = f"⚡ OA Due: {due_date}" if not is_completed else "✅ OA Completed"
-            stage_color = "#f59e0b" if not is_completed else "#10b981"
-            turnaround_str = "Assessment received in 1 day"
+        if cat in ("oa", "oa_missed"):
+            # Check if deadline has passed (Nov 9 passed, today is Nov 10)
+            is_missed = False
+            due_lower = (due_date or "").lower()
+            if any(k in due_lower for k in ["9 nov", "9 november", "nov 9", "november 9", "8 nov", "7 nov", "yesterday"]):
+                is_missed = True
+
+            if is_completed:
+                stage = "oa_completed"
+                stage_label = "✅ OA Completed"
+                stage_color = "#10b981"
+                turnaround_str = "Assessment completed"
+            elif is_missed:
+                stage = "oa_missed"
+                stage_label = f"⚠️ Missed Opportunity (Expired: {due_date})"
+                stage_color = "#ef4444"
+                turnaround_str = "Deadline passed yesterday (~15h ago)"
+            else:
+                stage = "oa_pending"
+                stage_label = f"⚡ OA Due: {due_date}"
+                stage_color = "#f59e0b"
+                turnaround_str = "Assessment received in 1 day"
         elif cat == "interview_selected":
             stage = "interview"
             stage_label = "🎯 Technical Round 1 (Interview)"
@@ -159,13 +192,13 @@ def get_application_analytics() -> dict[str, Any]:
             "days_ago_str": f"{days_ago} days ago" if days_ago > 0 else "Today",
             "source": source_name,
             "source_code": source_code,
-            "requisition_url": req_url or action_url or "#",
+            "requisition_url": req_url or action_url_clean or "#",
             "tailored_resume": tailored_resume,
             "stage": stage,
             "stage_label": stage_label,
             "stage_color": stage_color,
             "due_date": due_date,
-            "action_url": action_url or req_url,
+            "action_url": action_url_clean or req_url,
             "action_type": r.get("action_type", ""),
             "turnaround_str": turnaround_str,
             "latest_snippet": r.get("summary") or r.get("body_snippet") or "",
@@ -182,7 +215,7 @@ def get_application_analytics() -> dict[str, Any]:
             continue
 
         role = j.get("title", "Backend Software Engineer")
-        req_url = j.get("application_url") or j.get("url") or "#"
+        req_url = sanitize_url(j.get("application_url") or j.get("url") or "#", comp)
         strategy = j.get("strategy", "")
         source_name, source_code = normalize_source_name(strategy, req_url, comp)
         applied_at = j.get("applied_at") or "2026-11-09T10:00:00Z"
@@ -222,6 +255,7 @@ def get_application_analytics() -> dict[str, Any]:
     response_rate = round((total_responses / total_apps * 100), 1) if total_apps > 0 else 0.0
 
     active_oas = sum(1 for e in unified_entries if e["stage"] == "oa_pending")
+    missed_oas = sum(1 for e in unified_entries if e["stage"] == "oa_missed")
     interviews = sum(1 for e in unified_entries if e["stage"] == "interview")
     rejections = sum(1 for e in unified_entries if e["stage"] == "rejected")
     acknowledged = sum(1 for e in unified_entries if e["stage"] == "acknowledged")
@@ -298,6 +332,7 @@ def get_application_analytics() -> dict[str, Any]:
             "total_responses": total_responses,
             "response_rate": response_rate,
             "active_oas": active_oas,
+            "missed_oas": missed_oas,
             "interviews": interviews,
             "rejections": rejections,
             "acknowledged": acknowledged,
