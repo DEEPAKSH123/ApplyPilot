@@ -58,7 +58,7 @@ def linkedin_login_tool(timeout_seconds: int = 75) -> dict[str, Any]:
     description="Search LinkedIn for live recruiter hiring posts, extracting text, author info, and recruiter email addresses."
 )
 def linkedin_search_posts_tool(
-    keywords: str = "hiring backend engineer bangalore",
+    keywords: str = 'backend engineer AND ("hiring" OR "requirement")',
     max_results: int = 10,
     save_to_leads_db: bool = True
 ) -> list[dict[str, Any]]:

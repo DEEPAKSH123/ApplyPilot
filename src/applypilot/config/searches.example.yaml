@@ -11,6 +11,8 @@ queries:
     tier: 1
   - query: "backend engineer"
     tier: 1
+  - query: 'backend engineer AND ("hiring" OR "requirement")'
+    tier: 1
   - query: "backend developer"
     tier: 1
   - query: "full stack developer"

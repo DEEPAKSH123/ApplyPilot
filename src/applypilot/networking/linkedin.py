@@ -167,7 +167,7 @@ def login_to_linkedin(timeout_sec: int = 75, headed: bool = True) -> dict[str, A
 
 
 def search_linkedin_posts(
-    keywords: str = "hiring backend engineer bangalore",
+    keywords: str = 'backend engineer AND ("hiring" OR "requirement")',
     max_results: int = 10,
     save_to_db: bool = True
 ) -> list[dict[str, Any]]:
@@ -256,8 +256,10 @@ def search_linkedin_posts(
                 }
                 results.append(item)
 
-                # Save to database if legitimate hiring post
-                if save_to_db and (recruiter_email or "hiring" in text_content.lower()):
+                # Save to database if legitimate hiring or requirement post
+                lower_text = text_content.lower()
+                is_hiring_post = any(k in lower_text for k in ("hiring", "requirement", "requirements", "opening", "opportunity", "referral"))
+                if save_to_db and (recruiter_email or is_hiring_post):
                     _save_lead_to_db(item)
 
             except Exception as pe:
@@ -358,8 +360,8 @@ def _save_lead_to_db(lead: dict) -> None:
 
     c.execute("""
         INSERT OR IGNORE INTO jobs
-        (url, title, location, site, strategy, description, full_description, recruiter_email, discovered_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (url, title, location, site, strategy, description, full_description, recruiter_email, discovered_at, application_url)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         url,
         title,
@@ -369,6 +371,7 @@ def _save_lead_to_db(lead: dict) -> None:
         lead.get("post_text", ""),
         lead.get("full_text", ""),
         recruiter_email,
-        now
+        now,
+        url
     ))
     conn.commit()

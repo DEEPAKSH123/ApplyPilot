@@ -488,7 +488,7 @@ def linkedin_login_cmd(
 
 @linkedin_app.command("posts")
 def linkedin_posts_cmd(
-    query: str = typer.Argument("hiring backend engineer bangalore", help="Search query for LinkedIn posts"),
+    query: str = typer.Argument('backend engineer AND ("hiring" OR "requirement")', help="Search query for LinkedIn posts"),
     limit: int = typer.Option(10, "--limit", "-n", help="Max number of posts to fetch"),
 ) -> None:
     """Search LinkedIn for hiring posts matching query."""
@@ -731,6 +731,169 @@ def export(
     console.print(f"[green]Successfully exported opportunities to:[/green] {out_path}")
 
 
+@app.command("naukri-update")
+def naukri_update(
+    resume: Optional[str] = typer.Option(None, "--resume", "-r", help="Path to resume PDF file to upload."),
+    headed: bool = typer.Option(False, "--headed", help="Run browser in visible headed mode."),
+    login: bool = typer.Option(False, "--login", help="Open Brave to log in to Naukri and save session."),
+) -> None:
+    """Re-upload resume on Naukri to update profile freshness and boost recruiter ranking."""
+    _bootstrap()
+    from applypilot.automation.naukri_updater import login_interactive, update_naukri_resume
+
+    if login:
+        console.print("[cyan]Opening Brave browser for Naukri authentication...[/cyan]")
+        res = login_interactive()
+        if res.get("status") == "success":
+            console.print(f"[green]✓ {res.get('message')}[/green]")
+        else:
+            console.print(f"[yellow]! {res.get('message')}[/yellow]")
+        return
+
+    console.print("[cyan]Initiating Naukri profile resume update...[/cyan]")
+    res = update_naukri_resume(resume_path=resume, headed=headed)
+    if res.get("status") == "success":
+        console.print(f"[bold green]✓ SUCCESS:[/bold green] {res.get('message')}")
+    elif res.get("status") == "auth_required":
+        console.print(f"[yellow]! AUTH REQUIRED:[/yellow] {res.get('message')}")
+        console.print("[dim]Run `applypilot naukri-update --login` to sign in once.[/dim]")
+    else:
+        console.print(f"[bold red]✗ ERROR:[/bold red] {res.get('message')}")
+
+
+@app.command("naukri-schedule")
+def naukri_schedule(
+    time_str: str = typer.Option("09:00", "--time", "-t", help="Daily execution time (HH:mm, default 09:00 AM)."),
+    status: bool = typer.Option(False, "--status", "-s", help="Check Windows Task Scheduler status."),
+    uninstall: bool = typer.Option(False, "--uninstall", "-u", help="Remove scheduled task from Windows."),
+) -> None:
+    """Manage daily 9:00 AM Naukri resume refresher in Windows Task Scheduler."""
+    _bootstrap()
+    from applypilot.automation.naukri_updater import (
+        get_last_update_status,
+        get_windows_task_status,
+        register_windows_task,
+        unregister_windows_task,
+    )
+
+    if uninstall:
+        res = unregister_windows_task()
+        console.print(f"[yellow]{res.get('message')}[/yellow]")
+        return
+
+    if status:
+        task_info = get_windows_task_status()
+        last_log = get_last_update_status()
+        console.print("\n[bold]ApplyPilot Naukri Scheduled Task Status[/bold]")
+        console.print(f"  Registered: {task_info.get('registered')}")
+        if task_info.get("registered"):
+            console.print(f"  Task Name:  {task_info.get('task_name')}")
+            console.print(f"  State:      {task_info.get('state')}")
+            console.print(f"  Next Run:   {task_info.get('next_run')}")
+            console.print(f"  Last Run:   {task_info.get('last_run')}")
+        console.print("\n[bold]Last Update Attempt:[/bold]")
+        console.print(f"  Status:     {last_log.get('status')}")
+        console.print(f"  Timestamp:  {last_log.get('last_updated_at')}")
+        console.print(f"  Message:    {last_log.get('message')}\n")
+        return
+
+    res = register_windows_task(task_time=time_str)
+    if res.get("status") == "success":
+        console.print(f"[bold green]✓ SUCCESS:[/bold green] {res.get('message')}")
+        console.print("[dim]Configured with 'Start When Available' — will trigger upon wake-up if missed.[/dim]")
+    else:
+        console.print(f"[bold red]✗ FAILED:[/bold red] {res.get('message')}")
+
+
+
+@app.command("analyze")
+def analyze_cmd(
+    refresh: bool = typer.Option(False, "--refresh", "-r", help="Force fresh live Gemini strategic re-analysis."),
+) -> None:
+    """Run Gemini Strategic Diagnostic Job on 30-day funnel & time spent."""
+    _bootstrap()
+    from applypilot.analytics.activity import get_funnel_and_activity_metrics
+    from applypilot.analytics.gemini_advisor import run_gemini_strategic_analysis
+
+    console.print("[bold cyan]⚡ ApplyPilot Career Intelligence & Conversion Diagnostics[/bold cyan]")
+    
+    metrics = get_funnel_and_activity_metrics()
+    act = metrics["activity"]
+    f = metrics["funnel"]
+
+    # Funnel Table
+    table = Table(title="30-Day Conversion & Time-Saver Metrics", border_style="cyan")
+    table.add_column("Metric", style="bold white")
+    table.add_column("Value", style="bold green")
+    table.add_column("Benchmark / Context", style="dim")
+
+    table.add_row("Today's Active Search Time", f"{act['today_active_minutes']} mins", "Daily logged browsing/applying")
+    table.add_row("Weekly Search Time", f"{act['weekly_active_hours']} hrs", "Last 7 days active usage")
+    table.add_row("Time per Application", f"{act['avg_mins_per_app']} mins", f"vs {act['manual_mins_per_app']} mins manual (7.3x faster)")
+    table.add_row("Heavy Time Saved (30d)", f"{act['hours_saved_30d']} hours", "JIT LaTeX tailoring + Brave autofill")
+    table.add_row("Fully Applied (ATS submitted)", str(f["fully_applied"]), "Verified submissions")
+    table.add_row("Half Applied (In progress / autofill)", str(f["half_applied"]), "Forms started, awaiting manual review")
+    table.add_row("Approved in Queue", str(f["approved_pending"]), "Ready to apply")
+    table.add_row("Return Responses Received", str(f["responses_received"]), f"{f['response_rate_pct']}% response rate")
+    table.add_row("Active Online Assessments (OAs)", str(f["active_oas"]), "Coding tests with deadlines")
+    table.add_row("Interview Calls / Technical Rounds", str(f["interview_calls"]), f"{f['interview_call_rate_pct']}% interview conversion rate")
+
+    console.print(table)
+    console.print("[cyan]Consulting Gemini AI Career Strategist...[/cyan]")
+    rep = run_gemini_strategic_analysis(force_refresh=refresh)
+
+    console.print(f"[bold green]Health Score: {rep.get('health_score')}/100[/bold green] — [bold white]{rep.get('verdict_title')}[/bold white]")
+    console.print(f"[dim]{rep.get('executive_summary')}[/dim]")
+
+    # Resume Gaps
+    console.print("[bold yellow]1. Resume Efficiency Audit:[/bold yellow]")
+    for g in rep.get("resume_efficiency", {}).get("missing_keywords_or_gaps", []):
+        console.print(f"  [red]✗[/red] Gap: {g}")
+    console.print("  [green]High-Impact Bullet Upgrades:[/green]")
+    for b in rep.get("resume_efficiency", {}).get("high_impact_bullet_recommendations", []):
+        console.print(f"    • [dim italic]{b}[/dim italic]")
+
+    # Role Fit
+    console.print("[bold yellow]2. Role & Seniority Fit Evaluation:[/bold yellow]")
+    for s in rep.get("role_targeting_fit", {}).get("sweet_spot_roles", []):
+        console.print(f"  [green]✓ Sweet Spot:[/green] {s}")
+    for w in rep.get("role_targeting_fit", {}).get("out_of_reach_or_wasteful_roles", []):
+        console.print(f"  [red]✗ Skip / Out of Reach:[/red] {w}")
+
+    # Velocity Playbook
+    console.print("[bold yellow]3. Velocity Playbook (Fast-Track Interview Selections):[/bold yellow]")
+    for p in rep.get("fast_track_interview_playbook", []):
+        console.print(f"  [cyan]• {p.get('action')}[/cyan] ({p.get('priority')}): {p.get('why_it_works')} -> [green]+{p.get('expected_time_saved_or_gain')}[/green]")
+    console.print("")
+
+
+@app.command("calendar-block")
+def calendar_block_cmd() -> None:
+    """Scan uncompleted OAs and block dedicated focus slots on Google Calendar."""
+    _bootstrap()
+    from applypilot.calendar.scheduler import block_all_pending_oas
+    console.print("[cyan]Scanning uncompleted Online Assessments (OAs)...[/cyan]")
+    res = block_all_pending_oas()
+    console.print(f"[green]✓ Successfully processed {res.get('blocked_count')} online assessments![/green]")
+    for a in res.get("assessments", []):
+        console.print(f"  • [bold white]{a.get('company')}[/bold white] (Due: {a.get('due_date')}) -> [cyan]{a.get('event_link')}[/cyan]")
+
+
+@app.command("gsheet-sync")
+def gsheet_sync_cmd() -> None:
+    """Synchronize pipeline, interview calls, and funnel metrics to Central Google Sheet."""
+    _bootstrap()
+    from applypilot.export.gsheets_sync import sync_to_google_sheets
+    console.print("[cyan]Synchronizing pipeline to Central Google Sheet / Mobile CSV...[/cyan]")
+    res = sync_to_google_sheets()
+    console.print(f"[bold green]✓ Sync completed successfully![/bold green]")
+    console.print(f"  • Synced Jobs: {res.get('synced_jobs')}")
+    console.print(f"  • Synced Responses: {res.get('synced_responses')}")
+    console.print(f"  • Synced Calls: {res.get('synced_calls')}")
+    console.print(f"  • Mobile View URL: [cyan]{res.get('spreadsheet_url')}[/cyan]")
+
+
 if __name__ == "__main__":
+
 
     app()

@@ -52,12 +52,17 @@ def generate_linkedin_searches(company: str, role_title: str) -> dict[str, str]:
     lead_kw = f"{comp_clean} engineering manager backend".strip()
     lead_url = f"https://www.linkedin.com/search/results/people/?keywords={urllib.parse.quote(lead_kw)}"
 
+    # 6. Recruiter Hiring & Requirement Posts
+    query_str = f'{comp_clean} backend engineer AND ("hiring" OR "requirement")'
+    hiring_posts_url = f"https://www.linkedin.com/search/results/content/?keywords={urllib.parse.quote(query_str)}&sortBy=%22date_posted%22"
+
     return {
         "first_degree_url": first_deg_url,
         "second_degree_url": second_deg_url,
         "alumni_search_url": alumni_url,
         "recruiter_search_url": recruiter_url,
         "lead_search_url": lead_url,
+        "hiring_posts_url": hiring_posts_url,
         "company_clean": comp_clean,
     }
 

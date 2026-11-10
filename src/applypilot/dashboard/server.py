@@ -662,6 +662,19 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       transform: translateY(-1px);
       filter: brightness(1.1);
     }
+    .btn-auto-apply {
+      background: linear-gradient(135deg, #10b981, #06b6d4);
+      color: white;
+      font-weight: 800;
+      box-shadow: 0 2px 10px rgba(16, 185, 129, 0.4);
+      border: 1px solid rgba(255,255,255,0.25);
+    }
+    .btn-auto-apply:hover {
+      background: linear-gradient(135deg, #059669, #0891b2);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 16px rgba(16, 185, 129, 0.65);
+      color: #fff;
+    }
     .btn-autofill {
       background: linear-gradient(135deg, #0284c7, #10b981);
       color: white;
@@ -1091,12 +1104,14 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       <div class="quick-pill" onclick="copyText('20 LPA', 'Current CTC')"><i class="fa-solid fa-indian-rupee-sign" style="color:#f59e0b;"></i> 20 LPA</div>
       <div class="quick-pill" onclick="copyText('Immediate', 'Notice Period')"><i class="fa-solid fa-bolt" style="color:#ec4899;"></i> Immediate Notice</div>
       <a href="https://www.linkedin.com/feed/" target="_blank" rel="noopener noreferrer" class="quick-pill" style="background: #0a66c2; color: #fff; font-weight: 700; text-decoration: none;"><i class="fa-brands fa-linkedin"></i> Open LinkedIn</a>
+      <a href="https://www.linkedin.com/search/results/content/?keywords=backend%20engineer%20AND%20(%22hiring%22%20OR%20%22requirement%22)&sortBy=%22date_posted%22" target="_blank" rel="noopener noreferrer" class="quick-pill" style="background: rgba(10, 102, 194, 0.2); border: 1px solid #0a66c2; color: #60a5fa; font-weight: 700; text-decoration: none;" title="Open live LinkedIn hiring & requirement posts feed"><i class="fa-brands fa-linkedin"></i> Hiring Posts Feed</a>
       <a href="https://referral-community.kadegree.in/get" target="_blank" rel="noopener noreferrer" class="quick-pill" style="background: linear-gradient(135deg, #b45309, #d97706); color: #fff; font-weight: 700; text-decoration: none;"><i class="fa-solid fa-users"></i> KaDegree (ಕನ್ನಡ Community)</a>
       <a href="https://mail.google.com/mail/u/0/#drafts" target="_blank" rel="noopener noreferrer" class="quick-pill" style="background: #ea4335; color: #fff; font-weight: 700; text-decoration: none;"><i class="fa-solid fa-envelope"></i> Gmail Drafts</a>
       <div id="naukri-quick-pill" class="quick-pill" onclick="triggerNaukriRefresh()" style="background: linear-gradient(135deg, #0284c7, #2563eb); color: #fff; font-weight: 700; cursor: pointer;" title="Naukri 9:00 AM Daily Refresh Active (Click to refresh now)"><i class="fa-solid fa-arrows-rotate"></i> <span id="naukri-pill-label">Naukri: 9 AM Active ⚡</span></div>
       <div class="quick-pill" onclick="openLogCallModal()" style="background: linear-gradient(135deg, #10b981, #059669); color: #fff; font-weight: 700; cursor: pointer;"><i class="fa-solid fa-phone"></i> + Log Recruiter Call / Update</div>
       <div class="quick-pill" onclick="syncGSheetsNow()" style="background: linear-gradient(135deg, #0284c7, #0369a1); color: #fff; font-weight: 700; cursor: pointer;"><i class="fa-solid fa-table"></i> 📱 Central Google Sheet</div>
       <div class="quick-pill" onclick="openCustomDraftModal()"  style="background: rgba(234, 67, 53, 0.2); border: 1px solid #ea4335; color: #fca5a5; font-weight: 700; cursor: pointer;"><i class="fa-solid fa-pen-nib"></i> + Draft Cold Email</div>
+      <div class="quick-pill" onclick="triggerBatchAutoApply()" style="background: linear-gradient(135deg, #10b981, #06b6d4); color: #fff; font-weight: 800; border: 1px solid #34d399; cursor: pointer;" title="Autonomously apply to top qualified roles in Brave (Kanistus Workflow: does everything itself)"><i class="fa-solid fa-bolt"></i> ⚡ Auto-Apply Top Matches</div>
 
       <!-- Theme Switcher Pill -->
       <div class="theme-picker" title="Change Theme Palette">
@@ -1758,6 +1773,90 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       const initialBtn = document.getElementById(`btn-theme-${savedTheme}`);
       if (initialBtn) initialBtn.classList.add('active');
     }, 50);
+    /* 100% Autonomous Auto-Apply (Kanistus Workflow - does everything itself) */
+    async function launchAutonomousApply(rowid) {
+      const btn = document.getElementById(`btn-auto-apply-${rowid}`);
+      if (btn) {
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Auto-Applying...';
+        btn.disabled = true;
+      }
+      showToast('⚡ Running Autonomous Auto-Apply in Brave (Kanistus Workflow: Autofill + Screening Qs + Submit)...');
+
+      try {
+        const res = await fetch(`/api/jobs/${rowid}/auto_apply`, { method: 'POST' });
+        const data = await res.json();
+        if (data.status === 'launched') {
+          showToast('🤖 Autonomous Auto-Apply active in Brave! Submitting and logging to database...');
+          if (btn) {
+            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Submitting in Brave...';
+            btn.style.background = '#059669';
+          }
+          // Poll for completion
+          let attempts = 0;
+          const pollTimer = setInterval(async () => {
+            attempts++;
+            try {
+              const sRes = await fetch('/api/jobs');
+              const jobsData = await sRes.json();
+              const updatedJob = jobsData.jobs.find(j => j.rowid === rowid);
+              if (updatedJob && updatedJob.apply_status === 'applied') {
+                clearInterval(pollTimer);
+                showToast('🎉 Application submitted autonomously & logged to database!');
+                if (btn) {
+                  btn.innerHTML = '<i class="fa-solid fa-check-double"></i> Applied (Autonomous)';
+                  btn.style.background = '#059669';
+                  btn.disabled = true;
+                }
+                loadStats();
+              } else if (attempts > 30) {
+                clearInterval(pollTimer);
+                if (btn) {
+                  btn.innerHTML = '<i class="fa-solid fa-bolt"></i> Auto-Apply (Autonomous)';
+                  btn.disabled = false;
+                  btn.style.background = 'linear-gradient(135deg, #10b981, #06b6d4)';
+                }
+              }
+            } catch (err) {
+              clearInterval(pollTimer);
+            }
+          }, 2500);
+        } else {
+          showToast('⚠️ Auto-Apply: ' + (data.message || 'Error launching'));
+          if (btn) {
+            btn.innerHTML = '<i class="fa-solid fa-bolt"></i> Auto-Apply (Autonomous)';
+            btn.disabled = false;
+          }
+        }
+      } catch (e) {
+        showToast('Auto-Apply error: ' + e);
+        if (btn) {
+          btn.innerHTML = '<i class="fa-solid fa-bolt"></i> Auto-Apply (Autonomous)';
+          btn.disabled = false;
+        }
+      }
+    }
+
+    async function triggerBatchAutoApply() {
+      if (!confirm('Run Autonomous Auto-Apply batch for Top 5 qualified roles in Brave?\n\nThis will launch Brave, prefill application details, answer screening questions, attach your tailored resume, and submit each application autonomously (Kanistus workflow).')) {
+        return;
+      }
+      showToast('🚀 Launching Autonomous Auto-Apply batch for Top 5 matches in Brave...');
+      try {
+        const res = await fetch('/api/auto_apply_batch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ limit: 5, min_score: 7, auto_submit: true })
+        });
+        const data = await res.json();
+        if (data.status === 'batch_launched') {
+          showToast('🤖 Batch running! Applications are being submitted and recorded in your database.');
+          setTimeout(() => { loadJobs(); loadStats(); }, 5000);
+        }
+      } catch (e) {
+        showToast('Batch error: ' + e);
+      }
+    }
+
     /* 1-Click Application Assistant Autofill */
     async function launchAutofill(rowid) {
       const btn = document.getElementById(`btn-autofill-${rowid}`);
@@ -2777,6 +2876,11 @@ HTML_DASHBOARD = """<!DOCTYPE html>
             <a href="https://referral-community.kadegree.in/get" target="_blank" rel="noopener noreferrer" class="btn" style="background: linear-gradient(135deg, #b45309, #d97706); color: white; text-decoration: none; padding: 9px 14px; font-weight: 700;">
               🟡 KaDegree Community (${comp})
             </a>
+            ${o.hiring_posts_url ? `
+            <a href="${o.hiring_posts_url}" target="_blank" class="btn" style="background: linear-gradient(135deg, #0284c7, #06b6d4); color: white; text-decoration: none; padding: 9px 14px; font-weight: 700;">
+              💼 Hiring / Requirement Posts @ ${comp}
+            </a>
+            ` : ''}
           </div>
 
           <!-- Section 2: Live Connection & Alumni Scanner -->
@@ -3523,6 +3627,42 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps(responses).encode("utf-8"))
             return
 
+        # /api/funnel (Everyday time spent, full vs half applied, 30-day conversion stats)
+        elif path == "/api/funnel":
+            from applypilot.analytics.activity import get_funnel_and_activity_metrics
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(json.dumps(get_funnel_and_activity_metrics()).encode("utf-8"))
+            return
+
+        # /api/gemini/diagnostics (Get cached or fresh Gemini strategic analysis)
+        elif path == "/api/gemini/diagnostics":
+            from applypilot.analytics.gemini_advisor import run_gemini_strategic_analysis
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(json.dumps(run_gemini_strategic_analysis(force_refresh=False)).encode("utf-8"))
+            return
+
+        # /api/calls (Retrieve logged recruiter phone screens and calls)
+        elif path == "/api/calls":
+            from applypilot.enrichment.call_logger import get_logged_calls
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(json.dumps(get_logged_calls()).encode("utf-8"))
+            return
+
+        # /api/gsheet/status
+        elif path == "/api/gsheet/status":
+            from applypilot.export.gsheets_sync import get_sheet_config
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(json.dumps(get_sheet_config()).encode("utf-8"))
+            return
+
         # /api/analytics (Full application lifecycle, sources, and audit metrics)
         elif path == "/api/analytics":
             from applypilot.dashboard.analytics import get_application_analytics
@@ -3654,8 +3794,72 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
 
+        # /api/activity/heartbeat (Track active search time)
+        if path == "/api/activity/heartbeat":
+            length = int(self.headers.get("Content-Length", 0))
+            body_data = self.rfile.read(length).decode("utf-8") if length > 0 else "{}"
+            try:
+                payload = json.loads(body_data)
+                sec = payload.get("duration_seconds", 30)
+                act = payload.get("action", "dashboard_browsing")
+                from applypilot.analytics.activity import record_activity_heartbeat
+                record_activity_heartbeat(action=act, duration_seconds=sec)
+            except Exception:
+                pass
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"status": "ok"}).encode("utf-8"))
+            return
+
+        # /api/calls/log (Log recruiter call or offline interview)
+        elif path == "/api/calls/log":
+            length = int(self.headers.get("Content-Length", 0))
+            body_data = self.rfile.read(length).decode("utf-8") if length > 0 else "{}"
+            try:
+                payload = json.loads(body_data)
+                from applypilot.enrichment.call_logger import log_recruiter_call
+                res = log_recruiter_call(payload)
+            except Exception as e:
+                res = {"status": "error", "message": str(e)}
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps(res).encode("utf-8"))
+            return
+
+        # /api/gemini/diagnostics (Force re-run Gemini analysis)
+        elif path == "/api/gemini/diagnostics":
+            from applypilot.analytics.gemini_advisor import run_gemini_strategic_analysis
+            res = run_gemini_strategic_analysis(force_refresh=True)
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps(res).encode("utf-8"))
+            return
+
+        # /api/calendar/block_oas (Block pending OA deadlines on calendar)
+        elif path == "/api/calendar/block_oas":
+            from applypilot.calendar.scheduler import block_all_pending_oas
+            res = block_all_pending_oas()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps(res).encode("utf-8"))
+            return
+
+        # /api/gsheet/sync (Sync pipeline to Google Sheets / CSV)
+        elif path == "/api/gsheet/sync":
+            from applypilot.export.gsheets_sync import sync_to_google_sheets
+            res = sync_to_google_sheets()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps(res).encode("utf-8"))
+            return
+
         # 1. /api/jobs/{rowid}/tailor (On-Demand JIT Tailoring)
-        if path.startswith("/api/jobs/") and path.endswith("/tailor"):
+        elif path.startswith("/api/jobs/") and path.endswith("/tailor"):
             parts = path.split("/")
             rowid = int(parts[3])
             res = tailor_single_job(rowid)

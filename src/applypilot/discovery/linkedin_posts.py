@@ -25,13 +25,13 @@ def extract_role_and_company(text: str) -> tuple[str, str]:
     # Look for role keywords
     title = "Backend Software Engineer"
     title_matches = [
-        r"(?:hiring|looking for|opening for)\s+([A-Za-z0-9\s/+-]{3,35}\b(?:engineer|developer|sde|lead))",
+        r"(?:hiring|looking for|opening for|requirement for|requirements? for|urgent requirement:?)\s+([A-Za-z0-9\s/+-]{3,35}\b(?:engineer|developer|sde|lead))",
         r"\b(sde[- ]?[123iI]+|software engineer|backend engineer|golang developer|java developer)\b",
     ]
     for pattern in title_matches:
         m = re.search(pattern, text, re.IGNORECASE)
         if m:
-            title = m.group(1).strip().title()
+            title = re.sub(r"^(?:for|of|in|to)\s+", "", m.group(1).strip(), flags=re.I).strip().title()
             break
 
     # Look for company name
@@ -54,8 +54,8 @@ def extract_role_and_company(text: str) -> tuple[str, str]:
 def parse_linkedin_post_text(text: str, source_id: str = "post", post_url: str = "") -> dict | None:
     """Parse a single recruiter post into a structured job entry with extracted emails."""
     lower = text.lower()
-    # Gating check: must contain hiring/backend indicators
-    hiring_keywords = ("hiring", "looking for", "opportunity", "referral", "opening", "vacancy")
+    # Gating check: must contain hiring/requirement/backend indicators
+    hiring_keywords = ("hiring", "requirement", "requirements", "looking for", "opportunity", "referral", "opening", "vacancy", "need", "wanted")
     tech_keywords = ("backend", "sde", "software", "java", "golang", "go ", "distributed", "engineer", "developer")
     
     if not any(h in lower for h in hiring_keywords) or not any(t in lower for t in tech_keywords):
@@ -135,4 +135,21 @@ def run_discovery() -> int:
     """Main discovery runner for LinkedIn Posts and recruiter mail scraping."""
     log.info("Running LinkedIn Posts discovery...")
     total = ingest_linkedin_posts_folder()
+
+    # If LinkedIn session is authenticated, automatically query live posts
+    try:
+        from applypilot.networking.linkedin import is_linkedin_authenticated, search_linkedin_posts
+        if is_linkedin_authenticated():
+            log.info("Active LinkedIn session found! Searching live posts for: backend engineer AND (\"hiring\" OR \"requirement\")...")
+            live_posts = search_linkedin_posts(
+                keywords='backend engineer AND ("hiring" OR "requirement")',
+                max_results=15,
+                save_to_db=True
+            )
+            if live_posts and "error" not in live_posts[0]:
+                log.info("Discovered %d live LinkedIn recruiter posts.", len(live_posts))
+                total += len(live_posts)
+    except Exception as e:
+        log.warning("Live LinkedIn post search encountered an issue: %s", e)
+
     return total
