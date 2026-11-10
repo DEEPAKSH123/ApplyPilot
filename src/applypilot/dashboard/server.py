@@ -937,14 +937,19 @@ HTML_DASHBOARD = """<!DOCTYPE html>
   </div>
 
   <!-- PDF Preview Modal -->
-  <div id="pdf-modal" class="modal-backdrop">
-    <div class="modal-content">
+  <div id="pdf-modal" class="modal-backdrop" onclick="if(event.target===this) closeModal()">
+    <div class="modal-content" style="max-width: 960px; width: 92%; height: 90vh;">
       <div class="modal-header">
-        <h3 id="modal-title">PDF Preview</h3>
-        <button class="modal-close" onclick="closeModal()"><i class="fa-solid fa-xmark"></i></button>
+        <h3 id="modal-title" style="margin: 0; font-size: 16px; font-weight: 700; color: #38bdf8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 70%;">PDF Preview</h3>
+        <div style="display: flex; gap: 10px; align-items: center;">
+          <a id="modal-open-newtab" href="#" target="_blank" rel="noopener noreferrer" class="btn" style="padding: 6px 12px; font-size: 12px; background: rgba(56, 189, 248, 0.15); border: 1px solid #38bdf8; color: #38bdf8; text-decoration: none; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px;">
+            <i class="fa-solid fa-arrow-up-right-from-square"></i> Open in New Tab
+          </a>
+          <button class="modal-close" onclick="closeModal()"><i class="fa-solid fa-xmark"></i></button>
+        </div>
       </div>
-      <div class="modal-body">
-        <iframe id="pdf-frame" src=""></iframe>
+      <div class="modal-body" style="flex: 1; padding: 0; background: #090d16;">
+        <iframe id="pdf-frame" src="" style="width: 100%; height: 100%; border: none;"></iframe>
       </div>
     </div>
   </div>
@@ -1440,14 +1445,14 @@ HTML_DASHBOARD = """<!DOCTYPE html>
                   <i class="fa-solid fa-wand-magic-sparkles"></i> Tailor Resume (AI)
                 </button>
               ` : `
-                <button class="btn btn-preview" onclick="previewPDF('${job.tailored_resume_path}', '${job.company} - ${job.title} Resume')">
-                  <i class="fa-solid fa-eye"></i> View Resume PDF
+                <button class="btn btn-preview" onclick="previewResume(${job.rowid})">
+                  <i class="fa-solid fa-file-pdf"></i> View Resume PDF
                 </button>
               `}
 
               ${hasCover ? `
-                <button class="btn btn-preview" onclick="previewPDF('${job.cover_letter_path}', '${job.company} - Cover Letter')">
-                  <i class="fa-solid fa-eye"></i> Cover PDF
+                <button class="btn btn-preview" onclick="previewCoverLetter(${job.rowid})">
+                  <i class="fa-solid fa-file-lines"></i> Cover PDF
                 </button>
               ` : ''}
 
@@ -1555,7 +1560,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
           triggerConfetti();
           await fetchJobs();
           if (data.tailored_resume_path) {
-            previewPDF(data.tailored_resume_path, `${data.company} - ${data.job_title} Tailored Resume`);
+            previewResume(rowid);
           }
         } else {
           showToast('Error tailoring: ' + data.message);
@@ -1593,10 +1598,35 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       }
     }
 
-    function previewPDF(pdfPath, title) {
-      const cleanPath = pdfPath.replace(/^.*tailored_resumes[\\\\/]/, 'resumes/').replace(/^.*cover_letters[\\\\/]/, 'covers/');
+        function previewResume(rowid) {
+      const job = allJobs.find(j => j.rowid === rowid);
+      const title = job ? `${job.company} - ${job.title} Resume` : 'Tailored Resume';
+      const url = `/api/jobs/${rowid}/resume?t=${Date.now()}`;
       document.getElementById('modal-title').textContent = title;
-      document.getElementById('pdf-frame').src = '/files/' + cleanPath;
+      const newTabBtn = document.getElementById('modal-open-newtab');
+      if (newTabBtn) newTabBtn.href = url;
+      document.getElementById('pdf-frame').src = url;
+      document.getElementById('pdf-modal').style.display = 'flex';
+    }
+
+    function previewCoverLetter(rowid) {
+      const job = allJobs.find(j => j.rowid === rowid);
+      const title = job ? `${job.company} - Cover Letter` : 'Cover Letter';
+      const url = `/api/jobs/${rowid}/cover_letter?t=${Date.now()}`;
+      document.getElementById('modal-title').textContent = title;
+      const newTabBtn = document.getElementById('modal-open-newtab');
+      if (newTabBtn) newTabBtn.href = url;
+      document.getElementById('pdf-frame').src = url;
+      document.getElementById('pdf-modal').style.display = 'flex';
+    }
+
+    function previewPDF(pdfPath, title) {
+      const cleanPath = pdfPath.replace(/^.*tailored_resumes[\\/]/, 'resumes/').replace(/^.*cover_letters[\\/]/, 'covers/');
+      const url = '/files/' + encodeURIComponent(cleanPath).replace(/%2F/g, '/');
+      document.getElementById('modal-title').textContent = title || 'Document Preview';
+      const newTabBtn = document.getElementById('modal-open-newtab');
+      if (newTabBtn) newTabBtn.href = url;
+      document.getElementById('pdf-frame').src = url;
       document.getElementById('pdf-modal').style.display = 'flex';
     }
 
@@ -2367,9 +2397,51 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 }).encode("utf-8"))
                 return
 
+        elif path.startswith("/api/jobs/") and (path.endswith("/resume") or path.endswith("/cover_letter")):
+            parts = path.strip("/").split("/")
+            if len(parts) == 4 and parts[2].isdigit():
+                rowid = int(parts[2])
+                doc_type = parts[3]
+                conn = get_connection()
+                c = conn.cursor()
+                row = c.execute("SELECT site, title, tailored_resume_path, cover_letter_path FROM jobs WHERE rowid = ?", (rowid,)).fetchone()
+                if not row:
+                    self.send_response(404)
+                    self.end_headers()
+                    self.wfile.write(b"Job not found")
+                    return
+
+                site, title, tailored_path, cover_path = row
+                target_file = None
+
+                if doc_type == "resume":
+                    if tailored_path and Path(tailored_path).is_file():
+                        target_file = Path(tailored_path)
+                    elif (APP_DIR / "resume.pdf").is_file():
+                        target_file = APP_DIR / "resume.pdf"
+                elif doc_type == "cover_letter":
+                    if cover_path and Path(cover_path).is_file():
+                        target_file = Path(cover_path)
+
+                if target_file and target_file.is_file():
+                    pdf_bytes = target_file.read_bytes()
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/pdf")
+                    self.send_header("Content-Length", str(len(pdf_bytes)))
+                    self.send_header("Content-Disposition", f'inline; filename="{target_file.name}"')
+                    self.end_headers()
+                    self.wfile.write(pdf_bytes)
+                    return
+                else:
+                    self.send_response(404)
+                    self.send_header("Content-Type", "text/plain; charset=utf-8")
+                    self.end_headers()
+                    self.wfile.write(b"Document not found")
+                    return
+
         elif path.startswith("/files/"):
             # Stream PDF file
-            subpath = path[len("/files/"):]
+            subpath = urllib.parse.unquote(path[len("/files/"):])
             if subpath.startswith("resumes/"):
                 fname = subpath[len("resumes/"):]
                 target = TAILORED_DIR / fname
@@ -2380,11 +2452,13 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 target = APP_DIR / subpath
 
             if target.exists() and target.is_file():
+                pdf_bytes = target.read_bytes()
                 self.send_response(200)
                 self.send_header("Content-Type", "application/pdf")
-                self.send_header("Content-Disposition", f"inline; filename={target.name}")
+                self.send_header("Content-Length", str(len(pdf_bytes)))
+                self.send_header("Content-Disposition", f'inline; filename="{target.name}"')
                 self.end_headers()
-                self.wfile.write(target.read_bytes())
+                self.wfile.write(pdf_bytes)
                 return
             else:
                 self.send_response(404)
