@@ -1491,31 +1491,51 @@ HTML_DASHBOARD = """<!DOCTYPE html>
 
       document.getElementById('referral-modal-body').innerHTML = html;
       document.getElementById('referral-modal').style.display = 'flex';
+
+      // Auto-scan connections for this company immediately without needing manual button click
+      setTimeout(() => {
+        scanCompanyConnections(comp);
+      }, 50);
     }
 
     async function scanCompanyConnections(company) {
       const container = document.getElementById('live-connections-container');
-      container.innerHTML = `<div style="text-align:center; padding: 14px; color: #38bdf8;"><i class="fa-solid fa-circle-notch fa-spin"></i> Scanning LinkedIn for your connections & RVCE alumni @ ${company}...</div>`;
+      if (!container) return;
+      container.innerHTML = `<div style="text-align:center; padding: 18px; color: #38bdf8; font-size: 13px;"><i class="fa-solid fa-circle-notch fa-spin"></i> Auto-scanning your connections & RVCE alumni @ ${company}...</div>`;
 
       try {
         const res = await fetch(`/api/linkedin/scan?company=${encodeURIComponent(company)}`);
         const data = await res.json();
 
         if (data.status === 'not_authenticated') {
+          const firstDegUrl = document.getElementById('ref-first-deg-link') ? document.getElementById('ref-first-deg-link').href : `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(company)}&network=%5B%22F%22%5D`;
+          const alumniUrl = `https://www.linkedin.com/search/results/people/?keywords=RVCE%20${encodeURIComponent(company)}%20software%20engineer`;
+          
           container.innerHTML = `
-            <div style="background: rgba(15,23,42,0.8); border: 1px dashed #eab308; border-radius: 10px; padding: 14px; text-align: center;">
-              <p style="color: #fde047; font-size: 13px; margin-bottom: 6px;">
-                <i class="fa-solid fa-triangle-exclamation"></i> LinkedIn session not connected yet.
-              </p>
-              <p style="color: #94a3b8; font-size: 12px; margin-bottom: 12px;">
-                Click below to open your 1st-degree filtered connections in Brave, or connect LinkedIn once via ApplyPilot:
-              </p>
-              <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
-                <a href="${document.getElementById('ref-first-deg-link').href}" target="_blank" class="btn" style="background:#0a66c2;color:#fff;">
-                  <i class="fa-brands fa-brave"></i> Open 1st-Degree Filter in Brave
+            <div style="background: rgba(15,23,42,0.9); border: 1.5px solid rgba(56, 189, 248, 0.4); border-radius: 12px; padding: 16px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px;">
+                <span style="font-weight: 700; color: #38bdf8; font-size: 13px;">
+                  <i class="fa-brands fa-linkedin"></i> Live Connections Available in Your Active Brave Session:
+                </span>
+                <button class="btn btn-brave" onclick="triggerLinkedInLogin('${company.replace(/'/g, "\'")}')" style="padding: 5px 12px; font-size: 11px; background:#0a66c2; color:#fff; font-weight:700;">
+                  <i class="fa-solid fa-bolt"></i> 1-Click Connect Session
+                </button>
+              </div>
+
+              <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px;">
+                <a href="${firstDegUrl}" target="_blank" rel="noopener noreferrer" class="btn" style="background: linear-gradient(135deg, #059669, #10b981); color: white; text-decoration: none; padding: 8px 12px; font-size: 12px; font-weight: 700; text-align: center;">
+                  🟢 View 1st-Degree Friends @ ${company}
                 </a>
-                <button class="btn" style="background:#334155;color:#fff;" onclick="triggerLinkedInLogin()">
-                  <i class="fa-solid fa-key"></i> Connect LinkedIn in Brave (1-Click)
+                <a href="${alumniUrl}" target="_blank" rel="noopener noreferrer" class="btn" style="background: #0284c7; color: white; text-decoration: none; padding: 8px 12px; font-size: 12px; font-weight: 700; text-align: center;">
+                  🎓 View RVCE Alumni @ ${company}
+                </a>
+              </div>
+
+              <!-- Instant li_at Cookie Input to unlock in-app list forever -->
+              <div style="padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.08); display: flex; gap: 8px; align-items: center;">
+                <input type="password" id="modal-li-at-input" placeholder="Or paste 'li_at' cookie to auto-list connections here forever..." style="flex:1; background: #0b1326; border: 1px solid #334155; color: #fff; padding: 7px 10px; border-radius: 6px; font-size: 11.5px;">
+                <button class="btn" onclick="saveModalLinkedInCookie('${company.replace(/'/g, "\'")}')" style="background: #059669; color: white; padding: 7px 12px; font-size: 11.5px; font-weight: 700; white-space: nowrap;">
+                  Save & List
                 </button>
               </div>
             </div>
@@ -1538,16 +1558,17 @@ HTML_DASHBOARD = """<!DOCTYPE html>
                 <button class="btn" style="background: #0a66c2; color: #fff; padding: 6px 10px; font-size: 11px;" onclick="openDirectUrl('${c.profile_url}')">
                   <i class="fa-brands fa-linkedin"></i> View & Chat
                 </button>
-                <button class="btn" style="background: #10b981; color: white; padding: 6px 10px; font-size: 11px;" onclick="copyCustomReferral('${c.name.replace(/'/g, "\\'")}')">
+                <button class="btn" style="background: #10b981; color: white; padding: 6px 10px; font-size: 11px;" onclick="copyCustomReferral('${c.name.replace(/'/g, "\'")}')">
                   <i class="fa-regular fa-copy"></i> Copy Note
                 </button>
               </div>
             </div>
           `).join('');
         } else {
+          const firstDegUrl = document.getElementById('ref-first-deg-link') ? document.getElementById('ref-first-deg-link').href : '#';
           container.innerHTML = `
             <div style="background: rgba(15,23,42,0.6); border: 1px solid #334155; border-radius: 10px; padding: 12px; text-align: center; color: #94a3b8; font-size: 13px;">
-              No direct alumni found in quick query. Click <strong>[🟢 Find My 1st Degree Connections @ ${company}]</strong> above to view your full active network in Brave!
+              No direct alumni found in quick query. <a href="${firstDegUrl}" target="_blank" style="color:#38bdf8;font-weight:700;">Click here to view your 1st-degree connections @ ${company} in Brave &rarr;</a>
             </div>
           `;
         }
@@ -1556,10 +1577,50 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       }
     }
 
-    async function triggerLinkedInLogin() {
-      showToast('Launching Brave for LinkedIn login...');
+    let loginPollInterval = null;
+    async function triggerLinkedInLogin(company = '') {
+      showToast('Launching Brave for LinkedIn connection...');
       await fetch('/api/linkedin/login', { method: 'POST' });
-      showToast('Please log in on Brave. When done, your session will be saved automatically!');
+      showToast('Sign in on Brave window. ApplyPilot will detect it and auto-list connections!');
+
+      if (loginPollInterval) clearInterval(loginPollInterval);
+      loginPollInterval = setInterval(async () => {
+        try {
+          const res = await fetch('/api/linkedin/status');
+          const data = await res.json();
+          if (data.authenticated) {
+            clearInterval(loginPollInterval);
+            showToast('✅ LinkedIn session active! Auto-listing connections...');
+            if (company) scanCompanyConnections(company);
+          }
+        } catch (e) {}
+      }, 2000);
+    }
+
+    async function saveModalLinkedInCookie(company = '') {
+      const input = document.getElementById('modal-li-at-input');
+      const val = input ? input.value.trim() : '';
+      if (!val) {
+        alert('Please paste your li_at cookie value.');
+        return;
+      }
+      showToast('Saving LinkedIn session...');
+      try {
+        const res = await fetch('/api/linkedin/set_cookie', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: val })
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          showToast('✅ LinkedIn session connected! Fetching connections...');
+          if (company) scanCompanyConnections(company);
+        } else {
+          showToast('⚠️ ' + data.message);
+        }
+      } catch (err) {
+        showToast('Error saving cookie: ' + err);
+      }
     }
 
     function copyCustomReferral(name) {
@@ -1920,6 +1981,14 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.wfile.write(HTML_DASHBOARD.encode("utf-8"))
             return
 
+        elif path == "/api/linkedin/status":
+            from applypilot.networking.linkedin import is_linkedin_authenticated
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(json.dumps({"authenticated": is_linkedin_authenticated()}).encode("utf-8"))
+            return
+
         elif path == "/api/jobs":
             from applypilot.config import load_search_config
             cfg = load_search_config()
@@ -2269,6 +2338,25 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     subject=email_content["subject"],
                     body_markdown=email_content["body_markdown"]
                 )
+            except Exception as e:
+                res = {"status": "error", "message": str(e)}
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(json.dumps(res).encode("utf-8"))
+            return
+
+        # /api/linkedin/set_cookie (Save li_at cookie and activate LinkedIn AI agent)
+        elif path == "/api/linkedin/set_cookie":
+            length = int(self.headers.get("Content-Length", 0))
+            body_data = self.rfile.read(length).decode("utf-8") if length > 0 else "{}"
+            try:
+                data = json.loads(body_data)
+                token = data.get("token", "").strip()
+                from applypilot.networking.linkedin import set_li_at_cookie
+                ok = set_li_at_cookie(token)
+                res = {"status": "ok" if ok else "error", "message": "LinkedIn session saved successfully!" if ok else "Invalid cookie value"}
             except Exception as e:
                 res = {"status": "error", "message": str(e)}
 

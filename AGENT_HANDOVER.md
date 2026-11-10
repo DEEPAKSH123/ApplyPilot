@@ -23,6 +23,8 @@ You are assisting Deepak S H on his Job Search Automation Platform (ApplyPilot).
 - Opportunities CSV: D:\ApplyPilot_Workspace\data\opportunities.csv
 - Backup Snapshots: D:\ApplyPilot_Workspace\backups\
 - Architecture Guide: D:\ApplyPilot_Workspace\code\ARCHITECTURE.md
+- Foundational Conversation: 1fb6e843-5d62-4307-838d-5292f01ec21d (conversation://1fb6e843-5d62-4307-838d-5292f01ec21d)
+- Foundational Plan Document: D:\ApplyPilot_Workspace\code\docs\job_search_automation_audit_and_plan.md
 
 ## Engine Details:
 - LLM: gemini-3.5-flash-lite (configured in D:\ApplyPilot_Workspace\data\.env)
