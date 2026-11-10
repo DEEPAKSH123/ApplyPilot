@@ -831,6 +831,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       <div class="quick-pill" onclick="copyText('20 LPA', 'Current CTC')"><i class="fa-solid fa-indian-rupee-sign" style="color:#f59e0b;"></i> 20 LPA</div>
       <div class="quick-pill" onclick="copyText('Immediate', 'Notice Period')"><i class="fa-solid fa-bolt" style="color:#ec4899;"></i> Immediate Notice</div>
       <a href="https://www.linkedin.com/feed/" target="_blank" rel="noopener noreferrer" class="quick-pill" style="background: #0a66c2; color: #fff; font-weight: 700; text-decoration: none;"><i class="fa-brands fa-linkedin"></i> Open LinkedIn</a>
+      <a href="https://referral-community.kadegree.in/get" target="_blank" rel="noopener noreferrer" class="quick-pill" style="background: linear-gradient(135deg, #b45309, #d97706); color: #fff; font-weight: 700; text-decoration: none;"><i class="fa-solid fa-users"></i> KaDegree (ಕನ್ನಡ Community)</a>
 
       <!-- Theme Switcher Pill -->
       <div class="theme-picker">
@@ -1396,6 +1397,9 @@ HTML_DASHBOARD = """<!DOCTYPE html>
             <a href="${o.lead_search_url || '#'}" target="_blank" class="btn" style="background: #334155; color: white; text-decoration: none; padding: 9px 14px;">
               ⚡ Engineering Managers
             </a>
+            <a href="https://referral-community.kadegree.in/get" target="_blank" rel="noopener noreferrer" class="btn" style="background: linear-gradient(135deg, #b45309, #d97706); color: white; text-decoration: none; padding: 9px 14px; font-weight: 700;">
+              🟡 KaDegree Community (${comp})
+            </a>
           </div>
 
           <!-- Section 2: Live Connection & Alumni Scanner -->
@@ -1455,6 +1459,25 @@ HTML_DASHBOARD = """<!DOCTYPE html>
             </button>
           </div>
           <textarea id="recruiter-msg-text" style="width: 100%; height: 130px; background: #0f172a; color: #f1f5f9; border: 1px solid #334155; border-radius: 8px; padding: 12px; font-family: monospace; font-size: 12px; resize: vertical;" readonly>${o.recruiter_message || ''}</textarea>
+        </div>
+
+        <!-- Section 4: Kannada Referral Community (KaDegree) Note -->
+        <div style="background: rgba(180, 83, 9, 0.15); border: 1.5px solid rgba(245, 158, 11, 0.4); border-radius: 12px; padding: 16px; margin-bottom: 12px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <h4 style="margin: 0; color: #fbbf24; font-size: 14px;"><i class="fa-solid fa-users"></i> Template E: Kannada Referral Community (KaDegree) Note</h4>
+            <div style="display: flex; gap: 8px;">
+              <a href="${o.kadegree_url || 'https://referral-community.kadegree.in/get'}" target="_blank" rel="noopener noreferrer" class="btn" style="background: #b45309; color: white; padding: 4px 10px; font-size: 11px; text-decoration: none; font-weight: 700;">
+                <i class="fa-solid fa-arrow-up-right-from-square"></i> Open KaDegree
+              </a>
+              <button class="btn" style="background: #d97706; color: white; padding: 4px 10px; font-size: 11px;" onclick="copyOutreachText('kadegree-msg-text')">
+                <i class="fa-regular fa-copy"></i> Copy Kannada Note
+              </button>
+            </div>
+          </div>
+          <p style="margin: 0 0 10px 0; font-size: 12px; color: #fde68a;">
+            🌟 <em>Post or send this warm bilingual note in the KaDegree Referral Community (17k+ Kannadiga engineers & 6.4k verified referrers).</em>
+          </p>
+          <textarea id="kadegree-msg-text" style="width: 100%; height: 130px; background: #0f172a; color: #f1f5f9; border: 1px solid #78350f; border-radius: 8px; padding: 12px; font-family: monospace; font-size: 12px; resize: vertical;" readonly>${o.kadegree_message || ''}</textarea>
         </div>
       `;
 

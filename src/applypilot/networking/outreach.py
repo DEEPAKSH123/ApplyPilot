@@ -146,15 +146,32 @@ def generate_outreach_messages(
         f"LinkedIn: {linkedin_url}"
     )
 
+    # Template 5: Kannada Referral Community (KaDegree) Note
+    kadegree_msg = (
+        f"ನಮಸ್ಕಾರ [Name],\n\n"
+        f"Hope you are doing well!\n\n"
+        f"I saw that {comp} has an opening for {role_title}{job_ref}.\n\n"
+        f"I am an SDE-I Backend Engineer at Meesho (RVCE CSE '25, CGPA 8.92) working on distributed reconciliation pipelines and microservices "
+        f"using Java, Go, Kafka, Redis, and Spring Boot.\n\n"
+        f"If your team is open to referrals, would you be open to putting in a referral for me? Happy to share my tailored resume and details.\n\n"
+        f"ಧನ್ಯವಾದಗಳು / Thanks a lot for the support!\n\n"
+        f"Best regards,\n"
+        f"{full_name}\n"
+        f"Phone: {phone}\n"
+        f"LinkedIn: {linkedin_url}"
+    )
+
     return {
         "first_deg_message": first_deg_msg,
         "second_deg_message": second_deg_msg,
         "alumni_message": alumni_msg,
         "recruiter_message": recruiter_msg,
+        "kadegree_message": kadegree_msg,
         "first_degree_url": searches["first_degree_url"],
         "second_degree_url": searches["second_degree_url"],
         "alumni_search_url": searches["alumni_search_url"],
         "recruiter_search_url": searches["recruiter_search_url"],
         "lead_search_url": searches["lead_search_url"],
+        "kadegree_url": "https://referral-community.kadegree.in/get",
         "company_clean": comp,
     }
