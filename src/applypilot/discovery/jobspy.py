@@ -106,14 +106,14 @@ def _location_ok(location: str | None, accept: list[str], reject: list[str]) -> 
 
     loc = location.lower()
 
-    # Remote jobs always OK
-    if any(r in loc for r in ("remote", "anywhere", "work from home", "wfh", "distributed")):
-        return True
-
-    # Reject non-remote matches
+    # Reject patterns take priority (e.g. US only, Canada, UK)
     for r in reject:
         if r.lower() in loc:
             return False
+
+    # Accept remote/distributed jobs (that weren't caught by reject above)
+    if any(r in loc for r in ("remote", "anywhere", "work from home", "wfh", "distributed")):
+        return True
 
     # Accept matches
     for a in accept:

@@ -65,11 +65,20 @@ def export_opportunities_csv(output_path: Path | str | None = None) -> Path:
     """
     rows = conn.execute(query).fetchall()
 
+    from applypilot.config import load_search_config
+    cfg = load_search_config()
+    reject_patterns = cfg.get("location", {}).get("reject_patterns", [])
+
     formatted_rows = []
     for r in rows:
         row = list(r)
         comp = row[0]
         tit = row[1]
+        loc = (row[2] or "").lower()
+
+        # Filter out jobs that match reject patterns (e.g. US-only remote, Canada, UK)
+        if any(rp.lower() in loc for rp in reject_patterns):
+            continue
         # item 6: tailored_resume_pdf
         row[6] = _clean_path(row[6])
         # item 7: cover_letter_pdf

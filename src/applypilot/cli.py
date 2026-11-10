@@ -428,6 +428,104 @@ def inbox_cmd(
     console.print(table)
 
 
+# ---------------------------------------------------------------------------
+# LinkedIn Network & Post Automation
+# ---------------------------------------------------------------------------
+
+linkedin_app = typer.Typer(name="linkedin", help="LinkedIn automation, hiring posts, and connection finder.")
+app.add_typer(linkedin_app, name="linkedin")
+
+
+@linkedin_app.command("status")
+def linkedin_status_cmd() -> None:
+    """Check LinkedIn login status."""
+    _bootstrap()
+    from applypilot.networking.linkedin import is_linkedin_authenticated
+    if is_linkedin_authenticated():
+        console.print("[bold green]✓ LinkedIn session is ACTIVE and authenticated.[/bold green]")
+    else:
+        console.print("[bold yellow]! LinkedIn is not logged in yet. Run 'applypilot linkedin login' to authenticate.[/bold yellow]")
+
+
+@linkedin_app.command("login")
+def linkedin_login_cmd(
+    timeout: int = typer.Option(75, "--timeout", "-t", help="Timeout in seconds for login")
+) -> None:
+    """Launch Brave browser to log in to LinkedIn and save session cookies."""
+    _bootstrap()
+    from applypilot.networking.linkedin import login_to_linkedin
+    console.print("[bold cyan]Launching Brave for LinkedIn login...[/bold cyan]")
+    res = login_to_linkedin(timeout_sec=timeout, headed=True)
+    if res.get("status") == "authenticated":
+        console.print(f"[bold green]✓ {res.get('message')}[/bold green]")
+    else:
+        console.print(f"[bold red]✗ {res.get('message')}[/bold red]")
+
+
+@linkedin_app.command("posts")
+def linkedin_posts_cmd(
+    query: str = typer.Argument("hiring backend engineer bangalore", help="Search query for LinkedIn posts"),
+    limit: int = typer.Option(10, "--limit", "-n", help="Max number of posts to fetch"),
+) -> None:
+    """Search LinkedIn for hiring posts matching query."""
+    _bootstrap()
+    from applypilot.networking.linkedin import search_linkedin_posts
+    console.print(f"[bold cyan]Searching LinkedIn posts for: '{query}'...[/bold cyan]")
+    posts = search_linkedin_posts(keywords=query, max_results=limit, save_to_db=True)
+    if not posts or "error" in posts[0]:
+        err = posts[0].get("error", "No posts found") if posts else "No posts found"
+        console.print(f"[yellow]{err}[/yellow]")
+        return
+
+    table = Table(title=f"💼 LinkedIn Hiring Posts: {query}", show_lines=True)
+    table.add_column("Author", style="bold white", width=20)
+    table.add_column("Headline", style="cyan", width=25)
+    table.add_column("Snippet / Text", style="dim", width=45)
+    table.add_column("Recruiter Email", style="bold green", width=22)
+
+    for p in posts:
+        table.add_row(
+            p.get("author", "Member"),
+            p.get("headline", "")[:40],
+            p.get("post_text", "")[:120] + "...",
+            p.get("recruiter_email") or "-"
+        )
+    console.print(table)
+
+
+@linkedin_app.command("network")
+def linkedin_network_cmd(
+    company: str = typer.Argument(..., help="Target company name (e.g. PhonePe, Stripe, Meesho)"),
+    school: str = typer.Option("RV College of Engineering", "--school", "-s", help="Alumni school name"),
+    role: str = typer.Option("backend", "--role", "-r", help="Engineering role keyword"),
+    limit: int = typer.Option(8, "--limit", "-n", help="Max results"),
+) -> None:
+    """Find alumni and engineering connections at a target company."""
+    _bootstrap()
+    from applypilot.networking.linkedin import search_linkedin_connections
+    console.print(f"[bold cyan]Finding {school} alumni & connections at {company}...[/bold cyan]")
+    people = search_linkedin_connections(company=company, role=role, school=school, max_results=limit)
+    if not people or "error" in people[0]:
+        err = people[0].get("error", "No connections found") if people else "No connections found"
+        console.print(f"[yellow]{err}[/yellow]")
+        return
+
+    table = Table(title=f"🎓 {school} Alumni & Connections @ {company}", show_lines=True)
+    table.add_column("Name", style="bold white", width=22)
+    table.add_column("Headline / Role", style="cyan", width=35)
+    table.add_column("Location", style="dim", width=18)
+    table.add_column("Profile Link", style="green")
+
+    for person in people:
+        table.add_row(
+            person.get("name", "Member"),
+            person.get("headline", "")[:45],
+            person.get("location", "India"),
+            person.get("profile_url", "-")
+        )
+    console.print(table)
+
+
 @app.command()
 def doctor() -> None:
     """Check your setup and diagnose missing requirements."""

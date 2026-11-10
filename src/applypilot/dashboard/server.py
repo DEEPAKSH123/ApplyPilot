@@ -1388,6 +1388,10 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             return
 
         elif path == "/api/jobs":
+            from applypilot.config import load_search_config
+            cfg = load_search_config()
+            reject_patterns = [rp.lower() for rp in cfg.get("location", {}).get("reject_patterns", [])]
+
             conn = get_connection()
             c = conn.cursor()
             query = """
@@ -1410,7 +1414,14 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             """
             rows = c.execute(query).fetchall()
             cols = [d[0] for d in c.description]
-            jobs = [dict(zip(cols, r)) for r in rows]
+            all_raw = [dict(zip(cols, r)) for r in rows]
+
+            jobs = []
+            for j in all_raw:
+                loc = (j.get("location") or "").lower()
+                if any(rp in loc for rp in reject_patterns):
+                    continue
+                jobs.append(j)
 
             # Attach LinkedIn referral outreach data to each job
             for j in jobs:
