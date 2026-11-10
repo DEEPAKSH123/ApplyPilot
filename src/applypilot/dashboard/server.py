@@ -673,6 +673,144 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       border-color: #38bdf8;
       color: #bae6fd;
     }
+
+    /* Analytics Dashboard & Audit Ledger Styles */
+    .analytics-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+      margin-top: 10px;
+    }
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 14px;
+    }
+    .kpi-card {
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 14px;
+      padding: 16px 18px;
+      display: flex;
+      flex-direction: column;
+      backdrop-filter: blur(10px);
+      transition: all 0.2s ease;
+    }
+    .kpi-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    }
+    .kpi-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #94a3b8;
+    }
+    .kpi-value {
+      font-size: 28px;
+      font-weight: 800;
+      margin-top: 4px;
+      letter-spacing: -0.5px;
+    }
+    .sources-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+    }
+    .source-card {
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 14px;
+      padding: 18px 20px;
+    }
+    .source-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .source-name {
+      font-size: 14px;
+      font-weight: 700;
+      color: #f8fafc;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .progress-bar-bg {
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 999px;
+      height: 8px;
+      overflow: hidden;
+      margin-bottom: 8px;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      border-radius: 999px;
+      transition: width 0.4s ease;
+    }
+    .source-stat-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      color: #94a3b8;
+    }
+    .audit-table-wrap {
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      overflow-x: auto;
+      padding: 20px;
+    }
+    .audit-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      color: #cbd5e1;
+    }
+    .audit-table th {
+      text-align: left;
+      padding: 12px 14px;
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: #94a3b8;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .audit-table td {
+      padding: 14px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      vertical-align: middle;
+    }
+    .audit-table tr:hover {
+      background: rgba(255, 255, 255, 0.02);
+    }
+    .badge-source {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 6px;
+    }
+    .badge-source.workday { background: rgba(56, 189, 248, 0.18); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); }
+    .badge-source.greenhouse { background: rgba(52, 211, 153, 0.18); color: #34d399; border: 1px solid rgba(52, 211, 153, 0.3); }
+    .badge-source.smartrecruiters { background: rgba(168, 85, 247, 0.18); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.3); }
+    .badge-source.lever { background: rgba(245, 158, 11, 0.18); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
+    .badge-source.whatsapp { background: rgba(16, 185, 129, 0.18); color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.3); }
+    .badge-source.linkedin { background: rgba(2, 132, 199, 0.18); color: #7dd3fc; border: 1px solid rgba(2, 132, 199, 0.3); }
+    .badge-stage {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11.5px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 999px;
+    }
     .sentiment-badge {
       display: inline-flex;
       align-items: center;
@@ -909,6 +1047,10 @@ HTML_DASHBOARD = """<!DOCTYPE html>
           <i class="fa-solid fa-envelope-open-text"></i> Gmail Tracker
           <span class="tab-badge" id="badge-responses" style="background:#059669;color:#fff;">0</span>
         </button>
+        <button class="tab-btn" onclick="setTab('analytics')" style="color: #38bdf8;">
+          <i class="fa-solid fa-chart-pie"></i> Application Analytics
+          <span class="tab-badge" id="badge-analytics" style="background:#0284c7;color:#fff;">0</span>
+        </button>
         <button class="tab-btn" onclick="setTab('applied')">
           <i class="fa-solid fa-trophy"></i> Applied
           <span class="tab-badge" id="badge-applied">0</span>
@@ -934,6 +1076,8 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     </div>
 
     <div id="jobs-container" class="jobs-grid"></div>
+    <!-- Application Analytics & Lifecycle Ledger View -->
+    <div id="analytics-container" style="display: none;"></div>
   </div>
 
   <!-- PDF Preview Modal -->
@@ -1012,6 +1156,9 @@ HTML_DASHBOARD = """<!DOCTYPE html>
   <script>
     let allJobs = [];
     let allResponses = [];
+    let analyticsData = null;
+    let analyticsSourceFilter = 'all';
+    let analyticsStageFilter = 'all';
     let currentTab = 'high';
 
     
@@ -1066,6 +1213,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         const res = await fetch('/api/jobs');
         allJobs = await res.json();
         await fetchResponses();
+        await fetchAnalytics();
         updateStats();
         renderJobs();
       } catch (e) {
@@ -1177,6 +1325,21 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       const qBanner = document.getElementById('queue-banner');
       const rBanner = document.getElementById('responses-banner');
       const respFilterBar = document.getElementById('resp-filter-bar');
+      const jobsContainer = document.getElementById('jobs-container');
+      const analyticsContainer = document.getElementById('analytics-container');
+
+      if (tab === 'analytics') {
+        qBanner.style.display = 'none';
+        rBanner.style.display = 'none';
+        if (respFilterBar) respFilterBar.style.display = 'none';
+        if (jobsContainer) jobsContainer.style.display = 'none';
+        if (analyticsContainer) analyticsContainer.style.display = 'block';
+        renderAnalytics();
+        return;
+      } else {
+        if (analyticsContainer) analyticsContainer.style.display = 'none';
+        if (jobsContainer) jobsContainer.style.display = 'grid';
+      }
 
       if (tab === 'approved') {
         qBanner.style.display = 'flex';
@@ -1352,6 +1515,260 @@ HTML_DASHBOARD = """<!DOCTYPE html>
           </div>
         `;
       }).join('');
+    }
+
+    async function fetchAnalytics() {
+      try {
+        const res = await fetch('/api/analytics');
+        analyticsData = await res.json();
+        const badge = document.getElementById('badge-analytics');
+        if (badge && analyticsData && analyticsData.metrics) {
+          badge.textContent = analyticsData.metrics.total_applications;
+        }
+      } catch (err) {
+        console.error('Failed to load analytics:', err);
+      }
+    }
+
+    function filterAnalyticsSource(src) {
+      analyticsSourceFilter = src;
+      renderAnalytics();
+    }
+
+    function filterAnalyticsStage(stg) {
+      analyticsStageFilter = stg;
+      renderAnalytics();
+    }
+
+    function renderAnalytics() {
+      const container = document.getElementById('analytics-container');
+      if (!container) return;
+      if (!analyticsData || !analyticsData.metrics) {
+        container.innerHTML = '<div style="text-align:center; padding: 60px; color:#94a3b8;"><i class="fa-solid fa-spinner fa-spin"></i> Loading application analytics...</div>';
+        return;
+      }
+
+      const m = analyticsData.metrics;
+      const sources = analyticsData.sources || [];
+      const rawTimeline = analyticsData.timeline || [];
+
+      // Filter timeline
+      const q = (document.getElementById('search-input')?.value || '').toLowerCase().trim();
+      let timeline = rawTimeline.filter(e => {
+        if (analyticsSourceFilter !== 'all' && e.source_code !== analyticsSourceFilter) return false;
+        if (analyticsStageFilter !== 'all' && e.stage !== analyticsStageFilter) return false;
+        if (q) {
+          const hay = `${e.company} ${e.role} ${e.source} ${e.stage_label} ${e.applied_date} ${e.turnaround_str}`.toLowerCase();
+          if (!hay.includes(q)) return false;
+        }
+        return true;
+      });
+
+      container.innerHTML = `
+        <div class="analytics-panel">
+          <!-- KPI Summary Grid -->
+          <div class="kpi-grid">
+            <div class="kpi-card" style="border-color: rgba(56, 189, 248, 0.4);">
+              <span class="kpi-label"><i class="fa-solid fa-paper-plane" style="color:#38bdf8;"></i> Total Applications</span>
+              <span class="kpi-value" style="color: #38bdf8;">${m.total_applications}</span>
+              <span style="font-size: 11px; color: #94a3b8; margin-top: 4px;">Tracked across ATS & Gmail</span>
+            </div>
+            <div class="kpi-card" style="border-color: rgba(16, 185, 129, 0.4);">
+              <span class="kpi-label"><i class="fa-solid fa-chart-line" style="color:#34d399;"></i> Response Rate</span>
+              <span class="kpi-value" style="color: #34d399;">${m.response_rate}%</span>
+              <span style="font-size: 11px; color: #94a3b8; margin-top: 4px;">${m.total_responses} of ${m.total_applications} responded</span>
+            </div>
+            <div class="kpi-card" style="border-color: rgba(245, 158, 11, 0.4);">
+              <span class="kpi-label"><i class="fa-solid fa-laptop-code" style="color:#fbbf24;"></i> Active OAs Due</span>
+              <span class="kpi-value" style="color: #fbbf24;">${m.active_oas}</span>
+              <span style="font-size: 11px; color: #94a3b8; margin-top: 4px;">Action required with deadline</span>
+            </div>
+            <div class="kpi-card" style="border-color: rgba(16, 185, 129, 0.4);">
+              <span class="kpi-label"><i class="fa-solid fa-trophy" style="color:#10b981;"></i> Technical Interviews</span>
+              <span class="kpi-value" style="color: #10b981;">${m.interviews}</span>
+              <span style="font-size: 11px; color: #94a3b8; margin-top: 4px;">Shortlisted / Next round</span>
+            </div>
+            <div class="kpi-card" style="border-color: rgba(244, 63, 94, 0.4);">
+              <span class="kpi-label"><i class="fa-solid fa-ban" style="color:#f43f5e;"></i> Rejections Logged</span>
+              <span class="kpi-value" style="color: #f43f5e;">${m.rejections}</span>
+              <span style="font-size: 11px; color: #94a3b8; margin-top: 4px;">Position closed</span>
+            </div>
+            <div class="kpi-card" style="border-color: rgba(168, 85, 247, 0.4);">
+              <span class="kpi-label"><i class="fa-solid fa-gauge-high" style="color:#c084fc;"></i> Avg Turnaround</span>
+              <span class="kpi-value" style="color: #c084fc;">${m.avg_response_days} <small style="font-size: 14px; font-weight: normal;">days</small></span>
+              <span style="font-size: 11px; color: #94a3b8; margin-top: 4px;">Avg time to recruiter reply</span>
+            </div>
+          </div>
+
+          <!-- Section: FROM WHERE DID I APPLY? (Source & Channel Analytics) -->
+          <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 16px; padding: 22px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
+              <div>
+                <h3 style="margin: 0; font-size: 16px; font-weight: 800; color: #f8fafc; display: flex; align-items: center; gap: 8px;">
+                  <i class="fa-solid fa-diagram-project" style="color: #38bdf8;"></i> Application Channels: "From Where I Applied"
+                </h3>
+                <p style="margin: 4px 0 0; font-size: 12.5px; color: #94a3b8;">
+                  Traceability breakdown across direct ATS platforms, company portals, and referral channels.
+                </p>
+              </div>
+              <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <button class="resp-pill ${analyticsSourceFilter === 'all' ? 'active' : ''}" onclick="filterAnalyticsSource('all')">All Sources (${m.total_applications})</button>
+                <button class="resp-pill ${analyticsSourceFilter === 'workday' ? 'active' : ''}" onclick="filterAnalyticsSource('workday')">Workday</button>
+                <button class="resp-pill ${analyticsSourceFilter === 'greenhouse' ? 'active' : ''}" onclick="filterAnalyticsSource('greenhouse')">Greenhouse</button>
+                <button class="resp-pill ${analyticsSourceFilter === 'smartrecruiters' ? 'active' : ''}" onclick="filterAnalyticsSource('smartrecruiters')">SmartRecruiters</button>
+                <button class="resp-pill ${analyticsSourceFilter === 'lever' ? 'active' : ''}" onclick="filterAnalyticsSource('lever')">Lever Referral</button>
+                <button class="resp-pill ${analyticsSourceFilter === 'linkedin' ? 'active' : ''}" onclick="filterAnalyticsSource('linkedin')">LinkedIn</button>
+              </div>
+            </div>
+
+            <div class="sources-grid">
+              ${sources.map(s => {
+                const pctOfTotal = Math.round((s.count / m.total_applications) * 100);
+                return `
+                  <div class="source-card" style="border-left: 3px solid ${s.color};">
+                    <div class="source-card-header">
+                      <span class="source-name">
+                        <i class="fa-solid fa-circle" style="color: ${s.color}; font-size: 8px;"></i> ${s.name}
+                      </span>
+                      <span style="font-size: 12px; font-weight: 800; color: ${s.response_rate >= 75 ? '#34d399' : s.response_rate >= 50 ? '#38bdf8' : '#94a3b8'};">
+                        ${s.response_rate}% Response Rate
+                      </span>
+                    </div>
+                    <div class="progress-bar-bg">
+                      <div class="progress-bar-fill" style="width: ${pctOfTotal}%; background: ${s.color};"></div>
+                    </div>
+                    <div class="source-stat-row">
+                      <span><strong>${s.count}</strong> applications (${pctOfTotal}% of total)</span>
+                      <span><strong>${s.responses}</strong> responses &bull; <strong>${s.interviews}</strong> interview</span>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+
+          <!-- Section: WHEN DID I APPLY & AUDIT LEDGER (Timeline & Traceability) -->
+          <div class="audit-table-wrap">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; flex-wrap: wrap; gap: 12px;">
+              <div>
+                <h3 style="margin: 0; font-size: 16px; font-weight: 800; color: #f8fafc; display: flex; align-items: center; gap: 8px;">
+                  <i class="fa-solid fa-clock-rotate-left" style="color: #fbbf24;"></i> Application Lifecycle Ledger: "When I Applied & What Happened"
+                </h3>
+                <p style="margin: 4px 0 0; font-size: 12.5px; color: #94a3b8;">
+                  Complete chronological trace of application dates, origin requisition links, tailored resumes, and recruiter responses.
+                </p>
+              </div>
+              <div style="display: flex; gap: 10px; align-items: center;">
+                <a href="/api/analytics/export_csv" class="btn btn-preview" style="text-decoration: none; padding: 7px 15px; font-size: 12px; background: rgba(56, 189, 248, 0.15); border: 1px solid #38bdf8; color: #38bdf8; font-weight: 700;">
+                  <i class="fa-solid fa-download"></i> Export Audit Ledger (CSV)
+                </a>
+                <button class="btn btn-preview" onclick="loadAnalyticsData()" style="padding: 7px 14px; font-size: 12px;">
+                  <i class="fa-solid fa-arrows-rotate"></i> Refresh
+                </button>
+              </div>
+            </div>
+
+            <!-- Stage Filter Pills -->
+            <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px;">
+              <button class="resp-pill ${analyticsStageFilter === 'all' ? 'active' : ''}" onclick="filterAnalyticsStage('all')">All Stages (${rawTimeline.length})</button>
+              <button class="resp-pill ${analyticsStageFilter === 'oa_pending' ? 'active' : ''}" onclick="filterAnalyticsStage('oa_pending')">⚡ Active OAs (${m.active_oas})</button>
+              <button class="resp-pill ${analyticsStageFilter === 'interview' ? 'active' : ''}" onclick="filterAnalyticsStage('interview')">🎯 Interviews (${m.interviews})</button>
+              <button class="resp-pill ${analyticsStageFilter === 'rejected' ? 'active' : ''}" onclick="filterAnalyticsStage('rejected')">❌ Rejections (${m.rejections})</button>
+              <button class="resp-pill ${analyticsStageFilter === 'acknowledged' ? 'active' : ''}" onclick="filterAnalyticsStage('acknowledged')">📬 Acknowledged (${m.acknowledged})</button>
+              <button class="resp-pill ${analyticsStageFilter === 'applied_pending' ? 'active' : ''}" onclick="filterAnalyticsStage('applied_pending')">⏳ Applied Only (${m.applied_only})</button>
+            </div>
+
+            <table class="audit-table">
+              <thead>
+                <tr>
+                  <th>When Applied</th>
+                  <th>Company & Role</th>
+                  <th>From Where (Source)</th>
+                  <th>Requisition Link</th>
+                  <th>Resume Used</th>
+                  <th>Current Stage & Next Step</th>
+                  <th>Velocity</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${timeline.map(e => {
+                  const initial = (e.company || 'C').charAt(0).toUpperCase();
+                  const isOA = e.stage === 'oa_pending';
+                  const isInterview = e.stage === 'interview';
+                  const isRej = e.stage === 'rejected';
+
+                  return `
+                    <tr>
+                      <td style="white-space: nowrap;">
+                        <div style="font-weight: 700; color: #f8fafc;">${e.applied_date}</div>
+                        <span style="font-size: 11px; color: #94a3b8;"><i class="fa-regular fa-clock"></i> ${e.days_ago_str}</span>
+                      </td>
+                      <td>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                          <div style="width: 32px; height: 32px; border-radius: 8px; background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.3); display: flex; align-items: center; justify-content: center; font-weight: 800; color: #38bdf8;">${initial}</div>
+                          <div>
+                            <div style="font-weight: 700; color: #fff;">${e.company}</div>
+                            <div style="font-size: 12px; color: #94a3b8;">${e.role}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        <span class="badge-source ${e.source_code}">
+                          <i class="fa-solid fa-link"></i> ${e.source}
+                        </span>
+                      </td>
+                      <td>
+                        <a href="${e.requisition_url}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-brave" style="padding: 4px 10px; font-size: 11px; text-decoration: none;">
+                          <i class="fa-brands fa-brave"></i> View Requisition
+                        </a>
+                      </td>
+                      <td>
+                        <span class="tag tag-resume" style="font-size: 11px; padding: 3px 8px;">
+                          <i class="fa-solid fa-file-pdf"></i> Tailored PDF
+                        </span>
+                      </td>
+                      <td>
+                        <div>
+                          <span class="badge-stage" style="background: ${isOA ? 'rgba(245, 158, 11, 0.2)' : isInterview ? 'rgba(16, 185, 129, 0.2)' : isRej ? 'rgba(244, 63, 94, 0.2)' : 'rgba(56, 189, 248, 0.15)'}; color: ${e.stage_color}; border: 1px solid ${e.stage_color};">
+                            ${e.stage_label}
+                          </span>
+                          ${e.latest_snippet ? `<div style="font-size: 11.5px; color: #94a3b8; margin-top: 4px; max-width: 280px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">${e.latest_snippet}</div>` : ''}
+                        </div>
+                      </td>
+                      <td style="white-space: nowrap; font-size: 12px; color: #cbd5e1;">
+                        <i class="fa-solid fa-stopwatch" style="color: #94a3b8; margin-right: 4px;"></i> ${e.turnaround_str}
+                      </td>
+                      <td style="white-space: nowrap;">
+                        ${isOA ? `
+                          <a href="${e.action_url}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-brave" style="background: linear-gradient(135deg, #d97706, #f59e0b); border-color: #f59e0b; text-decoration: none; padding: 4px 10px; font-size: 11px;">
+                            <i class="fa-solid fa-code"></i> Open Test
+                          </a>
+                        ` : isInterview ? `
+                          <a href="${e.action_url}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-brave" style="background: linear-gradient(135deg, #059669, #10b981); text-decoration: none; padding: 4px 10px; font-size: 11px;">
+                            <i class="fa-solid fa-calendar-check"></i> Schedule
+                          </a>
+                        ` : `
+                          <a href="${e.requisition_url}" target="_blank" rel="noopener noreferrer" class="btn btn-preview" style="padding: 4px 10px; font-size: 11px; text-decoration: none;">
+                            <i class="fa-solid fa-arrow-up-right-from-square"></i> Portal
+                          </a>
+                        `}
+                      </td>
+                    </tr>
+                  `;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }
+
+    async function loadAnalyticsData() {
+      showToast('Refreshing application analytics and audit ledger...');
+      await fetchAnalytics();
+      renderAnalytics();
+      showToast('Analytics refreshed!');
     }
 
     function renderJobs() {
@@ -2360,6 +2777,28 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.send_header("Content-Type", "application/json; charset=utf-8")
             self.end_headers()
             self.wfile.write(json.dumps(responses).encode("utf-8"))
+            return
+
+        # /api/analytics (Full application lifecycle, sources, and audit metrics)
+        elif path == "/api/analytics":
+            from applypilot.dashboard.analytics import get_application_analytics
+            data = get_application_analytics()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(json.dumps(data).encode("utf-8"))
+            return
+
+        # /api/analytics/export_csv (Download full application audit trail as CSV)
+        elif path == "/api/analytics/export_csv":
+            from applypilot.dashboard.analytics import get_application_analytics
+            data = get_application_analytics()
+            csv_bytes = data.get("csv_data", "").encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/csv; charset=utf-8")
+            self.send_header("Content-Disposition", 'attachment; filename="ApplyPilot_Application_Audit_Ledger.csv"')
+            self.end_headers()
+            self.wfile.write(csv_bytes)
             return
 
         elif path.startswith("/api/linkedin/scan"):
