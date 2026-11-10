@@ -61,6 +61,29 @@ def save_stored_cookies(cookies: list[dict], user_info: dict | None = None) -> N
     log.info("Saved %d LinkedIn cookies to %s", len(cookies), SESSION_FILE)
 
 
+def set_li_at_cookie(li_at_token: str) -> bool:
+    """Manually set or update the li_at session cookie."""
+    token = li_at_token.strip().strip('"').strip("'")
+    if not token or len(token) < 10:
+        return False
+    cookie_entry = {
+        "name": "li_at",
+        "value": token,
+        "domain": ".linkedin.com",
+        "path": "/",
+        "httpOnly": True,
+        "secure": True,
+        "sameSite": "None"
+    }
+    cookies = [cookie_entry]
+    existing = get_stored_cookies()
+    for c in existing:
+        if c.get("name") != "li_at":
+            cookies.append(c)
+    save_stored_cookies(cookies)
+    return True
+
+
 def login_to_linkedin(timeout_sec: int = 75, headed: bool = True) -> dict[str, Any]:
     """Launch Brave browser for Deepak to log in to LinkedIn or verify active session."""
     from playwright.sync_api import sync_playwright
@@ -95,14 +118,13 @@ def login_to_linkedin(timeout_sec: int = 75, headed: bool = True) -> dict[str, A
                 log.warning("Could not pre-load cookies: %s", ce)
 
         page.goto("https://www.linkedin.com/feed/", wait_until="domcontentloaded")
-        time.sleep(3)
+        time.sleep(2)
 
-        # Check if already logged in
-        current_url = page.url
-        if "feed" in current_url or "/in/" in current_url:
-            log.info("Already logged in to LinkedIn!")
-            cookies = context.cookies()
-            save_stored_cookies(cookies)
+        # Check if actually logged in by inspecting cookies for 'li_at'
+        initial_cookies = context.cookies()
+        if any(c.get("name") == "li_at" for c in initial_cookies):
+            log.info("Already logged in to LinkedIn with valid session cookie!")
+            save_stored_cookies(initial_cookies)
             context.close()
             return {
                 "status": "authenticated",
@@ -110,24 +132,25 @@ def login_to_linkedin(timeout_sec: int = 75, headed: bool = True) -> dict[str, A
                 "session_saved": True
             }
 
-        # Otherwise navigate to login page
-        log.info("Prompting user to log in via browser window...")
+        # Otherwise navigate to login page so Deepak can enter credentials
+        log.info("Navigating to LinkedIn login page for user authentication...")
         page.goto("https://www.linkedin.com/login", wait_until="domcontentloaded")
 
-        # Wait for user to complete login (URL changes to feed)
+        # Wait for user to complete login (cookies will contain 'li_at')
         start_time = time.time()
         authenticated = False
 
         while time.time() - start_time < timeout_sec:
-            if "feed" in page.url or "/in/" in page.url or "/mynetwork/" in page.url:
+            current_cookies = context.cookies()
+            if any(c.get("name") == "li_at" for c in current_cookies):
                 authenticated = True
                 break
-            time.sleep(2)
+            time.sleep(1.5)
 
         if authenticated:
-            time.sleep(2)
-            cookies = context.cookies()
-            save_stored_cookies(cookies)
+            time.sleep(1)
+            final_cookies = context.cookies()
+            save_stored_cookies(final_cookies)
             context.close()
             return {
                 "status": "authenticated",
