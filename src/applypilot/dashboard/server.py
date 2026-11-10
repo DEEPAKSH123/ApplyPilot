@@ -17,6 +17,7 @@ import re
 import sqlite3
 import subprocess
 import threading
+import time
 import urllib.parse
 import webbrowser
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -2632,9 +2633,14 @@ HTML_DASHBOARD = """<!DOCTYPE html>
             ${job.score_reasoning ? `<div class="reasoning">${job.score_reasoning.replace(/\\n/g, '<br>')}</div>` : ''}
 
             <div class="actions-bar">
-              <!-- 1-Click Application Assistant & Autofill Button -->
-              <button class="btn btn-autofill" id="btn-autofill-${job.rowid}" onclick="launchAutofill(${job.rowid})">
-                <i class="fa-solid fa-wand-magic-sparkles"></i> Autofill in Brave
+              <!-- 1-Click Autonomous Auto-Apply Button (Kanistus Workflow) -->
+              <button class="btn btn-auto-apply" id="btn-auto-apply-${job.rowid}" onclick="launchAutonomousApply(${job.rowid})" title="Does everything itself: fills forms, answers screening questions, attaches resume, and submits autonomously">
+                <i class="fa-solid fa-bolt"></i> Auto-Apply (Autonomous)
+              </button>
+
+              <!-- Application Assistant Autofill & Review Button -->
+              <button class="btn btn-autofill" id="btn-autofill-${job.rowid}" onclick="launchAutofill(${job.rowid})" title="Auto-fills all fields and holds for Deepak's final review before submitting">
+                <i class="fa-solid fa-shield-halved"></i> Fill & Review
               </button>
 
               <!-- Live Brave Browser Launcher -->
@@ -4201,7 +4207,18 @@ class DashboardHandler(SimpleHTTPRequestHandler):
 
 def start_dashboard_server(port: int = PORT, open_browser: bool = True):
     """Start the interactive dashboard server and open it in Chrome/default browser."""
-    server = ThreadingHTTPServer(("127.0.0.1", port), DashboardHandler)
+    ThreadingHTTPServer.allow_reuse_address = True
+    server = None
+    for attempt in range(5):
+        try:
+            server = ThreadingHTTPServer(("127.0.0.1", port), DashboardHandler)
+            break
+        except OSError as e:
+            if attempt < 4:
+                time.sleep(1)
+            else:
+                raise e
+
     url = f"http://127.0.0.1:{port}"
     print(f"\n🚀 ApplyPilot 2.0 Command Dashboard running at: {url}")
     print("   Press Ctrl+C to stop the dashboard server.\n")
@@ -4214,3 +4231,9 @@ def start_dashboard_server(port: int = PORT, open_browser: bool = True):
     except KeyboardInterrupt:
         print("\nStopping dashboard server...")
         server.shutdown()
+    except Exception as e:
+        print(f"\nServer error: {e}")
+        try:
+            server.shutdown()
+        except Exception:
+            pass
