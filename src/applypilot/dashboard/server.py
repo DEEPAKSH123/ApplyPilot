@@ -1,10 +1,12 @@
 """ApplyPilot Phase 2 Interactive Review & Approval Dashboard.
 
-Built on Python's built-in ThreadingHTTPServer (zero new pip dependencies).
-Provides:
-- High-fit job cards with fit scores, ATS keywords, and match reasoning.
-- Side-by-side or modal preview of Tailored Resume & Cover Letter PDFs.
-- 1-Click approval queue and direct Phase 3 application launcher.
+High-energy, cyber-sleek UI with:
+- Glassmorphism, energetic gradients, and micro-interactions.
+- On-Demand (JIT) Resume Tailoring & Tectonic PDF Compilation in 4 seconds.
+- Direct Live Brave integration (opens in existing Brave browser with resume copied to clipboard).
+- LinkedIn Referral & Connection Outreach generator with 1-click searches.
+- Approved Shortlist Queue for focused daily applications.
+- Celebratory confetti on application submit.
 """
 
 import json
@@ -12,6 +14,7 @@ import logging
 import mimetypes
 import os
 import sqlite3
+import subprocess
 import threading
 import urllib.parse
 import webbrowser
@@ -21,127 +24,257 @@ from pathlib import Path
 from applypilot.config import APP_DIR, DB_PATH, TAILORED_DIR, COVER_LETTER_DIR, load_profile
 from applypilot.database import get_connection
 from applypilot.export.csv_export import export_opportunities_csv
+from applypilot.networking.outreach import generate_outreach_messages
+from applypilot.scoring.jit_tailor import tailor_single_job
 
 log = logging.getLogger(__name__)
 
 PORT = 8765
+BRAVE_EXE = r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe"
 
 HTML_DASHBOARD = """<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ApplyPilot - Review & Approval Dashboard</title>
+  <title>⚡ ApplyPilot 2.0 - Command & Review Dashboard</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #0f172a;
-      --card-bg: #1e293b;
-      --card-border: #334155;
+      --bg: #07090e;
+      --panel: rgba(15, 23, 42, 0.75);
+      --panel-border: rgba(255, 255, 255, 0.09);
+      --card-bg: rgba(18, 26, 47, 0.85);
+      --card-border: rgba(99, 102, 241, 0.2);
       --text: #f8fafc;
       --text-muted: #94a3b8;
       --accent: #6366f1;
-      --accent-hover: #4f46e5;
+      --accent-glow: rgba(99, 102, 241, 0.35);
       --emerald: #10b981;
+      --emerald-glow: rgba(16, 185, 129, 0.35);
       --amber: #f59e0b;
       --cyan: #06b6d4;
+      --purple: #a855f7;
       --rose: #f43f5e;
     }
+
     * { box-sizing: border-box; margin: 0; padding: 0; }
+
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background: var(--bg);
+      font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
+      background: radial-gradient(ellipse at 15% 0%, rgba(99, 102, 241, 0.22) 0%, transparent 55%),
+                  radial-gradient(ellipse at 85% 100%, rgba(236, 72, 153, 0.16) 0%, transparent 55%),
+                  var(--bg);
       color: var(--text);
       line-height: 1.5;
-      padding-bottom: 60px;
+      padding-bottom: 80px;
+      min-height: 100vh;
+      background-attachment: fixed;
     }
+
+    /* Header */
     header {
-      background: #1e1b4b;
-      border-bottom: 1px solid #3730a3;
-      padding: 16px 32px;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--panel-border);
+      padding: 14px 32px;
       display: flex;
       justify-content: space-between;
       align-items: center;
       position: sticky;
       top: 0;
       z-index: 100;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.4);
     }
     .brand {
       display: flex;
       align-items: center;
       gap: 12px;
     }
-    .brand h1 { font-size: 20px; font-weight: 700; color: #fff; letter-spacing: -0.5px; }
-    .brand .badge {
-      background: #4338ca;
-      color: #c7d2fe;
-      font-size: 11px;
-      padding: 2px 8px;
-      border-radius: 999px;
-      font-weight: 600;
+    .brand-logo {
+      font-size: 24px;
+      color: #38bdf8;
+      filter: drop-shadow(0 0 10px rgba(56, 189, 248, 0.6));
     }
-    .profile-pill {
-      background: rgba(255,255,255,0.08);
-      padding: 6px 14px;
-      border-radius: 20px;
-      font-size: 13px;
+    .brand-title {
+      font-size: 21px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      background: linear-gradient(135deg, #38bdf8, #818cf8, #c084fc);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .status-pill {
       display: flex;
       align-items: center;
       gap: 8px;
-      border: 1px solid rgba(255,255,255,0.1);
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: #34d399;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 999px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
+    .pulse-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 8px #10b981;
+      animation: pulse 1.6s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+    }
+
+    /* Candidate Quick-Copy Bar */
+    .quick-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .quick-pill {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: #cbd5e1;
+      font-size: 12px;
+      padding: 5px 12px;
+      border-radius: 999px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .quick-pill:hover {
+      background: rgba(99, 102, 241, 0.25);
+      border-color: #818cf8;
+      color: #fff;
+      transform: translateY(-1px);
+    }
+
     .container {
-      max-width: 1400px;
+      max-width: 1440px;
       margin: 0 auto;
       padding: 24px 32px;
     }
+
+    /* Stats Grid */
     .stats-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
       gap: 16px;
       margin-bottom: 24px;
     }
     .stat-card {
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      padding: 16px;
-      border-radius: 10px;
+      background: var(--panel);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--panel-border);
+      padding: 18px 20px;
+      border-radius: 14px;
       display: flex;
       flex-direction: column;
+      position: relative;
+      overflow: hidden;
+      transition: all 0.25s ease;
     }
-    .stat-card .label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; font-weight: 600; }
-    .stat-card .val { font-size: 28px; font-weight: 700; margin-top: 4px; }
+    .stat-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+      border-color: rgba(255,255,255,0.2);
+    }
+    .stat-card .label {
+      font-size: 11px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      font-weight: 700;
+      letter-spacing: 0.6px;
+    }
+    .stat-card .val {
+      font-size: 32px;
+      font-weight: 800;
+      margin-top: 4px;
+      letter-spacing: -1px;
+    }
+
+    /* Queue Announcement Banner */
+    .queue-banner {
+      background: linear-gradient(90deg, rgba(99, 102, 241, 0.18), rgba(168, 85, 247, 0.18));
+      border: 1px solid rgba(168, 85, 247, 0.35);
+      border-radius: 12px;
+      padding: 14px 20px;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .queue-banner-title {
+      font-weight: 700;
+      font-size: 14px;
+      color: #e0e7ff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Controls & Tabs */
     .controls {
       display: flex;
       justify-content: space-between;
       align-items: center;
       gap: 16px;
-      margin-bottom: 20px;
+      margin-bottom: 24px;
       flex-wrap: wrap;
     }
     .tabs {
       display: flex;
-      gap: 8px;
-      background: var(--card-bg);
-      padding: 4px;
-      border-radius: 8px;
-      border: 1px solid var(--card-border);
+      gap: 6px;
+      background: rgba(15, 23, 42, 0.7);
+      padding: 5px;
+      border-radius: 12px;
+      border: 1px solid var(--panel-border);
+      backdrop-filter: blur(10px);
     }
     .tab-btn {
       background: transparent;
       color: var(--text-muted);
       border: none;
-      padding: 8px 16px;
-      border-radius: 6px;
+      padding: 9px 18px;
+      border-radius: 8px;
       font-size: 13px;
-      font-weight: 600;
+      font-weight: 700;
       cursor: pointer;
-      transition: all 0.15s;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .tab-btn:hover {
+      color: #fff;
     }
     .tab-btn.active {
-      background: var(--accent);
+      background: linear-gradient(135deg, #4f46e5, #7c3aed);
       color: white;
+      box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);
     }
+    .tab-badge {
+      background: rgba(255, 255, 255, 0.2);
+      font-size: 11px;
+      padding: 2px 7px;
+      border-radius: 999px;
+      font-weight: 800;
+    }
+
     .search-box {
       flex: 1;
       max-width: 380px;
@@ -149,176 +282,293 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     }
     .search-box input {
       width: 100%;
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      padding: 9px 14px 9px 36px;
-      border-radius: 8px;
-      color: white;
-      font-size: 14px;
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid var(--panel-border);
+      color: var(--text);
+      padding: 10px 16px 10px 40px;
+      border-radius: 10px;
+      font-size: 13px;
       outline: none;
+      transition: all 0.2s;
+    }
+    .search-box input:focus {
+      border-color: #818cf8;
+      box-shadow: 0 0 16px rgba(99, 102, 241, 0.3);
     }
     .search-box i {
       position: absolute;
-      left: 12px;
-      top: 12px;
+      left: 14px;
+      top: 13px;
       color: var(--text-muted);
     }
+
+    /* Jobs Grid & Cards */
     .jobs-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(440px, 1fr));
+      display: flex;
+      flex-direction: column;
       gap: 18px;
     }
     .job-card {
       background: var(--card-bg);
       border: 1px solid var(--card-border);
-      border-radius: 12px;
-      padding: 20px;
+      border-radius: 16px;
+      padding: 22px 26px;
       display: flex;
       flex-direction: column;
-      justify-content: space-between;
+      gap: 16px;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
       position: relative;
-      transition: transform 0.15s, border-color 0.15s;
+      backdrop-filter: blur(14px);
     }
     .job-card:hover {
-      border-color: #6366f1;
-      transform: translateY(-2px);
+      transform: translateY(-3px);
+      box-shadow: 0 16px 36px rgba(0,0,0,0.45);
+      border-color: rgba(129, 140, 248, 0.4);
     }
-    .job-header {
+
+    /* Score 9 Dream Match Special Styling */
+    .job-card.super-match {
+      border: 1.5px solid #10b981;
+      box-shadow: 0 0 24px rgba(16, 185, 129, 0.18);
+      background: linear-gradient(135deg, rgba(6, 78, 59, 0.25), rgba(15, 23, 42, 0.85));
+    }
+    .job-card.super-match::before {
+      content: '🔥 DREAM 9/10 MATCH';
+      position: absolute;
+      top: -10px;
+      right: 28px;
+      background: linear-gradient(90deg, #10b981, #059669);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 800;
+      padding: 3px 10px;
+      border-radius: 999px;
+      letter-spacing: 0.5px;
+      box-shadow: 0 2px 8px rgba(16, 185, 129, 0.5);
+    }
+
+    /* Score 8 Top Match Styling */
+    .job-card.top-match {
+      border: 1.5px solid #06b6d4;
+      box-shadow: 0 0 20px rgba(6, 182, 212, 0.15);
+    }
+    .job-card.top-match::before {
+      content: '⚡ TOP TIER 8/10';
+      position: absolute;
+      top: -10px;
+      right: 28px;
+      background: linear-gradient(90deg, #06b6d4, #2563eb);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 800;
+      padding: 3px 10px;
+      border-radius: 999px;
+      letter-spacing: 0.5px;
+      box-shadow: 0 2px 8px rgba(6, 182, 212, 0.4);
+    }
+
+    .card-top {
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
-      gap: 12px;
-      margin-bottom: 12px;
+      gap: 16px;
     }
-    .job-company {
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--cyan);
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
+    .job-meta {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+    }
+    .company-avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #1e1b4b, #3730a3);
+      border: 1px solid rgba(255,255,255,0.15);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      font-weight: 800;
+      color: #38bdf8;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      flex-shrink: 0;
+    }
+    .job-title-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
     }
     .job-title {
-      font-size: 17px;
-      font-weight: 700;
-      color: #fff;
-      margin-top: 2px;
-    }
-    .job-loc {
-      font-size: 13px;
-      color: var(--text-muted);
-      margin-top: 4px;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .score-badge {
-      font-size: 13px;
+      font-size: 18px;
       font-weight: 800;
-      padding: 6px 12px;
-      border-radius: 8px;
+      color: #fff;
+      letter-spacing: -0.3px;
+    }
+    .job-sub {
       display: flex;
       align-items: center;
-      gap: 6px;
-      white-space: nowrap;
+      gap: 12px;
+      color: var(--text-muted);
+      font-size: 13px;
+      margin-top: 3px;
+      flex-wrap: wrap;
     }
-    .score-9, .score-10 { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid #059669; }
-    .score-8 { background: rgba(99, 102, 241, 0.2); color: #a5b4fc; border: 1px solid #4f46e5; }
-    .score-7 { background: rgba(6, 182, 212, 0.2); color: #67e8f9; border: 1px solid #0891b2; }
-    .score-low { background: rgba(148, 163, 184, 0.15); color: #cbd5e1; border: 1px solid #475569; }
-    .reasoning {
-      background: rgba(0, 0, 0, 0.2);
-      padding: 12px;
-      border-radius: 8px;
-      font-size: 12.5px;
-      color: #cbd5e1;
-      margin: 12px 0;
-      border-left: 3px solid var(--accent);
-      max-height: 100px;
-      overflow-y: auto;
+    .job-sub span {
+      display: flex;
+      align-items: center;
+      gap: 5px;
     }
+
+    /* Score Badge */
+    .score-badge {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      width: 54px;
+      height: 54px;
+      border-radius: 12px;
+      font-weight: 800;
+      flex-shrink: 0;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.3);
+    }
+    .score-badge .num { font-size: 20px; line-height: 1; }
+    .score-badge .denom { font-size: 9px; opacity: 0.8; text-transform: uppercase; font-weight: 700; margin-top: 2px; }
+
+    .score-9 { background: linear-gradient(135deg, #059669, #10b981); color: #fff; box-shadow: 0 0 16px rgba(16, 185, 129, 0.5); }
+    .score-8 { background: linear-gradient(135deg, #0284c7, #06b6d4); color: #fff; box-shadow: 0 0 14px rgba(6, 182, 212, 0.4); }
+    .score-7 { background: linear-gradient(135deg, #4f46e5, #6366f1); color: #fff; }
+    .score-mid { background: #334155; color: #cbd5e1; }
+    .score-low { background: #1e293b; color: #64748b; }
+
     .badges-row {
       display: flex;
+      gap: 8px;
       flex-wrap: wrap;
-      gap: 6px;
-      margin-bottom: 16px;
-    }
-    .artifact-tag {
-      font-size: 11px;
-      padding: 3px 8px;
-      border-radius: 4px;
-      font-weight: 600;
-      display: inline-flex;
       align-items: center;
-      gap: 4px;
+      margin-top: 2px;
     }
-    .tag-resume { background: #064e3b; color: #a7f3d0; }
-    .tag-cover { background: #1e3a8a; color: #bfdbfe; }
-    .tag-status { background: #374151; color: #f3f4f6; }
-    .tag-applied { background: #065f46; color: #34d399; font-weight: 700; }
-    .tag-approved { background: #4c1d95; color: #c4b5fd; font-weight: 700; }
+    .tag {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .tag-resume { background: #1e3a5f; color: #60a5fa; border: 1px solid rgba(96, 165, 250, 0.3); }
+    .tag-cover { background: #1e3a3f; color: #34d399; border: 1px solid rgba(52, 211, 153, 0.3); }
+    .tag-email { background: #3b1d54; color: #e879f9; border: 1px solid rgba(232, 121, 249, 0.3); }
+    .tag-approved { background: #064e3b; color: #6ee7b7; border: 1px solid rgba(110, 231, 183, 0.4); }
+    .tag-applied { background: #713f12; color: #fde047; border: 1px solid rgba(253, 224, 71, 0.4); }
+
+    .reasoning {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 10px;
+      padding: 12px 16px;
+      font-size: 13px;
+      color: #cbd5e1;
+      line-height: 1.55;
+    }
+
+    /* Actions Bar */
     .actions-bar {
       display: flex;
       gap: 8px;
-      margin-top: 12px;
-      padding-top: 12px;
-      border-top: 1px solid var(--card-border);
       flex-wrap: wrap;
+      align-items: center;
+      border-top: 1px solid rgba(255, 255, 255, 0.07);
+      padding-top: 14px;
     }
     .btn {
-      padding: 7px 13px;
-      border-radius: 6px;
-      font-size: 12.5px;
-      font-weight: 600;
-      cursor: pointer;
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 700;
       border: none;
-      display: inline-flex;
+      cursor: pointer;
+      display: flex;
       align-items: center;
       gap: 6px;
       text-decoration: none;
-      transition: all 0.15s;
+      transition: all 0.15s ease;
     }
-    .btn-apply { background: #10b981; color: white; }
-    .btn-apply:hover { background: #059669; }
-    .btn-approve { background: var(--accent); color: white; }
-    .btn-approve:hover { background: var(--accent-hover); }
-    .btn-preview { background: #334155; color: #e2e8f0; }
-    .btn-preview:hover { background: #475569; }
-    .btn-link { background: #1e293b; color: #94a3b8; border: 1px solid var(--card-border); }
-    .btn-link:hover { color: white; border-color: #64748b; }
-    .btn-done { background: #047857; color: white; }
+    .btn:hover {
+      transform: translateY(-1px);
+      filter: brightness(1.1);
+    }
+    .btn-brave {
+      background: linear-gradient(135deg, #ea580c, #f97316);
+      color: white;
+      box-shadow: 0 2px 10px rgba(249, 115, 22, 0.3);
+    }
+    .btn-tailor {
+      background: linear-gradient(135deg, #9333ea, #a855f7);
+      color: white;
+      box-shadow: 0 2px 10px rgba(168, 85, 247, 0.3);
+    }
+    .btn-outreach {
+      background: #0284c7;
+      color: white;
+    }
+    .btn-preview {
+      background: #334155;
+      color: #e2e8f0;
+    }
+    .btn-approve {
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid #10b981;
+      color: #34d399;
+    }
+    .btn-applied {
+      background: rgba(245, 158, 11, 0.15);
+      border: 1px solid #f59e0b;
+      color: #fbbf24;
+    }
+    .btn-assistant {
+      background: #4f46e5;
+      color: white;
+    }
+    .btn-email {
+      background: #7c3aed;
+      color: white;
+    }
 
-    /* Modal for PDF Preview */
+    /* Modal Backdrop */
     .modal-backdrop {
+      display: none;
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0,0,0,0.75);
-      backdrop-filter: blur(4px);
-      display: none;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(8px);
+      z-index: 9999;
       align-items: center;
       justify-content: center;
-      z-index: 1000;
       padding: 20px;
     }
     .modal-content {
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      border-radius: 12px;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 16px;
       width: 100%;
       max-width: 960px;
-      height: 90vh;
+      max-height: 90vh;
       display: flex;
       flex-direction: column;
       overflow: hidden;
-      box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5);
+      box-shadow: 0 25px 50px rgba(0,0,0,0.6);
     }
     .modal-header {
-      padding: 14px 20px;
-      border-bottom: 1px solid var(--card-border);
+      padding: 16px 24px;
+      border-bottom: 1px solid #1e293b;
       display: flex;
       justify-content: space-between;
       align-items: center;
     }
-    .modal-header h3 { font-size: 16px; font-weight: 600; }
+    .modal-header h3 { font-size: 16px; font-weight: 700; color: #fff; }
     .modal-close {
       background: transparent;
       border: none;
@@ -326,87 +576,144 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       font-size: 18px;
       cursor: pointer;
     }
-    .modal-close:hover { color: white; }
+    .modal-close:hover { color: #fff; }
     .modal-body {
       flex: 1;
-      background: #525659;
+      padding: 0;
+      height: 75vh;
+      background: #090d16;
     }
-    .modal-body iframe {
-      width: 100%;
-      height: 100%;
-      border: none;
-    }
+    .modal-body iframe { width: 100%; height: 100%; border: none; }
+
+    /* Toast Notification */
     .toast {
       position: fixed;
       bottom: 24px;
       right: 24px;
       background: #1e1b4b;
-      color: #e0e7ff;
       border: 1px solid #6366f1;
+      color: #fff;
       padding: 12px 20px;
-      border-radius: 8px;
+      border-radius: 10px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
       font-size: 13px;
+      font-weight: 600;
+      z-index: 99999;
       display: none;
-      z-index: 2000;
-      box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3);
+      align-items: center;
+      gap: 10px;
+      animation: slideUp 0.25s ease-out;
+    }
+    @keyframes slideUp {
+      from { transform: translateY(20px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    /* Confetti Canvas */
+    #confetti-canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      pointer-events: none;
+      z-index: 999999;
     }
   </style>
 </head>
 <body>
+  <canvas id="confetti-canvas"></canvas>
 
   <header>
     <div class="brand">
-      <i class="fa-solid fa-plane-departure" style="color: #818cf8; font-size: 20px;"></i>
-      <h1>ApplyPilot Review Dashboard</h1>
-      <span class="badge">Phase 2 & 3 Active</span>
+      <i class="fa-solid fa-bolt-lightning brand-logo"></i>
+      <div>
+        <div class="brand-title">ApplyPilot 2.0</div>
+      </div>
+      <div class="status-pill">
+        <div class="pulse-dot"></div>
+        <span>Live System Active</span>
+      </div>
     </div>
-    <div class="profile-pill">
-      <i class="fa-solid fa-user-check" style="color: #34d399;"></i>
-      <span><strong>Deepak S H</strong> (SDE-I Backend @ Meesho | RVCE CSE 8.92)</span>
+
+    <!-- Quick Copy Drawer for Candidate Info -->
+    <div class="quick-bar">
+      <div class="quick-pill" onclick="copyText('8431433659', 'Phone Number')"><i class="fa-solid fa-phone"></i> 8431433659</div>
+      <div class="quick-pill" onclick="copyText('deepaksh2002@gmail.com', 'Email')"><i class="fa-solid fa-envelope"></i> deepaksh2002@gmail.com</div>
+      <div class="quick-pill" onclick="copyText('https://www.linkedin.com/in/deepak-s-h-851a76201', 'LinkedIn URL')"><i class="fa-brands fa-linkedin"></i> LinkedIn</div>
+      <div class="quick-pill" onclick="copyText('20 LPA', 'Current CTC')"><i class="fa-solid fa-indian-rupee-sign"></i> 20 LPA</div>
+      <div class="quick-pill" onclick="copyText('Immediate', 'Notice Period')"><i class="fa-solid fa-bolt"></i> Immediate Notice</div>
+      <div class="quick-pill" onclick="openDirectUrl('https://www.linkedin.com/feed/')" style="background: #0a66c2; color: #fff; font-weight: 700;"><i class="fa-brands fa-linkedin"></i> Open LinkedIn</div>
     </div>
   </header>
 
   <div class="container">
+    <!-- Energetic Stats Cards -->
     <div class="stats-grid">
       <div class="stat-card">
-        <span class="label">Total Scraped</span>
-        <span class="val" id="stat-total">0</span>
+        <span class="label">Total Discoveries</span>
+        <span class="val" id="stat-total" style="color: #38bdf8;">0</span>
+      </div>
+      <div class="stat-card" style="border-color: rgba(16, 185, 129, 0.4);">
+        <span class="label">🔥 9/10 Dream Matches</span>
+        <span class="val" id="stat-nine" style="color: #34d399;">0</span>
       </div>
       <div class="stat-card">
-        <span class="label">High-Fit Matches (&ge; 7)</span>
-        <span class="val" id="stat-high" style="color: #34d399;">0</span>
+        <span class="label">⚡ High Fit (≥ 7)</span>
+        <span class="val" id="stat-high" style="color: #818cf8;">0</span>
       </div>
       <div class="stat-card">
-        <span class="label">Tailored Resumes Ready</span>
-        <span class="val" id="stat-tailored" style="color: #818cf8;">0</span>
+        <span class="label">🎯 Approved Shortlist</span>
+        <span class="val" id="stat-approved" style="color: #a855f7;">0</span>
       </div>
       <div class="stat-card">
-        <span class="label">Cover Letters Ready</span>
-        <span class="val" id="stat-cover" style="color: #38bdf8;">0</span>
+        <span class="label">📄 Tailored Resumes</span>
+        <span class="val" id="stat-tailored" style="color: #38bdf8;">0</span>
       </div>
       <div class="stat-card">
-        <span class="label">Applied Count</span>
+        <span class="label">🏆 Applications Applied</span>
         <span class="val" id="stat-applied" style="color: #fbbf24;">0</span>
       </div>
     </div>
 
-    <div class="controls">
-      <div class="tabs">
-        <button class="tab-btn active" onclick="setTab('high')">High Fit (&ge; 7/10)</button>
-        <button class="tab-btn" onclick="setTab('top')">Top Matches (&ge; 8/10)</button>
-        <button class="tab-btn" onclick="setTab('approved')">Approved Queue</button>
-        <button class="tab-btn" onclick="setTab('applied')">Applied</button>
-        <button class="tab-btn" onclick="setTab('all')">All Opportunities</button>
-      </div>
-      <div class="search-box">
-        <i class="fa-solid fa-magnifying-glass"></i>
-        <input type="text" id="search-input" placeholder="Search by company, role, stack..." oninput="renderJobs()">
+    <!-- Active Tab Announcement Banner -->
+    <div id="queue-banner" class="queue-banner" style="display: none;">
+      <div class="queue-banner-title">
+        <i class="fa-solid fa-bullseye" style="color: #c084fc; font-size: 18px;"></i>
+        <span><strong>Approved Shortlist:</strong> Apply to these vetted roles today. Click <strong>[🚀 Open in Brave]</strong> or generate JIT tailored resumes on-demand!</span>
       </div>
     </div>
 
-    <div id="jobs-container" class="jobs-grid">
-      <!-- Injected via JavaScript -->
+    <!-- Tabs & Search -->
+    <div class="controls">
+      <div class="tabs">
+        <button class="tab-btn active" onclick="setTab('high')">
+          <i class="fa-solid fa-fire"></i> High Fit (≥ 7)
+          <span class="tab-badge" id="badge-high">0</span>
+        </button>
+        <button class="tab-btn" onclick="setTab('top')">
+          <i class="fa-solid fa-bolt"></i> Top Matches (≥ 8)
+          <span class="tab-badge" id="badge-top">0</span>
+        </button>
+        <button class="tab-btn" onclick="setTab('approved')" style="color: #c084fc;">
+          <i class="fa-solid fa-circle-check"></i> Approved Queue
+          <span class="tab-badge" id="badge-approved" style="background:#7c3aed;color:#fff;">0</span>
+        </button>
+        <button class="tab-btn" onclick="setTab('applied')">
+          <i class="fa-solid fa-trophy"></i> Applied
+          <span class="tab-badge" id="badge-applied">0</span>
+        </button>
+        <button class="tab-btn" onclick="setTab('all')">All Opportunities</button>
+      </div>
+
+      <div class="search-box">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input type="text" id="search-input" placeholder="Search company, skills (Java, Go, Kafka)..." oninput="renderJobs()">
+      </div>
     </div>
+
+    <!-- Injected Cards -->
+    <div id="jobs-container" class="jobs-grid"></div>
   </div>
 
   <!-- PDF Preview Modal -->
@@ -429,9 +736,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         <h3 id="referral-modal-title" style="color:#38bdf8;"><i class="fa-solid fa-people-arrows"></i> LinkedIn Referrals & Outreach</h3>
         <button class="modal-close" onclick="closeReferralModal()"><i class="fa-solid fa-xmark"></i></button>
       </div>
-      <div id="referral-modal-body" style="padding: 24px; color: #cbd5e1; font-size: 14px; line-height: 1.6;">
-        <!-- Injected via JavaScript -->
-      </div>
+      <div id="referral-modal-body" style="padding: 24px; color: #cbd5e1; font-size: 14px; line-height: 1.6;"></div>
     </div>
   </div>
 
@@ -454,96 +759,233 @@ HTML_DASHBOARD = """<!DOCTYPE html>
 
     function updateStats() {
       document.getElementById('stat-total').textContent = allJobs.length;
+      document.getElementById('stat-nine').textContent = allJobs.filter(j => j.fit_score >= 9).length;
       document.getElementById('stat-high').textContent = allJobs.filter(j => j.fit_score >= 7).length;
       document.getElementById('stat-tailored').textContent = allJobs.filter(j => !!j.tailored_resume_path).length;
-      document.getElementById('stat-cover').textContent = allJobs.filter(j => !!j.cover_letter_path).length;
+      document.getElementById('stat-approved').textContent = allJobs.filter(j => j.apply_status === 'approved').length;
       document.getElementById('stat-applied').textContent = allJobs.filter(j => j.apply_status === 'applied').length;
+
+      document.getElementById('badge-high').textContent = allJobs.filter(j => j.fit_score >= 7).length;
+      document.getElementById('badge-top').textContent = allJobs.filter(j => j.fit_score >= 8).length;
+      document.getElementById('badge-approved').textContent = allJobs.filter(j => j.apply_status === 'approved').length;
+      document.getElementById('badge-applied').textContent = allJobs.filter(j => j.apply_status === 'applied').length;
     }
 
     function setTab(tab) {
       currentTab = tab;
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-      event.target.classList.add('active');
+      event.currentTarget.classList.add('active');
+
+      const banner = document.getElementById('queue-banner');
+      if (tab === 'approved') {
+        banner.style.display = 'flex';
+      } else {
+        banner.style.display = 'none';
+      }
+
       renderJobs();
     }
 
     function renderJobs() {
       const q = document.getElementById('search-input').value.toLowerCase().trim();
       let filtered = allJobs.filter(job => {
-        // Tab filter
-        if (currentTab === 'high' && !(job.fit_score >= 7)) return false;
-        if (currentTab === 'top' && !(job.fit_score >= 8)) return false;
+        if (currentTab === 'high' && (job.fit_score === null || job.fit_score < 7)) return false;
+        if (currentTab === 'top' && (job.fit_score === null || job.fit_score < 8)) return false;
         if (currentTab === 'approved' && job.apply_status !== 'approved') return false;
         if (currentTab === 'applied' && job.apply_status !== 'applied') return false;
 
-        // Search text
         if (q) {
-          const matchStr = (job.company + ' ' + job.title + ' ' + job.location + ' ' + (job.score_reasoning || '')).toLowerCase();
-          if (!matchStr.includes(q)) return false;
+          const hay = `${job.company} ${job.title} ${job.location} ${job.score_reasoning || ''}`.toLowerCase();
+          if (!hay.includes(q)) return false;
         }
         return true;
       });
 
       const container = document.getElementById('jobs-container');
       if (filtered.length === 0) {
-        container.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 48px; color: var(--text-muted);">No jobs match the current filter.</div>`;
+        container.innerHTML = `
+          <div style="text-align: center; padding: 60px 20px; color: #64748b; background: rgba(15,23,42,0.4); border-radius: 16px; border: 1px dashed #334155;">
+            <i class="fa-regular fa-folder-open" style="font-size: 36px; margin-bottom: 12px; opacity: 0.6;"></i>
+            <h3 style="color: #cbd5e1; font-size: 16px;">No opportunities in this tab</h3>
+            <p style="font-size: 13px; margin-top: 6px;">Try switching tabs or adjusting search filter.</p>
+          </div>
+        `;
         return;
       }
 
       container.innerHTML = filtered.map(job => {
-        const scoreClass = job.fit_score >= 9 ? 'score-9' : job.fit_score === 8 ? 'score-8' : job.fit_score === 7 ? 'score-7' : 'score-low';
+        const score = job.fit_score ?? 0;
+        const scoreClass = score >= 9 ? 'score-9' : score >= 8 ? 'score-8' : score >= 7 ? 'score-7' : score >= 5 ? 'score-mid' : 'score-low';
+        const cardClass = score >= 9 ? 'job-card super-match' : score >= 8 ? 'job-card top-match' : 'job-card';
         const hasResume = !!job.tailored_resume_path;
         const hasCover = !!job.cover_letter_path;
-        const isApplied = job.apply_status === 'applied';
         const isApproved = job.apply_status === 'approved';
+        const isApplied = job.apply_status === 'applied';
+
+        const initial = (job.company || 'C').charAt(0).toUpperCase();
 
         return `
-          <div class="job-card">
-            <div>
-              <div class="job-header">
+          <div class="${cardClass}" id="card-${job.rowid}">
+            <div class="card-top">
+              <div class="job-meta">
+                <div class="company-avatar">${initial}</div>
                 <div>
-                  <div class="job-company">${job.company}</div>
-                  <div class="job-title">${job.title}</div>
-                  <div class="job-loc"><i class="fa-solid fa-location-dot"></i> ${job.location || 'India'}</div>
-                </div>
-                <div class="score-badge ${scoreClass}">
-                  <i class="fa-solid fa-star"></i> ${job.fit_score || 0}/10
+                  <div class="job-title-row">
+                    <span class="job-title">${job.title}</span>
+                  </div>
+                  <div class="job-sub">
+                    <span><i class="fa-regular fa-building"></i> <strong>${job.company}</strong></span>
+                    <span><i class="fa-solid fa-location-dot"></i> ${job.location}</span>
+                  </div>
                 </div>
               </div>
 
-              <div class="badges-row">
-                ${job.recruiter_email ? `<span class="artifact-tag" style="background:#581c87;color:#f5d0fe;"><i class="fa-solid fa-envelope"></i> ${job.recruiter_email}</span>` : ''}
-                ${hasResume ? `<span class="artifact-tag tag-resume"><i class="fa-solid fa-file-pdf"></i> Tailored Resume</span>` : ''}
-                ${hasCover ? `<span class="artifact-tag tag-cover"><i class="fa-solid fa-envelope-open-text"></i> Cover Letter</span>` : ''}
-                ${isApplied ? `<span class="artifact-tag tag-applied"><i class="fa-solid fa-check-double"></i> Applied</span>` : isApproved ? `<span class="artifact-tag tag-approved"><i class="fa-solid fa-thumbs-up"></i> Approved</span>` : ''}
+              <div class="score-badge ${scoreClass}">
+                <span class="num">${score}</span>
+                <span class="denom">FIT / 10</span>
               </div>
-
-              ${job.score_reasoning ? `<div class="reasoning">${job.score_reasoning.replace(/\\n/g, '<br>')}</div>` : ''}
             </div>
 
+            <div class="badges-row">
+              ${job.recruiter_email ? `<span class="tag tag-email"><i class="fa-solid fa-envelope"></i> ${job.recruiter_email}</span>` : ''}
+              ${hasResume ? `<span class="tag tag-resume"><i class="fa-solid fa-file-pdf"></i> Tailored Resume Ready</span>` : '<span class="tag" style="background:#334155;color:#94a3b8;"><i class="fa-solid fa-clock"></i> Base Resume</span>'}
+              ${hasCover ? `<span class="tag tag-cover"><i class="fa-solid fa-envelope-open-text"></i> Cover Letter Ready</span>` : ''}
+              ${isApplied ? `<span class="tag tag-applied"><i class="fa-solid fa-check-double"></i> Applied</span>` : isApproved ? `<span class="tag tag-approved"><i class="fa-solid fa-thumbs-up"></i> Approved Shortlist</span>` : ''}
+            </div>
+
+            ${job.score_reasoning ? `<div class="reasoning">${job.score_reasoning.replace(/\\n/g, '<br>')}</div>` : ''}
+
             <div class="actions-bar">
-              ${hasResume ? `<button class="btn btn-preview" onclick="previewPDF('${job.tailored_resume_path}', '${job.company} - ${job.title} Resume')"><i class="fa-solid fa-eye"></i> Resume PDF</button>` : ''}
-              ${hasCover ? `<button class="btn btn-preview" onclick="previewPDF('${job.cover_letter_path}', '${job.company} - Cover Letter')"><i class="fa-solid fa-eye"></i> Cover PDF</button>` : ''}
-              ${job.recruiter_email ? `<a class="btn" style="background:#7c3aed;color:white;" href="mailto:${job.recruiter_email}?subject=Application for ${encodeURIComponent(job.title)} - Deepak S H&body=Hi,%0D%0A%0D%0AI came across the ${encodeURIComponent(job.title)} opening at ${encodeURIComponent(job.company)}. I am an SDE-I Backend Engineer at Meesho with 1.3 years of experience in Java, Go, Kafka, Redis, and Distributed Systems, and graduated from RVCE (CGPA 8.92).%0D%0A%0D%0AI would love to connect and share my resume.%0D%0A%0D%0ABest regards,%0D%0ADeepak S H%0D%0A8431433659"><i class="fa-solid fa-paper-plane"></i> Email Recruiter</a>` : ''}
-              
-              <button class="btn" style="background:#0284c7;color:white;" onclick="openReferralModal(${job.rowid})">
+              <!-- Live Brave Browser Launcher -->
+              <button class="btn btn-brave" onclick="openInBrave(${job.rowid})">
+                <i class="fa-brands fa-brave"></i> Open in Brave (Live)
+              </button>
+
+              <!-- On-Demand Tailoring Button (JIT) -->
+              ${!hasResume ? `
+                <button class="btn btn-tailor" id="btn-tailor-${job.rowid}" onclick="tailorSingleJob(${job.rowid})">
+                  <i class="fa-solid fa-wand-magic-sparkles"></i> Tailor Resume (AI)
+                </button>
+              ` : `
+                <button class="btn btn-preview" onclick="previewPDF('${job.tailored_resume_path}', '${job.company} - ${job.title} Resume')">
+                  <i class="fa-solid fa-eye"></i> View Resume PDF
+                </button>
+              `}
+
+              ${hasCover ? `
+                <button class="btn btn-preview" onclick="previewPDF('${job.cover_letter_path}', '${job.company} - Cover Letter')">
+                  <i class="fa-solid fa-eye"></i> Cover PDF
+                </button>
+              ` : ''}
+
+              <!-- Referral Outreach Modal Button -->
+              <button class="btn btn-outreach" onclick="openReferralModal(${job.rowid})">
                 <i class="fa-solid fa-people-arrows"></i> Referral Outreach
               </button>
 
-              <button class="btn btn-apply" onclick="launchAssistant(${job.rowid})">
-                <i class="fa-solid fa-bolt"></i> 1-Click Apply
+              ${job.recruiter_email ? `
+                <a class="btn btn-email" href="mailto:${job.recruiter_email}?subject=Application for ${encodeURIComponent(job.title)} - Deepak S H&body=Hi,%0D%0A%0D%0AI came across the ${encodeURIComponent(job.title)} opening at ${encodeURIComponent(job.company)}. I am an SDE-I Backend Engineer at Meesho with 1.3 years of experience in Java, Go, Kafka, Redis, and Distributed Systems, and graduated from RVCE (CGPA 8.92).%0D%0A%0D%0AI would love to connect and share my resume.%0D%0A%0D%0ABest regards,%0D%0ADeepak S H%0D%0A8431433659">
+                  <i class="fa-solid fa-paper-plane"></i> Email Recruiter
+                </a>
+              ` : ''}
+
+              ${!isApproved && !isApplied ? `
+                <button class="btn btn-approve" onclick="approveJob(${job.rowid})">
+                  <i class="fa-solid fa-check"></i> Approve
+                </button>
+              ` : ''}
+
+              ${!isApplied ? `
+                <button class="btn btn-applied" onclick="markApplied(${job.rowid})">
+                  <i class="fa-solid fa-check-circle"></i> Mark Applied
+                </button>
+              ` : ''}
+
+              <button class="btn btn-assistant" onclick="launchAssistant(${job.rowid})">
+                <i class="fa-solid fa-bolt"></i> Assistant
               </button>
-
-              ${!isApproved && !isApplied ? `<button class="btn btn-approve" onclick="approveJob(${job.rowid})"><i class="fa-solid fa-check"></i> Approve</button>` : ''}
-              ${!isApplied ? `<button class="btn btn-done" onclick="markApplied(${job.rowid})"><i class="fa-solid fa-check-circle"></i> Mark Applied</button>` : ''}
-
-              <a class="btn btn-link" href="${job.apply_url || job.url}" target="_blank" rel="noopener">
-                <i class="fa-solid fa-arrow-up-right-from-square"></i> Portal
-              </a>
             </div>
           </div>
         `;
       }).join('');
+    }
+
+    /* Actions */
+
+    async function openInBrave(rowid) {
+      showToast('Opening in your active Brave browser & copying Tailored PDF path to clipboard...');
+      const res = await fetch(`/api/jobs/${rowid}/open_brave`, { method: 'POST' });
+      const data = await res.json();
+      if (data.status === 'ok') {
+        showToast(data.message);
+      } else {
+        showToast('Error: ' + data.message);
+      }
+    }
+
+    async function tailorSingleJob(rowid) {
+      const btn = document.getElementById(`btn-tailor-${rowid}`);
+      if (btn) {
+        btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> Tailoring with AI...`;
+        btn.disabled = true;
+      }
+      showToast('Tailoring resume & compiling PDF via Tectonic engine (takes ~4s)...');
+
+      try {
+        const res = await fetch(`/api/jobs/${rowid}/tailor`, { method: 'POST' });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          showToast('✓ Resume tailored & PDF compiled successfully!');
+          triggerConfetti();
+          await fetchJobs();
+          if (data.tailored_resume_path) {
+            previewPDF(data.tailored_resume_path, `${data.company} - ${data.job_title} Tailored Resume`);
+          }
+        } else {
+          showToast('Error tailoring: ' + data.message);
+          if (btn) {
+            btn.innerHTML = `<i class="fa-solid fa-wand-magic-sparkles"></i> Tailor Resume (AI)`;
+            btn.disabled = false;
+          }
+        }
+      } catch (err) {
+        showToast('Tailoring failed: ' + err);
+        if (btn) {
+          btn.innerHTML = `<i class="fa-solid fa-wand-magic-sparkles"></i> Tailor Resume (AI)`;
+          btn.disabled = false;
+        }
+      }
+    }
+
+    async function approveJob(rowid) {
+      const res = await fetch(`/api/jobs/${rowid}/approve`, { method: 'POST' });
+      const data = await res.json();
+      if (data.status === 'ok') {
+        showToast('⭐ Job added to your Approved Queue! Vetted and ready.');
+        triggerConfetti();
+        fetchJobs();
+      }
+    }
+
+    async function markApplied(rowid) {
+      const res = await fetch(`/api/jobs/${rowid}/applied`, { method: 'POST' });
+      const data = await res.json();
+      if (data.status === 'ok') {
+        showToast('🎉 BOOM! Job recorded as APPLIED! Keep up the momentum, Deepak!');
+        triggerConfetti();
+        fetchJobs();
+      }
+    }
+
+    async function launchAssistant(rowid) {
+      showToast('Launching 1-Click Playwright Assistant in Brave...');
+      const res = await fetch(`/api/jobs/${rowid}/launch`, { method: 'POST' });
+      const data = await res.json();
+      if (data.status === 'ok') {
+        showToast('Brave launched with candidate profile & multi-page observer!');
+      } else {
+        showToast('Error: ' + data.message);
+      }
     }
 
     function previewPDF(pdfPath, title) {
@@ -558,6 +1000,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       document.getElementById('pdf-frame').src = '';
     }
 
+    /* Referral & LinkedIn Modal */
     function openReferralModal(rowid) {
       const job = allJobs.find(j => j.rowid === rowid);
       if (!job) return;
@@ -566,42 +1009,48 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       document.getElementById('referral-modal-title').innerHTML = `<i class="fa-solid fa-people-arrows"></i> LinkedIn Referrals: <strong>${job.company}</strong> (${job.title})`;
 
       const html = `
-        <div style="background: rgba(30, 41, 59, 0.7); border: 1px solid #334155; border-radius: 8px; padding: 16px; margin-bottom: 20px;">
-          <h4 style="margin: 0 0 10px 0; color: #38bdf8;"><i class="fa-brands fa-linkedin"></i> 1. Who to message on LinkedIn (1-Click Searches in Brave)</h4>
-          <p style="margin: 0 0 12px 0; font-size: 13px; color: #94a3b8;">
+        <div style="background: rgba(30, 41, 59, 0.7); border: 1px solid #334155; border-radius: 12px; padding: 18px; margin-bottom: 20px;">
+          <h4 style="margin: 0 0 8px 0; color: #38bdf8; font-size: 15px;"><i class="fa-brands fa-linkedin"></i> 1. Targeted LinkedIn Searches (Opens in your active Brave)</h4>
+          <p style="margin: 0 0 14px 0; font-size: 13px; color: #94a3b8;">
             💡 <em>Alumni referrals have a 50-80% response rate compared to 2% for cold portal applications!</em>
           </p>
           <div style="display: flex; flex-wrap: wrap; gap: 10px;">
-            <a href="${o.alumni_search_url || '#'}" target="_blank" class="btn" style="background:#0284c7;color:white;text-decoration:none;">
+            <a href="${o.alumni_search_url || '#'}" target="_blank" class="btn" style="background:#0284c7;color:white;text-decoration:none;padding:9px 14px;">
               🎓 Find RVCE Alumni at ${job.company}
             </a>
-            <a href="${o.recruiter_search_url || '#'}" target="_blank" class="btn" style="background:#7c3aed;color:white;text-decoration:none;">
+            <a href="${o.recruiter_search_url || '#'}" target="_blank" class="btn" style="background:#7c3aed;color:white;text-decoration:none;padding:9px 14px;">
               🎯 Find Tech Recruiters at ${job.company}
             </a>
-            <a href="${o.lead_search_url || '#'}" target="_blank" class="btn" style="background:#475569;color:white;text-decoration:none;">
+            <a href="${o.lead_search_url || '#'}" target="_blank" class="btn" style="background:#334155;color:white;text-decoration:none;padding:9px 14px;">
               ⚡ Find Backend Engineering Managers
             </a>
+          </div>
+
+          <!-- Direct Connection Message Box -->
+          <div style="margin-top: 16px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.08); display: flex; gap: 10px; align-items: center;">
+            <input type="text" id="direct-conn-input" placeholder="Paste connection's LinkedIn profile URL or name..." style="flex:1; background: #0f172a; border: 1px solid #334155; color: #fff; padding: 8px 12px; border-radius: 8px; font-size: 12px;">
+            <button class="btn" style="background:#0a66c2;color:white;" onclick="openDirectConnectionChat()"><i class="fa-solid fa-paper-plane"></i> Open Chat</button>
           </div>
         </div>
 
         <div style="margin-bottom: 20px;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-            <h4 style="margin: 0; color: #4ade80;"><i class="fa-solid fa-graduation-cap"></i> Template A: RVCE Alumni Referral Request</h4>
-            <button class="btn" style="background: #10b981; color: white; padding: 4px 10px; font-size: 12px;" onclick="copyOutreachText('alumni-msg-text')">
+            <h4 style="margin: 0; color: #4ade80; font-size: 14px;"><i class="fa-solid fa-graduation-cap"></i> Template A: RVCE Alumni Referral Request</h4>
+            <button class="btn" style="background: #10b981; color: white; padding: 4px 10px; font-size: 11px;" onclick="copyOutreachText('alumni-msg-text')">
               <i class="fa-regular fa-copy"></i> Copy Message
             </button>
           </div>
-          <textarea id="alumni-msg-text" style="width: 100%; height: 130px; background: #0f172a; color: #f1f5f9; border: 1px solid #334155; border-radius: 6px; padding: 10px; font-family: monospace; font-size: 12px; resize: vertical;" readonly>${o.alumni_message || ''}</textarea>
+          <textarea id="alumni-msg-text" style="width: 100%; height: 130px; background: #0f172a; color: #f1f5f9; border: 1px solid #334155; border-radius: 8px; padding: 12px; font-family: monospace; font-size: 12px; resize: vertical;" readonly>${o.alumni_message || ''}</textarea>
         </div>
 
         <div style="margin-bottom: 10px;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-            <h4 style="margin: 0; color: #a78bfa;"><i class="fa-solid fa-bullhorn"></i> Template B: Recruiter Direct Message</h4>
-            <button class="btn" style="background: #7c3aed; color: white; padding: 4px 10px; font-size: 12px;" onclick="copyOutreachText('recruiter-msg-text')">
+            <h4 style="margin: 0; color: #a78bfa; font-size: 14px;"><i class="fa-solid fa-bullhorn"></i> Template B: Recruiter Direct Message</h4>
+            <button class="btn" style="background: #7c3aed; color: white; padding: 4px 10px; font-size: 11px;" onclick="copyOutreachText('recruiter-msg-text')">
               <i class="fa-regular fa-copy"></i> Copy Message
             </button>
           </div>
-          <textarea id="recruiter-msg-text" style="width: 100%; height: 130px; background: #0f172a; color: #f1f5f9; border: 1px solid #334155; border-radius: 6px; padding: 10px; font-family: monospace; font-size: 12px; resize: vertical;" readonly>${o.recruiter_message || ''}</textarea>
+          <textarea id="recruiter-msg-text" style="width: 100%; height: 130px; background: #0f172a; color: #f1f5f9; border: 1px solid #334155; border-radius: 8px; padding: 12px; font-family: monospace; font-size: 12px; resize: vertical;" readonly>${o.recruiter_message || ''}</textarea>
         </div>
       `;
 
@@ -613,6 +1062,25 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       document.getElementById('referral-modal').style.display = 'none';
     }
 
+    function openDirectConnectionChat() {
+      const val = document.getElementById('direct-conn-input').value.trim();
+      if (!val) {
+        showToast('Please enter a connection URL or name.');
+        return;
+      }
+      let url = val;
+      if (!url.startsWith('http')) {
+        url = `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(val)}`;
+      }
+      window.open(url, '_blank');
+      showToast('Opening LinkedIn profile in Brave...');
+    }
+
+    function copyText(val, label) {
+      navigator.clipboard.writeText(val);
+      showToast(`Copied ${label} to clipboard!`);
+    }
+
     function copyOutreachText(elemId) {
       const el = document.getElementById(elemId);
       if (el) {
@@ -621,43 +1089,72 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       }
     }
 
-    async function approveJob(rowid) {
-      const res = await fetch(`/api/jobs/${rowid}/approve`, { method: 'POST' });
-      const data = await res.json();
-      if (data.status === 'ok') {
-        showToast('Job marked Approved!');
-        fetchJobs();
-      }
-    }
-
-    async function markApplied(rowid) {
-      const res = await fetch(`/api/jobs/${rowid}/applied`, { method: 'POST' });
-      const data = await res.json();
-      if (data.status === 'ok') {
-        showToast('Job recorded as APPLIED in database and CSV updated!');
-        fetchJobs();
-      }
-    }
-
-    async function launchAssistant(rowid) {
-      showToast('Launching 1-Click Playwright Assistant on your screen...');
-      const res = await fetch(`/api/jobs/${rowid}/launch`, { method: 'POST' });
-      const data = await res.json();
-      if (data.status === 'ok') {
-        showToast('Browser launched! Pre-filling candidate info & tailored PDF...');
-      } else {
-        showToast('Error: ' + data.message);
-      }
+    function openDirectUrl(url) {
+      window.open(url, '_blank');
     }
 
     function showToast(msg) {
       const t = document.getElementById('toast');
-      t.textContent = msg;
-      t.style.display = 'block';
+      t.innerHTML = `<i class="fa-solid fa-circle-info"></i> ${msg}`;
+      t.style.display = 'flex';
       setTimeout(() => { t.style.display = 'none'; }, 4000);
     }
 
+    /* Confetti Engine */
+    function triggerConfetti() {
+      const canvas = document.getElementById('confetti-canvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+
+      const particles = [];
+      const colors = ['#6366f1', '#10b981', '#38bdf8', '#f59e0b', '#ec4899', '#a855f7'];
+
+      for (let i = 0; i < 90; i++) {
+        particles.push({
+          x: canvas.width / 2,
+          y: canvas.height * 0.4,
+          r: Math.random() * 6 + 4,
+          dx: (Math.random() - 0.5) * 16,
+          dy: (Math.random() - 0.7) * 16,
+          color: colors[Math.floor(Math.random() * colors.length)],
+          tilt: Math.random() * 10,
+          tiltAngle: 0,
+          tiltAngleIncremental: (Math.random() * 0.07) + 0.05
+        });
+      }
+
+      let animationFrames = 0;
+      function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        particles.forEach(p => {
+          ctx.beginPath();
+          ctx.lineWidth = p.r / 2;
+          ctx.strokeStyle = p.color;
+          ctx.moveTo(p.x + p.tilt + (p.r / 4), p.y);
+          ctx.lineTo(p.x + p.tilt, p.y + p.tilt + (p.r / 4));
+          ctx.stroke();
+
+          p.x += p.dx;
+          p.y += p.dy;
+          p.dy += 0.35; // gravity
+          p.tiltAngle += p.tiltAngleIncremental;
+          p.tilt = Math.sin(p.tiltAngle) * 12;
+        });
+
+        animationFrames++;
+        if (animationFrames < 85) {
+          requestAnimationFrame(draw);
+        } else {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+      }
+      draw();
+    }
+
+    // Initial load
     fetchJobs();
+    setInterval(fetchJobs, 25000); // live sync every 25s
   </script>
 </body>
 </html>
@@ -708,7 +1205,6 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             jobs = [dict(zip(cols, r)) for r in rows]
 
             # Attach LinkedIn referral outreach data to each job
-            from applypilot.networking.outreach import generate_outreach_messages
             for j in jobs:
                 j["outreach"] = generate_outreach_messages(
                     company=j.get("company", ""),
@@ -753,8 +1249,61 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
 
-        # /api/jobs/{rowid}/approve
-        if path.startswith("/api/jobs/") and path.endswith("/approve"):
+        # 1. /api/jobs/{rowid}/tailor (On-Demand JIT Tailoring)
+        if path.startswith("/api/jobs/") and path.endswith("/tailor"):
+            parts = path.split("/")
+            rowid = int(parts[3])
+            res = tailor_single_job(rowid)
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps(res).encode("utf-8"))
+            return
+
+        # 2. /api/jobs/{rowid}/open_brave (Direct Open in Live Brave + Copy PDF path)
+        elif path.startswith("/api/jobs/") and path.endswith("/open_brave"):
+            parts = path.split("/")
+            rowid = int(parts[3])
+            conn = get_connection()
+            c = conn.cursor()
+            row = c.execute("SELECT application_url, url, tailored_resume_path FROM jobs WHERE rowid = ?", (rowid,)).fetchone()
+            if not row:
+                self.send_response(404)
+                self.end_headers()
+                return
+
+            apply_url = row[0] or row[1]
+            tailored_path = row[2]
+
+            # Copy PDF path to clipboard if available
+            msg_clip = ""
+            if tailored_path:
+                abs_pdf = (APP_DIR / tailored_path).resolve()
+                if abs_pdf.exists():
+                    try:
+                        subprocess.run(["powershell", "-Command", f"Set-Clipboard -Value '{str(abs_pdf)}'"], capture_output=True)
+                        msg_clip = " Tailored Resume PDF path copied to clipboard — press Ctrl+V to attach!"
+                    except Exception:
+                        pass
+
+            # Open directly in running Brave browser
+            if os.path.exists(BRAVE_EXE):
+                subprocess.Popen([BRAVE_EXE, apply_url])
+            else:
+                webbrowser.open(apply_url)
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "status": "ok",
+                "message": f"Opened portal in your active Brave browser!{msg_clip}"
+            }).encode("utf-8"))
+            return
+
+        # 3. /api/jobs/{rowid}/approve
+        elif path.startswith("/api/jobs/") and path.endswith("/approve"):
             parts = path.split("/")
             rowid = int(parts[3])
             conn = get_connection()
@@ -768,7 +1317,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps({"status": "ok", "rowid": rowid}).encode("utf-8"))
             return
 
-        # /api/jobs/{rowid}/applied
+        # 4. /api/jobs/{rowid}/applied
         elif path.startswith("/api/jobs/") and path.endswith("/applied"):
             parts = path.split("/")
             rowid = int(parts[3])
@@ -781,13 +1330,12 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps(res).encode("utf-8"))
             return
 
-        # /api/jobs/{rowid}/launch
+        # 5. /api/jobs/{rowid}/launch (Playwright Assistant)
         elif path.startswith("/api/jobs/") and path.endswith("/launch"):
             parts = path.split("/")
             rowid = int(parts[3])
             from applypilot.apply.assistant import launch_application_assistant
 
-            # Launch Playwright browser in background thread so HTTP response returns immediately
             t = threading.Thread(target=launch_application_assistant, args=(rowid, True), daemon=True)
             t.start()
 
@@ -805,7 +1353,7 @@ def start_dashboard_server(port: int = PORT, open_browser: bool = True):
     """Start the interactive dashboard server and open it in Chrome/default browser."""
     server = ThreadingHTTPServer(("127.0.0.1", port), DashboardHandler)
     url = f"http://127.0.0.1:{port}"
-    print(f"\n🚀 ApplyPilot Interactive Dashboard running at: {url}")
+    print(f"\n🚀 ApplyPilot 2.0 Command Dashboard running at: {url}")
     print("   Press Ctrl+C to stop the dashboard server.\n")
 
     if open_browser:
