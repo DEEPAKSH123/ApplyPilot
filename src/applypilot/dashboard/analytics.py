@@ -37,6 +37,8 @@ def normalize_source_name(strategy: str = "", url: str = "", company: str = "") 
         return "Lever Referral", "lever"
     if "whatsapp" in strat_lower or "kadegree" in url_lower:
         return "WhatsApp / KaDegree Referral", "whatsapp"
+    if "telegram" in strat_lower or "t.me" in url_lower:
+        return "Telegram Tech Channel", "telegram"
     if "linkedin" in url_lower or strat_lower == "jobspy":
         return "LinkedIn / JobSpy", "linkedin"
 
@@ -278,6 +280,8 @@ def get_application_analytics() -> dict[str, Any]:
                 color = "#fbbf24"
             elif s_code == "whatsapp":
                 color = "#10b981"
+            elif s_code == "telegram":
+                color = "#229ed9"
             elif s_code == "linkedin":
                 color = "#0284c7"
 

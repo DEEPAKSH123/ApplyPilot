@@ -2926,7 +2926,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
                 <a href="${job.kadegree_url || job.url}" target="_blank" rel="noopener noreferrer" class="btn" style="background: linear-gradient(135deg, #b45309, #d97706); color: white; text-decoration: none; padding: 7px 14px; font-size: 12px; font-weight: 700; border-radius: 8px; display: inline-flex; align-items: center; gap: 6px;" title="View referral post, referrer details & comments in Kannada Referral Community">
                   <i class="fa-solid fa-users-rays"></i> View on KaDegree
                 </a>
-                <button class="btn" style="background: rgba(217, 119, 6, 0.2); border: 1px solid #d97706; color: #fbbf24; font-size: 12px; font-weight: 700; border-radius: 8px; padding: 7px 12px;" onclick="copyKannadaPitch('${escapeHtml(job.company)}', '${escapeHtml(job.title)}')" title="Copy warm Kannada referral pitch (ನಮಸ್ಕಾರ...) to send to referrer">
+                <button class="btn" style="background: rgba(217, 119, 6, 0.2); border: 1px solid #d97706; color: #fbbf24; font-size: 12px; font-weight: 700; border-radius: 8px; padding: 7px 12px;" onclick="copyKannadaPitchByRowid(${job.rowid})" title="Copy warm Kannada referral pitch (ನಮಸ್ಕಾರ...) to send to referrer">
                   <i class="fa-regular fa-copy"></i> Copy Kannada Pitch
                 </button>
               ` : ''}
