@@ -1722,7 +1722,9 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     tailored_resume_path,
                     cover_letter_path,
                     apply_status,
-                    applied_at
+                    applied_at,
+                    COALESCE(full_description, '') AS full_desc,
+                    COALESCE(description, '') AS desc
                 FROM jobs
                 ORDER BY fit_score DESC NULLS LAST, discovered_at DESC
             """
@@ -1730,11 +1732,37 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             cols = [d[0] for d in c.description]
             all_raw = [dict(zip(cols, r)) for r in rows]
 
+            import re
+            seniority_cfg = cfg.get("seniority", {})
+            reject_titles = [t.lower() for t in seniority_cfg.get("reject_titles", [
+                "senior", "sr.", "sr ", "lead", "tech lead", "staff", "principal", "manager", "mgr", "director", "architect", "head"
+            ])]
+            exp_pattern = re.compile(r'(\d+)\+?\s*(?:to\s*(\d+))?\s*(?:years?|yrs?)(?:\s*of)?\s*experience', re.IGNORECASE)
+
             jobs = []
             for j in all_raw:
                 loc = (j.get("location") or "").lower()
+                tit = (j.get("title") or "").lower()
+
+                # 1. Location rejection (e.g. US-only, Canada, UK)
                 if any(rp in loc for rp in reject_patterns):
                     continue
+
+                # 2. Senior / Lead / Staff / Manager title rejection (Deepak has ~1.3 yrs experience)
+                if any(st in tit for st in reject_titles):
+                    continue
+
+                # 3. Explicit 4+ years experience rejection
+                text = f"{tit} {j.get('full_desc', '')} {j.get('desc', '')}"
+                matches = exp_pattern.findall(text)
+                if matches:
+                    years = [int(m[0]) for m in matches if m[0].isdigit()]
+                    if years and min(years) >= 4:
+                        continue
+
+                # Clean internal fields
+                j.pop('full_desc', None)
+                j.pop('desc', None)
                 jobs.append(j)
 
             # Attach LinkedIn referral outreach data to each job

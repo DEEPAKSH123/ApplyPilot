@@ -59,15 +59,23 @@ def export_opportunities_csv(output_path: Path | str | None = None) -> Path:
             COALESCE(cover_letter_path, '') AS cover_letter_pdf,
             COALESCE(discovered_at, '') AS discovered_at,
             COALESCE(scored_at, '') AS scored_at,
-            COALESCE(score_reasoning, '') AS match_reasoning
+            COALESCE(score_reasoning, '') AS match_reasoning,
+            COALESCE(full_description, '') AS full_desc,
+            COALESCE(description, '') AS desc
         FROM jobs
         ORDER BY fit_score DESC NULLS LAST, discovered_at DESC
     """
     rows = conn.execute(query).fetchall()
 
+    import re
     from applypilot.config import load_search_config
     cfg = load_search_config()
     reject_patterns = cfg.get("location", {}).get("reject_patterns", [])
+    seniority_cfg = cfg.get("seniority", {})
+    reject_titles = [t.lower() for t in seniority_cfg.get("reject_titles", [
+        "senior", "sr.", "sr ", "lead", "tech lead", "staff", "principal", "manager", "mgr", "director", "architect", "head"
+    ])]
+    exp_pattern = re.compile(r'(\d+)\+?\s*(?:to\s*(\d+))?\s*(?:years?|yrs?)(?:\s*of)?\s*experience', re.IGNORECASE)
 
     formatted_rows = []
     for r in rows:
@@ -75,10 +83,29 @@ def export_opportunities_csv(output_path: Path | str | None = None) -> Path:
         comp = row[0]
         tit = row[1]
         loc = (row[2] or "").lower()
+        full_desc = row[11]
+        desc = row[12]
 
-        # Filter out jobs that match reject patterns (e.g. US-only remote, Canada, UK)
+        # 1. Filter out jobs that match location reject patterns (e.g. US-only remote, Canada, UK)
         if any(rp.lower() in loc for rp in reject_patterns):
             continue
+
+        # 2. Filter out senior / high-experience titles (Deepak has ~1.3 yrs exp)
+        tit_lower = tit.lower()
+        if any(st in tit_lower for st in reject_titles):
+            continue
+
+        # 3. Filter out roles explicitly requiring 4+ years of experience
+        text = f"{tit} {full_desc} {desc}"
+        matches = exp_pattern.findall(text)
+        if matches:
+            years = [int(m[0]) for m in matches if m[0].isdigit()]
+            if years and min(years) >= 4:
+                continue
+
+        # Slice off full_desc and desc from CSV row
+        row = row[:11]
+
         # item 6: tailored_resume_pdf
         row[6] = _clean_path(row[6])
         # item 7: cover_letter_pdf
