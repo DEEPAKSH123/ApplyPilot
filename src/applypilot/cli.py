@@ -357,24 +357,94 @@ def assistant_cmd(
     target: str = typer.Argument("1", help="Job rank (e.g. '1' for top match), company keyword, rowid, or URL [default: 1]"),
     headed: bool = typer.Option(True, "--headed/--headless", help="Run browser in visible headed mode"),
 ) -> None:
-    """Launch Phase 3 Human-in-the-Loop 1-Click Application Assistant."""
+    """Launch Phase 3 Human-in-the-Loop 1-Click Application Assistant (Review Mode)."""
     _bootstrap()
     from applypilot.apply.assistant import launch_application_assistant
-    console.print(f"[bold green]Launching 1-Click Application Assistant for job {target}...[/bold green]")
-    res = launch_application_assistant(target, headed=headed)
+    console.print(f"[bold green]Launching Application Assistant for job {target}...[/bold green]")
+    res = launch_application_assistant(target, headed=headed, auto_submit=False)
     console.print(f"[bold cyan]Assistant finished: {res}[/bold cyan]")
+
+
+@app.command("auto-apply")
+def auto_apply_cmd(
+    target: str = typer.Argument("1", help="Job rank, keyword, rowid, URL, or 'batch' for multiple"),
+    limit: int = typer.Option(5, "--limit", "-l", help="Number of jobs to process if target is 'batch'"),
+    min_score: int = typer.Option(7, "--min-score", "-s", help="Minimum fit score threshold"),
+    auto_submit: bool = typer.Option(True, "--auto-submit/--review", help="Submit automatically vs pause for review"),
+    headed: bool = typer.Option(True, "--headed/--headless", help="Run browser in visible headed mode"),
+) -> None:
+    """Autonomous Auto-Apply (Kanistus Workflow: Autofill, screening Qs, resume upload, autonomous submission)."""
+    _bootstrap()
+    from applypilot.apply.assistant import launch_application_assistant, auto_apply_batch
+    if str(target).lower() in ("batch", "all", "queue"):
+        console.print(f"[bold green]Starting Autonomous Auto-Apply batch (Limit: {limit}, Min Score: {min_score}, Auto-Submit: {auto_submit})...[/bold green]")
+        res = auto_apply_batch(limit=limit, min_score=min_score, headed=headed, auto_submit=auto_submit)
+        console.print(f"[bold cyan]Batch finished: {res}[/bold cyan]")
+    else:
+        console.print(f"[bold green]Launching Autonomous Auto-Apply for job '{target}' (Auto-Submit: {auto_submit})...[/bold green]")
+        res = launch_application_assistant(target, headed=headed, auto_submit=auto_submit)
+        console.print(f"[bold cyan]Application finished: {res}[/bold cyan]")
 
 
 @app.command("whatsapp")
 def whatsapp_cmd(
     timeout: int = typer.Option(45, "--timeout", "-t", help="Timeout in seconds to wait for WhatsApp Web login"),
+    headless: bool = typer.Option(False, "--headless", help="Run browser in headless background mode"),
 ) -> None:
     """Connect to WhatsApp Web via Brave to monitor specified channels for hiring referrals."""
     _bootstrap()
     from applypilot.discovery.whatsapp import scrape_live_whatsapp_web
     console.print("[bold green]Starting WhatsApp Web channel monitor in Brave...[/bold green]")
-    count = scrape_live_whatsapp_web(wait_timeout_sec=timeout)
+    count = scrape_live_whatsapp_web(wait_timeout_sec=timeout, headless=headless)
     console.print(f"[bold cyan]WhatsApp sync complete! Ingested {count} new opportunities.[/bold cyan]")
+
+
+@app.command("telegram")
+def telegram_cmd() -> None:
+    """Scrape public Telegram tech and SDE community channels for new job leads."""
+    _bootstrap()
+    from applypilot.discovery.telegram import run_discovery
+    console.print("[bold green]Starting Telegram tech channels discovery...[/bold green]")
+    count = run_discovery()
+    console.print(f"[bold cyan]Telegram sync complete! Ingested {count} new opportunities.[/bold cyan]")
+
+
+@app.command("kadegree")
+def kadegree_cmd() -> None:
+    """Sync openings from KaDegree (Kannada Referral Community) directly into ApplyPilot."""
+    _bootstrap()
+    from applypilot.discovery.kadegree import sync_kadegree_jobs
+    console.print("[bold green]Connecting to KaDegree Referral Community via Brave session...[/bold green]")
+    res = sync_kadegree_jobs()
+    if res.get("status") == "ok":
+        console.print(
+            f"[bold cyan]KaDegree sync complete! Ingested {res.get('new_stored')} new jobs "
+            f"({res.get('relevant_matches')} relevant matches, {res.get('total_fetched')} fetched).[/bold cyan]"
+        )
+    else:
+        console.print(f"[bold red]KaDegree sync failed: {res.get('message')}[/bold red]")
+
+
+@app.command("poll")
+def poll_cmd(
+    headless: bool = typer.Option(True, "--headless/--no-headless", help="Run browser in headless background mode"),
+    loop: bool = typer.Option(False, "--loop", "-l", help="Run continuously in background daemon loop"),
+    interval: float = typer.Option(12.0, "--interval", "-i", help="Interval in hours between polling cycles (default: 12h for twice daily)"),
+) -> None:
+    """Poll WhatsApp Web, Telegram channels, and Gmail for fresh referral leads and recruiter responses."""
+    _bootstrap()
+    from applypilot.automation.poller import execute_polling_cycle, run_poller_loop
+
+    if loop:
+        console.print(f"[bold green]Starting daemon poller loop every {interval} hours (twice a day)...[/bold green]")
+        run_poller_loop(interval_hours=interval, headless=headless)
+    else:
+        console.print("[bold green]Executing community referral & response polling cycle...[/bold green]")
+        res = execute_polling_cycle(headless=headless)
+        console.print(
+            f"[bold cyan]Cycle complete! Ingested {res['whatsapp_jobs_new']} from WhatsApp, "
+            f"{res['telegram_jobs_new']} from Telegram, and {res['gmail_responses_new']} from Gmail.[/bold cyan]"
+        )
 
 
 @app.command("inbox")
@@ -515,6 +585,32 @@ def linkedin_posts_cmd(
             p.get("recruiter_email") or "-"
         )
     console.print(table)
+
+
+@linkedin_app.command("dm")
+def linkedin_dm_cmd(
+    profile_url: str = typer.Argument(..., help="LinkedIn profile URL of the connection/recruiter"),
+    company: str = typer.Option("", "--company", "-c", help="Company name"),
+    role: str = typer.Option("Backend Engineer", "--role", "-r", help="Target role title"),
+    name: str = typer.Option("", "--name", "-n", help="Connection first name"),
+    template: str = typer.Option("referral", "--template", "-t", help="Template type ('referral' or 'alumni')"),
+) -> None:
+    """Launch Brave, navigate to connection profile, and auto-type personalized referral DM."""
+    _bootstrap()
+    from applypilot.networking.linkedin import compose_referral_dm
+    console.print(f"[bold cyan]Launching Brave & composing referral DM for:[/bold cyan] {profile_url}")
+    res = compose_referral_dm(
+        profile_url=profile_url,
+        company=company,
+        role_title=role,
+        name=name,
+        template_type=template,
+        headed=True
+    )
+    if res.get("status") == "ok":
+        console.print(f"[bold green]✓ {res.get('message')}[/bold green]")
+    else:
+        console.print(f"[bold red]✗ {res.get('message')}[/bold red]")
 
 
 # ---------------------------------------------------------------------------
@@ -891,6 +987,100 @@ def gsheet_sync_cmd() -> None:
     console.print(f"  • Synced Responses: {res.get('synced_responses')}")
     console.print(f"  • Synced Calls: {res.get('synced_calls')}")
     console.print(f"  • Mobile View URL: [cyan]{res.get('spreadsheet_url')}[/cyan]")
+
+
+@app.command("call-log")
+def call_log_cmd(
+    company: str = typer.Option(..., "--company", "-c", help="Company name (e.g. PhonePe, Razorpay)"),
+    role: str = typer.Option("SDE Backend Engineer", "--role", "-r", help="Role title"),
+    call_type: str = typer.Option("technical_interview", "--type", "-t", help="Type: phone_screen, technical_interview, oa, offer, rejection"),
+    recruiter: str = typer.Option("", "--recruiter", help="Recruiter name"),
+    contact: str = typer.Option("", "--contact", help="Phone or email of recruiter"),
+    scheduled: str = typer.Option("", "--scheduled", help="Scheduled date/time e.g. 'Tomorrow 3 PM'"),
+    notes: str = typer.Option("", "--notes", help="Discussion notes (CTC, questions, notice period)"),
+    url: str = typer.Option("", "--url", help="Meeting link or test link"),
+) -> None:
+    """Log an incoming recruiter call or interview screening with optional calendar sync and phone alert."""
+    _bootstrap()
+    from applypilot.enrichment.call_logger import log_recruiter_call
+    console.print(f"[cyan]Logging recruiter outreach for {company}...[/cyan]")
+    res = log_recruiter_call({
+        "company": company,
+        "role_title": role,
+        "call_type": call_type,
+        "recruiter_name": recruiter,
+        "recruiter_contact": contact,
+        "scheduled_at": scheduled,
+        "notes": notes,
+        "action_url": url,
+        "auto_calendar": bool(scheduled)
+    })
+    console.print(f"[bold green]✓ Call logged successfully (ID: {res.get('call_id')})![/bold green]")
+    console.print(f"  • Company:  {res.get('company')}")
+    console.print(f"  • Category: {res.get('category')}")
+    if res.get("calendar"):
+        console.print(f"  • Calendar: [cyan]{res['calendar'].get('event_link')}[/cyan]")
+
+
+@app.command("cheatsheet")
+def cheatsheet_cmd(
+    company: str = typer.Argument(..., help="Company name (e.g. Razorpay, PhonePe, Target, Stripe, Zepto)"),
+    role: str = typer.Option("SDE Backend Engineer", "--role", "-r", help="Target role title"),
+) -> None:
+    """Generate high-yield technical and HR interview cheat sheet tailored to Deepak's Meesho experience."""
+    _bootstrap()
+    from applypilot.enrichment.interview_cheatsheet import generate_company_cheatsheet
+    console.print(f"[cyan]Synthesizing technical interview cheat-sheet for {company}...[/cyan]")
+    sheet = generate_company_cheatsheet(company, role)
+
+    console.print(f"\n[bold green]=== Interview Strategy Cheat-Sheet: {sheet.get('company')} ===[/bold green]")
+    console.print(f"[dim]Source: {sheet.get('source')} | Role: {sheet.get('role_title')}[/dim]")
+    console.print(f"[bold white]Domain:[/bold white] {sheet.get('domain')}")
+    console.print(f"[bold white]Known Tech Stack:[/bold white] {sheet.get('primary_stack')}\n")
+
+    console.print("[bold yellow]1. Engineering & Scale Challenges:[/bold yellow]")
+    for ec in sheet.get("engineering_challenges", []):
+        console.print(f"  • {ec}")
+
+    console.print("\n[bold yellow]2. Must-Know System Design & Concurrency Topics:[/bold yellow]")
+    for topic in sheet.get("must_know_topics", []):
+        console.print(f"  • [bold cyan]{topic}[/bold cyan]")
+
+    console.print("\n[bold yellow]3. Deepak's Meesho Silver-Bullet Answer:[/bold yellow]")
+    console.print(f"  [dim italic]{sheet.get('meesho_story_alignment')}[/dim italic]")
+
+    console.print("\n[bold yellow]4. HR & Negotiation Tactics:[/bold yellow]")
+    hr = sheet.get("hr_tactics", {})
+    console.print(f"  • [bold white]Why {company}?[/bold white] {hr.get('why_leaving')}")
+    console.print(f"  • [bold white]Target CTC:[/bold white] {hr.get('target_ctc')}")
+    console.print(f"  • [bold white]Notice Period:[/bold white] {hr.get('notice_period')}")
+
+    console.print("\n[bold yellow]5. Sharp Reverse-Interview Questions to Ask:[/bold yellow]")
+    for q in sheet.get("questions_to_ask", []):
+        console.print(f"  • \"{q}\"")
+    console.print("")
+
+
+@app.command("alert-test")
+def alert_test_cmd() -> None:
+    """Test all instant alert channels (Telegram, WhatsApp CallMeBot, Windows Desktop Toast)."""
+    _bootstrap()
+    from applypilot.notifications.alerts import dispatch_alert, get_alert_config
+    cfg = get_alert_config()
+    console.print("[cyan]Testing ApplyPilot Instant Notification Channels...[/cyan]")
+    console.print(f"  • Telegram Configured: {'[green]Yes[/green]' if cfg['telegram_token'] and cfg['telegram_chat_id'] else '[yellow]No (Add TELEGRAM_BOT_TOKEN & CHAT_ID in .env)[/yellow]'}")
+    console.print(f"  • WhatsApp Configured: {'[green]Yes[/green]' if cfg['whatsapp_phone'] and cfg['whatsapp_apikey'] else '[yellow]No (Add CALLMEBOT_PHONE & APIKEY in .env)[/yellow]'}")
+    console.print(f"  • Windows Toast:       [green]Active[/green]")
+
+    res = dispatch_alert(
+        title="ApplyPilot Mobile Alert Test",
+        body="Instant notification channel operational. You will receive real-time pings for OAs and interviews.",
+        url="http://localhost:8765"
+    )
+    console.print(f"[bold green]✓ Broadcast Test Complete![/bold green]")
+    console.print(f"  • Telegram: {res['telegram']['status']}")
+    console.print(f"  • WhatsApp: {res['whatsapp']['status']}")
+    console.print(f"  • Windows Desktop Toast: {'Delivered' if res['windows_toast'] else 'Failed'}\n")
 
 
 if __name__ == "__main__":

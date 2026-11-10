@@ -834,6 +834,99 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       color: #bae6fd;
     }
 
+    /* Source Filters Bar & Badges */
+    .source-filter-bar {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 18px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .source-pill {
+      background: rgba(30, 41, 59, 0.85);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: #94a3b8;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 7px 15px;
+      border-radius: 999px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+    .source-pill:hover, .source-pill.active {
+      background: rgba(99, 102, 241, 0.25);
+      border-color: #6366f1;
+      color: #fff;
+    }
+    .source-pill.pill-kadegree.active {
+      background: rgba(245, 158, 11, 0.28);
+      border-color: #f59e0b;
+      color: #fde047;
+      box-shadow: 0 0 12px rgba(245, 158, 11, 0.3);
+    }
+    .source-pill.pill-linkedin.active {
+      background: rgba(10, 102, 194, 0.3);
+      border-color: #0a66c2;
+      color: #60a5fa;
+    }
+    .source-pill.pill-whatsapp.active {
+      background: rgba(37, 211, 102, 0.25);
+      border-color: #25d366;
+      color: #86efac;
+    }
+    .source-pill.pill-ats.active {
+      background: rgba(16, 185, 129, 0.25);
+      border-color: #10b981;
+      color: #6ee7b7;
+    }
+
+    /* Source Tags on Cards */
+    .tag-kadegree {
+      background: linear-gradient(135deg, rgba(180, 83, 9, 0.45), rgba(217, 119, 6, 0.35));
+      color: #fbbf24;
+      border: 1px solid rgba(245, 158, 11, 0.6);
+      font-weight: 700;
+      letter-spacing: 0.3px;
+    }
+    .tag-referrer {
+      background: rgba(245, 158, 11, 0.15);
+      color: #fde68a;
+      border: 1px dashed rgba(245, 158, 11, 0.4);
+    }
+    .tag-linkedin {
+      background: rgba(10, 102, 194, 0.2);
+      color: #38bdf8;
+      border: 1px solid rgba(56, 189, 248, 0.35);
+    }
+    .tag-whatsapp {
+      background: rgba(37, 211, 102, 0.18);
+      color: #4ade80;
+      border: 1px solid rgba(74, 222, 128, 0.35);
+    }
+    .tag-ats {
+      background: rgba(99, 102, 241, 0.18);
+      color: #a5b4fc;
+      border: 1px solid rgba(165, 180, 252, 0.35);
+    }
+    .source-badge-meta {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11.5px;
+      padding: 2px 8px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .source-kadegree-badge {
+      background: rgba(245, 158, 11, 0.15);
+      border-color: rgba(245, 158, 11, 0.4);
+      color: #fbbf24 !important;
+    }
+
     /* Analytics Dashboard & Audit Ledger Styles */
     .analytics-panel {
       display: flex;
@@ -961,6 +1054,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     .badge-source.smartrecruiters { background: rgba(168, 85, 247, 0.18); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.3); }
     .badge-source.lever { background: rgba(245, 158, 11, 0.18); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.3); }
     .badge-source.whatsapp { background: rgba(16, 185, 129, 0.18); color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.3); }
+    .badge-source.telegram { background: rgba(34, 158, 217, 0.18); color: #38bdf8; border: 1px solid rgba(34, 158, 217, 0.3); }
     .badge-source.linkedin { background: rgba(2, 132, 199, 0.18); color: #7dd3fc; border: 1px solid rgba(2, 132, 199, 0.3); }
     .badge-stage {
       display: inline-flex;
@@ -1110,9 +1204,12 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       <a href="https://mail.google.com/mail/u/0/#drafts" target="_blank" rel="noopener noreferrer" class="quick-pill" style="background: #ea4335; color: #fff; font-weight: 700; text-decoration: none;"><i class="fa-solid fa-envelope"></i> Gmail Drafts</a>
       <div id="naukri-quick-pill" class="quick-pill" onclick="triggerNaukriRefresh()" style="background: linear-gradient(135deg, #0284c7, #2563eb); color: #fff; font-weight: 700; cursor: pointer;" title="Naukri 9:00 AM Daily Refresh Active (Click to refresh now)"><i class="fa-solid fa-arrows-rotate"></i> <span id="naukri-pill-label">Naukri: 9 AM Active ⚡</span></div>
       <div class="quick-pill" onclick="openLogCallModal()" style="background: linear-gradient(135deg, #10b981, #059669); color: #fff; font-weight: 700; cursor: pointer;"><i class="fa-solid fa-phone"></i> + Log Recruiter Call / Update</div>
+      <div class="quick-pill" onclick="openCheatsheetModal('PhonePe', 'SDE-1 Backend')" style="background: rgba(168, 85, 247, 0.2); border: 1px solid #a855f7; color: #d8b4fe; font-weight: 700; cursor: pointer;" title="Instant Technical & HR Interview Cheat-Sheet tailored to Deepak's Meesho experience"><i class="fa-solid fa-bolt"></i> ⚡ Tech Cheat-Sheet</div>
+      <div class="quick-pill" onclick="testAlertsFromUI()" style="background: rgba(6, 182, 212, 0.2); border: 1px solid #06b6d4; color: #7dd3fc; font-weight: 700; cursor: pointer;" title="Test instant alerts to Telegram, WhatsApp CallMeBot & Windows Desktop"><i class="fa-solid fa-bell"></i> 📱 Mobile Alert Bot</div>
       <div class="quick-pill" onclick="syncGSheetsNow()" style="background: linear-gradient(135deg, #0284c7, #0369a1); color: #fff; font-weight: 700; cursor: pointer;"><i class="fa-solid fa-table"></i> 📱 Central Google Sheet</div>
       <div class="quick-pill" onclick="openCustomDraftModal()"  style="background: rgba(234, 67, 53, 0.2); border: 1px solid #ea4335; color: #fca5a5; font-weight: 700; cursor: pointer;"><i class="fa-solid fa-pen-nib"></i> + Draft Cold Email</div>
       <div class="quick-pill" onclick="triggerBatchAutoApply()" style="background: linear-gradient(135deg, #10b981, #06b6d4); color: #fff; font-weight: 800; border: 1px solid #34d399; cursor: pointer;" title="Autonomously apply to top qualified roles in Brave (Kanistus Workflow: does everything itself)"><i class="fa-solid fa-bolt"></i> ⚡ Auto-Apply Top Matches</div>
+      <div class="quick-pill" onclick="triggerChannelPoll(event)" style="background: linear-gradient(135deg, #0284c7, #10b981); color: #fff; font-weight: 800; border: 1px solid #38bdf8; cursor: pointer;" title="Poll live WhatsApp Web, Telegram channels, and Gmail for fresh referral leads (2x/day scheduled)"><i class="fa-solid fa-satellite-dish"></i> 📡 Poll WhatsApp & Telegram</div>
 
       <!-- Theme Switcher Pill -->
       <div class="theme-picker" title="Change Theme Palette">
@@ -1155,6 +1252,10 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       <div class="stat-card" style="border-color: rgba(52, 211, 153, 0.4); cursor: pointer;" onclick="setTab('responses'); filterResponsesCategory('all');">
         <span class="label">📬 Recruiter Replies</span>
         <span class="val" id="stat-responses" style="color: #34d399;">0</span>
+      </div>
+      <div class="stat-card" style="border-color: rgba(217, 119, 6, 0.5); cursor: pointer;" onclick="setTab('kadegree');" title="Click to view live Kannada referral openings">
+        <span class="label"><i class="fa-solid fa-users"></i> 🌟 KaDegree Referrals</span>
+        <span class="val" id="stat-kadegree" style="color: #fbbf24;">0</span>
       </div>
       <div class="stat-card">
         <span class="label">🏆 Applications Applied</span>
@@ -1219,6 +1320,10 @@ HTML_DASHBOARD = """<!DOCTYPE html>
           <i class="fa-solid fa-envelope-open-text"></i> Gmail Tracker
           <span class="tab-badge" id="badge-responses" style="background:#059669;color:#fff;">0</span>
         </button>
+        <button class="tab-btn" onclick="setTab('kadegree')" style="color: #fbbf24; border-color: rgba(245, 158, 11, 0.4);">
+          <i class="fa-solid fa-users"></i> KaDegree (ಕನ್ನಡ Referrals)
+          <span class="tab-badge" id="badge-kadegree" style="background: linear-gradient(135deg, #b45309, #d97706); color:#fff;">0</span>
+        </button>
         <button class="tab-btn" onclick="setTab('strategy')" style="color: #fbbf24; border-color: rgba(245, 158, 11, 0.4);">
           <i class="fa-solid fa-brain"></i> ⚡ Conversion & Gemini Strategy
         </button>
@@ -1248,6 +1353,47 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       <div class="resp-pill pill-rejected" id="rp-rejected" onclick="filterResponsesCategory('rejected')"><i class="fa-solid fa-circle-xmark"></i> ❌ Rejections (<span id="cnt-resp-rejected">0</span>)</div>
       <div class="resp-pill pill-apply" id="rp-apply" onclick="filterResponsesCategory('apply_link')"><i class="fa-solid fa-link"></i> 🔗 Direct Apply Links (<span id="cnt-resp-apply">0</span>)</div>
       <div class="resp-pill" id="rp-ack" onclick="filterResponsesCategory('acknowledged')"><i class="fa-regular fa-envelope"></i> 📬 Acknowledged (<span id="cnt-resp-ack">0</span>)</div>
+    </div>
+
+    <!-- Source Filter Bar for Job Opportunities -->
+    <div id="source-filter-bar" class="source-filter-bar">
+      <div class="source-pill active" id="src-all" onclick="filterBySource('all')">
+        <i class="fa-solid fa-layer-group"></i> All Sources (<span id="cnt-src-all">0</span>)
+      </div>
+      <div class="source-pill pill-kadegree" id="src-kadegree" onclick="filterBySource('kadegree')">
+        <i class="fa-solid fa-users-rays"></i> 🌟 KaDegree Community (<span id="cnt-src-kadegree">0</span>)
+      </div>
+      <div class="source-pill pill-linkedin" id="src-linkedin" onclick="filterBySource('linkedin')">
+        <i class="fa-brands fa-linkedin"></i> 💼 LinkedIn (<span id="cnt-src-linkedin">0</span>)
+      </div>
+      <div class="source-pill pill-whatsapp" id="src-whatsapp" onclick="filterBySource('whatsapp')">
+        <i class="fa-brands fa-whatsapp"></i> 💬 WhatsApp (<span id="cnt-src-whatsapp">0</span>)
+      </div>
+      <div class="source-pill pill-ats" id="src-ats" onclick="filterBySource('ats')">
+        <i class="fa-solid fa-building-circle-check"></i> 🏢 Direct ATS (<span id="cnt-src-ats">0</span>)
+      </div>
+      <button class="btn btn-sm" id="btn-sync-kadegree" onclick="triggerKaDegreeSync()" style="margin-left: auto; background: linear-gradient(135deg, #b45309, #d97706); color: #fff; font-weight: 700; border-radius: 9999px; padding: 6px 14px; font-size: 11.5px; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+        <i class="fa-solid fa-arrows-rotate" id="icon-sync-kadegree"></i> Sync KaDegree
+      </button>
+    </div>
+
+    <!-- KaDegree Community Info Banner -->
+    <div id="kadegree-info-banner" style="display: none; background: linear-gradient(90deg, rgba(180, 83, 9, 0.35), rgba(15, 23, 42, 0.95)); border: 1.5px solid #d97706; border-radius: 12px; padding: 14px 20px; margin-bottom: 20px; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+      <div style="display: flex; align-items: center; gap: 14px;">
+        <span style="font-size: 26px;">🟡</span>
+        <div>
+          <div style="color: #fbbf24; font-weight: 800; font-size: 15px;">KaDegree (ಕನ್ನಡ Referral Community - 17k+ Tech Members)</div>
+          <div style="color: #cbd5e1; font-size: 12.5px; margin-top: 2px;">Vetted internal referrals and walk-ins shared by fellow Kannadiga engineers & verified referrers. Direct access to hiring teams.</div>
+        </div>
+      </div>
+      <div style="display: flex; gap: 10px;">
+        <button class="btn btn-sm" onclick="triggerKaDegreeSync()" style="background: linear-gradient(135deg, #b45309, #d97706); color: #fff; font-weight: 700; border-radius: 8px; padding: 8px 16px; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+          <i class="fa-solid fa-arrows-rotate" id="icon-sync-kadegree-banner"></i> Sync Live Openings ⚡
+        </button>
+        <a href="https://referral-community.kadegree.in/get" target="_blank" rel="noopener noreferrer" class="btn btn-sm" style="background: rgba(245, 158, 11, 0.2); border: 1px solid #d97706; color: #fbbf24; font-weight: 700; border-radius: 8px; padding: 8px 16px; text-decoration: none; display: flex; align-items: center; gap: 6px;">
+          <i class="fa-solid fa-arrow-up-right-from-square"></i> Open KaDegree Web
+        </a>
+      </div>
     </div>
 
     <div id="jobs-container" class="jobs-grid"></div>
@@ -1398,6 +1544,22 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     </div>
   </div>
 
+  <!-- Standalone Technical Interview Strategy & Cheat-Sheet Modal -->
+  <div id="cheatsheet-modal" class="modal-backdrop" onclick="if(event.target===this) closeCheatsheetModal()">
+    <div class="modal-content" style="max-width: 820px; max-height: 90vh; overflow-y: auto;">
+      <div class="modal-header" style="background: linear-gradient(90deg, #3b0764, #1e1b4b);">
+        <h3 style="color:#d8b4fe;"><i class="fa-solid fa-bolt"></i> <span id="cheatsheet-modal-title">Technical Interview Cheat-Sheet</span></h3>
+        <button class="modal-close" onclick="closeCheatsheetModal()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div id="cheatsheet-content" style="padding: 24px; color: #cbd5e1; font-size: 13.5px; line-height: 1.6;">
+        <div style="text-align: center; padding: 40px 0;">
+          <i class="fa-solid fa-spinner fa-spin fa-2x" style="color: #a855f7;"></i>
+          <p style="margin-top: 12px; color: #94a3b8;">Synthesizing deep system design questions and Deepak's Meesho silver-bullet talking points...</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
 <div id="toast" class="toast"></div>
 
   <script>
@@ -1407,6 +1569,48 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     let analyticsSourceFilter = 'all';
     let analyticsStageFilter = 'all';
     let currentTab = 'high';
+    let currentSourceFilter = 'all';
+
+    function filterBySource(src) {
+      currentSourceFilter = src;
+      document.querySelectorAll('.source-pill').forEach(p => p.classList.remove('active'));
+      const activePill = document.getElementById('src-' + src);
+      if (activePill) activePill.classList.add('active');
+      renderJobs();
+    }
+
+    function copyKannadaPitch(comp, title) {
+      const msg = `ನಮಸ್ಕಾರ,\n\nI noticed the referral opening for ${title} at ${comp} in our KaDegree community. I am an SDE-I Backend Engineer at Meesho (RVCE CSE '25, 1.3y exp) working with high-throughput Java, Go, Kafka, and Redis services.\n\nCould you please refer my profile for this position? I have attached my resume and requisition details:\nRequisition: ${comp} - ${title}\nProfile: SDE-I Backend Engineer, Meesho (RVCE '25)\nEmail: deepakshkarkala@gmail.com | Phone: +91 8431433659\n\nಧನ್ಯವಾದಗಳು! (Thank you!)\n- Deepak S H`;
+      navigator.clipboard.writeText(msg).then(() => {
+        showToast(`✅ Copied warm Kannada referral pitch for ${comp}!`);
+      }).catch(() => {
+        showToast('Selected pitch copied to clipboard!');
+      });
+    }
+
+    async function triggerKaDegreeSync() {
+      const btn = document.getElementById('btn-sync-kadegree');
+      const icon = document.getElementById('icon-sync-kadegree');
+      if (icon) icon.classList.add('fa-spin');
+      if (btn) btn.disabled = true;
+      showToast('Connecting to KaDegree Referral Community & syncing latest openings...');
+      try {
+        const res = await fetch('/api/kadegree/sync', { method: 'POST' });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          showToast(`✓ KaDegree sync complete! ${data.new_stored} new jobs added, ${data.relevant_matches} relevant matches.`);
+          triggerConfetti();
+          await fetchJobs();
+        } else {
+          showToast('Sync note: ' + (data.message || 'Error syncing KaDegree'));
+        }
+      } catch (e) {
+        showToast('Error syncing KaDegree: ' + e);
+      } finally {
+        if (icon) icon.classList.remove('fa-spin');
+        if (btn) btn.disabled = false;
+      }
+    }
 
     let funnelData = null;
     let geminiReport = null;
@@ -1837,6 +2041,24 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       }
     }
 
+    async function triggerChannelPoll(e) {
+      const btn = e ? e.currentTarget : null;
+      const originalHtml = btn ? btn.innerHTML : '';
+      if (btn) btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Polling Channels...';
+      showToast('📡 Polling WhatsApp Web, Telegram Channels, and Gmail in background...');
+      try {
+        const res = await fetch('/api/channels/poll', { method: 'POST' });
+        const data = await res.json();
+        showToast(data.message || 'Polling cycle active!');
+      } catch (err) {
+        showToast('Polling error: ' + err);
+      } finally {
+        if (btn) {
+          setTimeout(() => { btn.innerHTML = originalHtml; }, 3000);
+        }
+      }
+    }
+
     async function triggerBatchAutoApply() {
       if (!confirm('Run Autonomous Auto-Apply batch for Top 5 qualified roles in Brave?\n\nThis will launch Brave, prefill application details, answer screening questions, attach your tailored resume, and submit each application autonomously (Kanistus workflow).')) {
         return;
@@ -1984,6 +2206,12 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       document.getElementById('badge-applied').textContent = allJobs.filter(j => j.apply_status === 'applied').length;
       document.getElementById('badge-responses').textContent = allResponses.length;
 
+      const kaJobsCount = allJobs.filter(j => j.source_category === 'kadegree' || j.is_kadegree).length;
+      const kaBadge = document.getElementById('badge-kadegree');
+      if (kaBadge) kaBadge.textContent = kaJobsCount;
+      const statKa = document.getElementById('stat-kadegree');
+      if (statKa) statKa.textContent = kaJobsCount;
+
       // Calculate response category counts
       const activeOAs = allResponses.filter(r => r.category === 'oa' && !r.is_completed);
       const totalOAs = allResponses.filter(r => r.category === 'oa');
@@ -2007,6 +2235,23 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       if (cntApp) cntApp.textContent = totalApply.length;
       const cntAck = document.getElementById('cnt-resp-ack');
       if (cntAck) cntAck.textContent = totalAck.length;
+
+      // Source breakdown counts
+      const kadegreeJobs = allJobs.filter(j => j.source_category === 'kadegree' || j.is_kadegree);
+      const linkedinJobs = allJobs.filter(j => j.source_category === 'linkedin');
+      const whatsappJobs = allJobs.filter(j => j.source_category === 'whatsapp');
+      const atsJobs = allJobs.filter(j => j.source_category === 'ats' || (!j.is_kadegree && j.source_category !== 'linkedin' && j.source_category !== 'whatsapp'));
+
+      const cntSrcAll = document.getElementById('cnt-src-all');
+      if (cntSrcAll) cntSrcAll.textContent = allJobs.length;
+      const cntSrcKa = document.getElementById('cnt-src-kadegree');
+      if (cntSrcKa) cntSrcKa.textContent = kadegreeJobs.length;
+      const cntSrcLi = document.getElementById('cnt-src-linkedin');
+      if (cntSrcLi) cntSrcLi.textContent = linkedinJobs.length;
+      const cntSrcWa = document.getElementById('cnt-src-whatsapp');
+      if (cntSrcWa) cntSrcWa.textContent = whatsappJobs.length;
+      const cntSrcAts = document.getElementById('cnt-src-ats');
+      if (cntSrcAts) cntSrcAts.textContent = atsJobs.length;
 
       // Update Top Urgent / Missed OA Banner
       const urgentBanner = document.getElementById('urgent-oa-alert');
@@ -2050,9 +2295,14 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       const qBanner = document.getElementById('queue-banner');
       const rBanner = document.getElementById('responses-banner');
       const respFilterBar = document.getElementById('resp-filter-bar');
+      const sourceFilterBar = document.getElementById('source-filter-bar');
       const jobsContainer = document.getElementById('jobs-container');
       const analyticsContainer = document.getElementById('analytics-container');
       const strategyContainer = document.getElementById('strategy-container');
+
+      if (sourceFilterBar) {
+        sourceFilterBar.style.display = (tab === 'responses' || tab === 'analytics' || tab === 'strategy') ? 'none' : 'flex';
+      }
 
       if (strategyContainer) strategyContainer.style.display = (tab === 'strategy') ? 'block' : 'none';
 
@@ -2091,6 +2341,16 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         qBanner.style.display = 'none';
         rBanner.style.display = 'none';
         if (respFilterBar) respFilterBar.style.display = 'none';
+      }
+
+      const kaBanner = document.getElementById('kadegree-info-banner');
+      if (kaBanner) kaBanner.style.display = (tab === 'kadegree') ? 'flex' : 'none';
+
+      if (tab === 'kadegree') {
+        currentSourceFilter = 'kadegree';
+        document.querySelectorAll('.source-pill').forEach(p => p.classList.remove('active'));
+        const activePill = document.getElementById('src-kadegree');
+        if (activePill) activePill.classList.add('active');
       }
 
       renderJobs();
@@ -2295,6 +2555,9 @@ HTML_DASHBOARD = """<!DOCTYPE html>
 
             <div class="actions-bar" style="margin-top: 4px;">
               ${actionButtons}
+              <button class="btn btn-cheatsheet" onclick="openCheatsheetModal('${encodeURIComponent(r.company || '')}', '${encodeURIComponent(r.role_title || '')}')" style="background: rgba(168, 85, 247, 0.2); border: 1.5px solid #a855f7; color: #d8b4fe; font-weight: 700; padding: 7px 12px; font-size: 12px; border-radius: 8px; cursor: pointer;" title="Open tailored technical and behavioral interview prep cheat-sheet">
+                <i class="fa-solid fa-bolt"></i> ⚡ Prep Cheat-Sheet
+              </button>
               <button class="btn btn-preview" onclick="showToast('Email Subject: ' + '${(r.subject || '').replace(/'/g, "\'")}')">
                 <i class="fa-solid fa-envelope"></i> Subject: ${(r.subject || '').substring(0, 42)}...
               </button>
@@ -2570,9 +2833,17 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         if (currentTab === 'top' && (job.fit_score === null || job.fit_score < 8)) return false;
         if (currentTab === 'approved' && job.apply_status !== 'approved') return false;
         if (currentTab === 'applied' && job.apply_status !== 'applied') return false;
+        if (currentTab === 'kadegree' && !job.is_kadegree && job.source_category !== 'kadegree') return false;
+
+        if (currentSourceFilter !== 'all') {
+          if (currentSourceFilter === 'kadegree' && !job.is_kadegree && job.source_category !== 'kadegree') return false;
+          if (currentSourceFilter === 'linkedin' && job.source_category !== 'linkedin') return false;
+          if (currentSourceFilter === 'whatsapp' && job.source_category !== 'whatsapp') return false;
+          if (currentSourceFilter === 'ats' && (job.is_kadegree || job.source_category === 'linkedin' || job.source_category === 'whatsapp')) return false;
+        }
 
         if (q) {
-          const hay = `${job.company} ${job.title} ${job.location} ${job.score_reasoning || ''}`.toLowerCase();
+          const hay = `${job.company} ${job.title} ${job.location} ${job.source || ''} ${job.score_reasoning || ''}`.toLowerCase();
           if (!hay.includes(q)) return false;
         }
         return true;
@@ -2613,6 +2884,9 @@ HTML_DASHBOARD = """<!DOCTYPE html>
                   <div class="job-sub">
                     <span><i class="fa-regular fa-building"></i> <strong>${job.company}</strong></span>
                     <span><i class="fa-solid fa-location-dot"></i> ${job.location}</span>
+                    <span class="source-badge-meta ${job.is_kadegree ? 'source-kadegree-badge' : ''}">
+                      <i class="${job.source_icon || 'fa-solid fa-layer-group'}"></i> <strong>${job.source || 'Direct ATS'}</strong>
+                    </span>
                   </div>
                 </div>
               </div>
@@ -2624,6 +2898,17 @@ HTML_DASHBOARD = """<!DOCTYPE html>
             </div>
 
             <div class="badges-row">
+              ${job.is_kadegree ? `
+                <span class="tag tag-kadegree"><i class="fa-solid fa-users-rays"></i> KaDegree Community Referral</span>
+                ${job.referrer_info ? `<span class="tag tag-referrer"><i class="fa-solid fa-handshake-angle"></i> ${job.referrer_info}</span>` : ''}
+                ${job.slots_info ? `<span class="tag" style="background:rgba(217,119,6,0.2);color:#fde047;border:1px solid #f59e0b;"><i class="fa-solid fa-bolt"></i> ${job.slots_info}</span>` : ''}
+              ` : job.source_category === 'linkedin' ? `
+                <span class="tag tag-linkedin"><i class="fa-brands fa-linkedin"></i> LinkedIn Source</span>
+              ` : job.source_category === 'whatsapp' ? `
+                <span class="tag tag-whatsapp"><i class="fa-brands fa-whatsapp"></i> WhatsApp Referral</span>
+              ` : `
+                <span class="tag tag-ats"><i class="fa-solid fa-building-circle-check"></i> ${job.source || 'Direct ATS'}</span>
+              `}
               ${job.recruiter_email ? `<span class="tag tag-email"><i class="fa-solid fa-envelope"></i> ${job.recruiter_email}</span>` : ''}
               ${hasResume ? `<span class="tag tag-resume"><i class="fa-solid fa-file-pdf"></i> Tailored Resume Ready</span>` : '<span class="tag" style="background:#334155;color:#94a3b8;"><i class="fa-solid fa-clock"></i> Base Resume</span>'}
               ${hasCover ? `<span class="tag tag-cover"><i class="fa-solid fa-envelope-open-text"></i> Cover Letter Ready</span>` : ''}
@@ -2633,6 +2918,16 @@ HTML_DASHBOARD = """<!DOCTYPE html>
             ${job.score_reasoning ? `<div class="reasoning">${job.score_reasoning.replace(/\\n/g, '<br>')}</div>` : ''}
 
             <div class="actions-bar">
+              ${job.is_kadegree ? `
+                <!-- KaDegree Community Referral Link -->
+                <a href="${job.kadegree_url || job.url}" target="_blank" rel="noopener noreferrer" class="btn" style="background: linear-gradient(135deg, #b45309, #d97706); color: white; text-decoration: none; padding: 7px 14px; font-size: 12px; font-weight: 700; border-radius: 8px; display: inline-flex; align-items: center; gap: 6px;" title="View referral post, referrer details & comments in Kannada Referral Community">
+                  <i class="fa-solid fa-users-rays"></i> View on KaDegree
+                </a>
+                <button class="btn" style="background: rgba(217, 119, 6, 0.2); border: 1px solid #d97706; color: #fbbf24; font-size: 12px; font-weight: 700; border-radius: 8px; padding: 7px 12px;" onclick="copyKannadaPitch('${escapeHtml(job.company)}', '${escapeHtml(job.title)}')" title="Copy warm Kannada referral pitch (ನಮಸ್ಕಾರ...) to send to referrer">
+                  <i class="fa-regular fa-copy"></i> Copy Kannada Pitch
+                </button>
+              ` : ''}
+
               <!-- 1-Click Autonomous Auto-Apply Button (Kanistus Workflow) -->
               <button class="btn btn-auto-apply" id="btn-auto-apply-${job.rowid}" onclick="launchAutonomousApply(${job.rowid})" title="Does everything itself: fills forms, answers screening questions, attaches resume, and submits autonomously">
                 <i class="fa-solid fa-bolt"></i> Auto-Apply (Autonomous)
@@ -2668,6 +2963,11 @@ HTML_DASHBOARD = """<!DOCTYPE html>
               <!-- Referral Outreach Modal Button -->
               <button class="btn btn-outreach" onclick="openReferralModal(${job.rowid})">
                 <i class="fa-solid fa-people-arrows"></i> Referral Outreach
+              </button>
+
+              <!-- Tech Cheat-Sheet Modal Button -->
+              <button class="btn btn-cheatsheet" onclick="openCheatsheetModal('${encodeURIComponent(job.company || '')}', '${encodeURIComponent(job.title || '')}')" style="background: rgba(168, 85, 247, 0.2); border: 1.5px solid #a855f7; color: #d8b4fe; font-weight: 700; padding: 7px 12px; font-size: 12px; border-radius: 8px; cursor: pointer;" title="Open tailored technical and behavioral interview prep cheat-sheet">
+                <i class="fa-solid fa-bolt"></i> ⚡ Tech Cheat-Sheet
               </button>
 
               ${job.recruiter_email ? `
@@ -2901,9 +3201,10 @@ HTML_DASHBOARD = """<!DOCTYPE html>
           </div>
 
           <!-- Direct Custom LinkedIn Search / Chat Box -->
-          <div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.08); display: flex; gap: 10px; align-items: center;">
-            <input type="text" id="direct-conn-input" placeholder="Paste specific connection's LinkedIn profile URL or name..." style="flex:1; background: #0f172a; border: 1px solid #334155; color: #fff; padding: 8px 12px; border-radius: 8px; font-size: 12px;">
-            <button class="btn" style="background:#0a66c2;color:white;" onclick="openDirectConnectionChat()"><i class="fa-solid fa-paper-plane"></i> Open Chat in Brave</button>
+          <div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.08); display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+            <input type="text" id="direct-conn-input" placeholder="Paste specific connection's LinkedIn profile URL (e.g. https://www.linkedin.com/in/...)..." style="flex:1; min-width: 280px; background: #0f172a; border: 1px solid #334155; color: #fff; padding: 8px 12px; border-radius: 8px; font-size: 12px;">
+            <button class="btn" style="background: linear-gradient(135deg, #0284c7, #10b981); color: white; font-weight: 700; white-space: nowrap;" onclick="autoTypeDirectConnectionDM()"><i class="fa-solid fa-wand-magic-sparkles"></i> ⚡ Auto-Type Referral DM in Brave</button>
+            <button class="btn" style="background:#0a66c2; color:white; white-space: nowrap;" onclick="openDirectConnectionChat()"><i class="fa-solid fa-paper-plane"></i> Open Chat in Brave</button>
           </div>
         </div>
 
@@ -3053,11 +3354,14 @@ HTML_DASHBOARD = """<!DOCTYPE html>
                 <div style="color: #94a3b8; font-size: 12px;">${c.headline}</div>
                 <div style="color: #64748b; font-size: 11px;"><i class="fa-solid fa-location-dot"></i> ${c.location}</div>
               </div>
-              <div style="display: flex; gap: 6px;">
-                <button class="btn" style="background: #0a66c2; color: #fff; padding: 6px 10px; font-size: 11px;" onclick="openDirectUrl('${c.profile_url}')">
+              <div style="display: flex; gap: 6px; align-items: center;">
+                <button class="btn" style="background: linear-gradient(135deg, #0284c7, #10b981); color: #fff; padding: 6px 10px; font-size: 11px; font-weight: 700; white-space: nowrap;" onclick="composeLinkedInDM('${c.profile_url}', '${c.name.replace(/'/g, "\\'")}', '${company.replace(/'/g, "\\'")}', 'Backend Engineer', 'alumni')">
+                  <i class="fa-solid fa-wand-magic-sparkles"></i> Auto-Type DM
+                </button>
+                <button class="btn" style="background: #0a66c2; color: #fff; padding: 6px 10px; font-size: 11px; white-space: nowrap;" onclick="openDirectUrl('${c.profile_url}')">
                   <i class="fa-brands fa-linkedin"></i> View & Chat
                 </button>
-                <button class="btn" style="background: #10b981; color: white; padding: 6px 10px; font-size: 11px;" onclick="copyCustomReferral('${c.name.replace(/'/g, "\'")}')">
+                <button class="btn" style="background: #10b981; color: white; padding: 6px 10px; font-size: 11px; white-space: nowrap;" onclick="copyCustomReferral('${c.name.replace(/'/g, "\\'")}')">
                   <i class="fa-regular fa-copy"></i> Copy Note
                 </button>
               </div>
@@ -3147,6 +3451,48 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       }
       window.open(url, '_blank');
       showToast('Opening LinkedIn profile in Brave...');
+    }
+
+    async function composeLinkedInDM(profileUrl, name = '', company = '', role = 'Backend Engineer', template = 'referral') {
+      if (!profileUrl) {
+        showToast('Please enter or select a profile URL.');
+        return;
+      }
+      showToast(`⚡ Launching Brave & auto-typing referral message for ${name || 'connection'}...`);
+
+      try {
+        const res = await fetch('/api/linkedin/compose_dm', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            profile_url: profileUrl,
+            name: name,
+            company: company,
+            role: role,
+            template: template
+          })
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          showToast(`🛡️ ${data.message}`);
+        } else {
+          showToast(`⚠️ Compose DM: ${data.message || 'Error'}`);
+        }
+      } catch (err) {
+        showToast(`Error launching DM composer: ${err}`);
+      }
+    }
+
+    function autoTypeDirectConnectionDM() {
+      const val = document.getElementById('direct-conn-input').value.trim();
+      if (!val) {
+        showToast('Please enter a connection LinkedIn URL first.');
+        return;
+      }
+      const titleEl = document.getElementById('referral-modal-title');
+      const compMatch = titleEl ? titleEl.innerText.match(/Outreach:\s*([^(\n]+)/) : null;
+      const comp = compMatch ? compMatch[1].trim() : '';
+      composeLinkedInDM(val, '', comp, 'Backend Engineer', 'referral');
     }
 
     function copyText(val, label) {
@@ -3350,6 +3696,94 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       document.getElementById('custom-draft-modal').style.display = 'none';
     }
 
+    /* Technical Interview Cheat-Sheet Modal */
+    async function openCheatsheetModal(company, roleTitle) {
+      const comp = decodeURIComponent(company || 'PhonePe');
+      const role = decodeURIComponent(roleTitle || 'SDE Backend Engineer');
+      document.getElementById('cheatsheet-modal-title').innerText = `Interview Cheat-Sheet: ${comp}`;
+      document.getElementById('cheatsheet-modal').style.display = 'flex';
+      const container = document.getElementById('cheatsheet-content');
+      container.innerHTML = `
+        <div style="text-align: center; padding: 40px 0;">
+          <i class="fa-solid fa-spinner fa-spin fa-2x" style="color: #a855f7;"></i>
+          <p style="margin-top: 12px; color: #94a3b8;">Synthesizing deep system design questions and Deepak's Meesho silver-bullet talking points for ${comp}...</p>
+        </div>
+      `;
+
+      try {
+        const res = await fetch(`/api/cheatsheet?company=${encodeURIComponent(comp)}&role=${encodeURIComponent(role)}`);
+        const data = await res.json();
+        
+        let challengesHtml = (data.engineering_challenges || []).map(c => `<li style="margin-bottom: 4px;">${c}</li>`).join('');
+        let topicsHtml = (data.must_know_topics || []).map(t => `<li style="margin-bottom: 6px;"><strong style="color: #38bdf8;">${t}</strong></li>`).join('');
+        let questionsHtml = (data.questions_to_ask || []).map(q => `<li style="margin-bottom: 4px;"><em>"${q}"</em></li>`).join('');
+        let hr = data.hr_tactics || {};
+
+        container.innerHTML = `
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 12px;">
+            <div>
+              <div style="font-size: 18px; font-weight: 800; color: #fff;">${data.company} <span style="font-size: 13px; font-weight: 500; color: #a855f7;">(${data.role_title || role})</span></div>
+              <div style="font-size: 12.5px; color: #94a3b8; margin-top: 3px;">Domain: <strong style="color:#cbd5e1;">${data.domain}</strong> | Stack: <code style="color:#34d399;">${data.primary_stack}</code></div>
+            </div>
+            <span style="background: rgba(168,85,247,0.15); color: #c084fc; border: 1px solid rgba(168,85,247,0.3); padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 700;">${data.source}</span>
+          </div>
+
+          <div style="margin-bottom: 18px;">
+            <h4 style="margin: 0 0 8px 0; color: #f59e0b; font-size: 14px;"><i class="fa-solid fa-server"></i> 1. Core Engineering & Scale Challenges</h4>
+            <ul style="margin: 0; padding-left: 20px; font-size: 13px; color: #cbd5e1;">${challengesHtml}</ul>
+          </div>
+
+          <div style="margin-bottom: 18px; background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 10px; padding: 14px;">
+            <h4 style="margin: 0 0 8px 0; color: #38bdf8; font-size: 14px;"><i class="fa-solid fa-brain"></i> 2. High-Probability System Design & Concurrency Topics</h4>
+            <ul style="margin: 0; padding-left: 20px; font-size: 13px;">${topicsHtml}</ul>
+          </div>
+
+          <div style="margin-bottom: 18px; background: rgba(16, 185, 129, 0.08); border: 1.5px solid #10b981; border-radius: 10px; padding: 14px;">
+            <h4 style="margin: 0 0 6px 0; color: #34d399; font-size: 14px;"><i class="fa-solid fa-star"></i> 3. Deepak's Meesho "Silver-Bullet" Talking Point</h4>
+            <p style="margin: 0; font-size: 13px; color: #d1fae5; line-height: 1.5;">${data.meesho_story_alignment}</p>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 18px;">
+            <div style="background: rgba(30, 41, 59, 0.5); border: 1px solid #334155; border-radius: 10px; padding: 12px;">
+              <h5 style="margin: 0 0 6px 0; color: #fca5a5; font-size: 13px;"><i class="fa-solid fa-comments"></i> Why ${data.company}?</h5>
+              <p style="margin: 0; font-size: 12.5px; color: #cbd5e1;">${hr.why_leaving || ''}</p>
+            </div>
+            <div style="background: rgba(30, 41, 59, 0.5); border: 1px solid #334155; border-radius: 10px; padding: 12px;">
+              <h5 style="margin: 0 0 6px 0; color: #fde047; font-size: 13px;"><i class="fa-solid fa-money-bill-wave"></i> Target CTC & Notice</h5>
+              <div style="font-size: 12.5px; color: #cbd5e1;"><strong>Target Comp:</strong> ${hr.target_ctc || '28–36 LPA'}</div>
+              <div style="font-size: 12.5px; color: #cbd5e1; margin-top: 4px;"><strong>Notice Period:</strong> ${hr.notice_period || '30 days (negotiable)'}</div>
+            </div>
+          </div>
+
+          <div>
+            <h4 style="margin: 0 0 6px 0; color: #c084fc; font-size: 13.5px;"><i class="fa-solid fa-circle-question"></i> Sharp Questions to Ask the Interviewer</h4>
+            <ul style="margin: 0; padding-left: 20px; font-size: 13px; color: #e2e8f0;">${questionsHtml}</ul>
+          </div>
+        `;
+      } catch (err) {
+        container.innerHTML = `<div style="color: #f87171;">Failed to load cheat sheet: ${err}</div>`;
+      }
+    }
+
+    function closeCheatsheetModal() {
+      document.getElementById('cheatsheet-modal').style.display = 'none';
+    }
+
+    async function testAlertsFromUI() {
+      showToast('⚡ Dispatching test alert to Telegram, WhatsApp & Desktop Toast...');
+      try {
+        const res = await fetch('/api/alerts/test', { method: 'POST' });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          showToast('🔔 Alert test complete! Check your screen & phone.');
+        } else {
+          showToast('Alert test: ' + (data.message || 'Error'));
+        }
+      } catch (e) {
+        showToast('Alert test error: ' + e);
+      }
+    }
+
     async function submitCustomDraft() {
       const email = document.getElementById('custom-draft-email').value.trim();
       const comp = document.getElementById('custom-draft-comp').value.trim();
@@ -3536,6 +3970,14 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps(data).encode("utf-8"))
             return
 
+        elif path == "/api/auto_apply_status":
+            from applypilot.apply.assistant import AUTO_APPLY_STATE
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(json.dumps(AUTO_APPLY_STATE).encode("utf-8"))
+            return
+
         elif path == "/api/jobs":
             from applypilot.config import load_search_config
             cfg = load_search_config()
@@ -3559,7 +4001,10 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     apply_status,
                     applied_at,
                     COALESCE(full_description, '') AS full_desc,
-                    COALESCE(description, '') AS desc
+                    COALESCE(description, '') AS desc,
+                    COALESCE(strategy, '') AS strategy,
+                    COALESCE(salary, '') AS salary,
+                    COALESCE(discovered_at, '') AS discovered_at
                 FROM jobs
                 ORDER BY fit_score DESC NULLS LAST, discovered_at DESC
             """
@@ -3594,6 +4039,61 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     years = [int(m[0]) for m in matches if m[0].isdigit()]
                     if years and min(years) >= 4:
                         continue
+
+                # Derive Source & Job Related Info
+                strat = (j.get("strategy") or "").lower()
+                u_str = (j.get("url") or j.get("apply_url") or "").lower()
+                c_str = (j.get("company") or "").lower()
+
+                if "kadegree" in strat or "kadegree" in u_str or "kannada" in c_str:
+                    j["source"] = "KaDegree Community"
+                    j["source_category"] = "kadegree"
+                    j["source_icon"] = "fa-solid fa-users-rays"
+                    j["is_kadegree"] = True
+                    ref_m = re.search(r"Referrer:\s*([^\n|]+)", j.get("full_desc") or "")
+                    slots_m = re.search(r"Referral Slots Left:\s*([^\n|]+)", j.get("full_desc") or "")
+                    j["referrer_info"] = ref_m.group(1).strip() if ref_m else "Kannada Community Referrer"
+                    j["slots_info"] = slots_m.group(1).strip() if slots_m else ""
+                    j["kadegree_url"] = j.get("url") if "kadegree.in" in j.get("url", "") else "https://referral-community.kadegree.in/get"
+                elif "whatsapp" in strat or "whatsapp" in c_str or "whatsapp" in u_str:
+                    j["source"] = "WhatsApp Community"
+                    j["source_category"] = "whatsapp"
+                    j["source_icon"] = "fa-brands fa-whatsapp"
+                    j["is_kadegree"] = False
+                elif "linkedin" in strat or "linkedin" in c_str or "linkedin" in u_str:
+                    j["source"] = "LinkedIn"
+                    j["source_category"] = "linkedin"
+                    j["source_icon"] = "fa-brands fa-linkedin"
+                    j["is_kadegree"] = False
+                elif "greenhouse" in strat or "greenhouse.io" in u_str:
+                    j["source"] = "Greenhouse ATS"
+                    j["source_category"] = "ats"
+                    j["source_icon"] = "fa-solid fa-seedling"
+                    j["is_kadegree"] = False
+                elif "workday" in strat or "myworkdayjobs" in u_str:
+                    j["source"] = "Workday ATS"
+                    j["source_category"] = "ats"
+                    j["source_icon"] = "fa-solid fa-building"
+                    j["is_kadegree"] = False
+                elif "smartrecruiters" in strat or "smartrecruiters.com" in u_str:
+                    j["source"] = "SmartRecruiters"
+                    j["source_category"] = "ats"
+                    j["source_icon"] = "fa-solid fa-briefcase"
+                    j["is_kadegree"] = False
+                elif "jobspy" in strat:
+                    if "indeed" in c_str or "indeed" in u_str:
+                        j["source"] = "Indeed"
+                        j["source_icon"] = "fa-solid fa-info"
+                    else:
+                        j["source"] = "JobSpy Aggregator"
+                        j["source_icon"] = "fa-solid fa-radar"
+                    j["source_category"] = "jobspy"
+                    j["is_kadegree"] = False
+                else:
+                    j["source"] = j.get("company") or "Company Direct"
+                    j["source_category"] = "ats"
+                    j["source_icon"] = "fa-solid fa-building-circle-check"
+                    j["is_kadegree"] = False
 
                 # Clean internal fields
                 j.pop('full_desc', None)
@@ -3658,6 +4158,19 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.send_header("Content-Type", "application/json; charset=utf-8")
             self.end_headers()
             self.wfile.write(json.dumps(get_logged_calls()).encode("utf-8"))
+            return
+
+        # /api/cheatsheet (Generate technical & HR interview cheat sheet)
+        elif path == "/api/cheatsheet":
+            query_params = urllib.parse.parse_qs(parsed.query)
+            comp_param = query_params.get("company", ["PhonePe"])[0]
+            role_param = query_params.get("role", ["SDE Backend Engineer"])[0]
+            from applypilot.enrichment.interview_cheatsheet import generate_company_cheatsheet
+            sheet = generate_company_cheatsheet(comp_param, role_param)
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(json.dumps(sheet).encode("utf-8"))
             return
 
         # /api/gsheet/status
@@ -3818,6 +4331,36 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps({"status": "ok"}).encode("utf-8"))
             return
 
+        # /api/kadegree/sync (Sync latest openings from KaDegree Kannada Referral Community)
+        elif path == "/api/kadegree/sync":
+            from applypilot.discovery.kadegree import sync_kadegree_jobs
+            try:
+                res = sync_kadegree_jobs()
+            except Exception as e:
+                res = {"status": "error", "message": str(e)}
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps(res).encode("utf-8"))
+            return
+
+        # /api/channels/poll (Trigger community & inbound polling cycle)
+        elif path == "/api/channels/poll":
+            try:
+                from applypilot.automation.poller import execute_polling_cycle
+                import threading
+                def _bg_poll():
+                    execute_polling_cycle(headless=True)
+                threading.Thread(target=_bg_poll, daemon=True).start()
+                res = {"status": "ok", "message": "Community polling cycle started in background (WhatsApp + Telegram + Gmail)."}
+            except Exception as e:
+                res = {"status": "error", "message": str(e)}
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps(res).encode("utf-8"))
+            return
+
         # /api/calls/log (Log recruiter call or offline interview)
         elif path == "/api/calls/log":
             length = int(self.headers.get("Content-Length", 0))
@@ -3862,6 +4405,20 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.send_header("Content-Type", "application/json")
             self.end_headers()
             self.wfile.write(json.dumps(res).encode("utf-8"))
+            return
+
+        # /api/alerts/test (Send test alert to phone via Telegram/WhatsApp and Desktop Toast)
+        elif path == "/api/alerts/test":
+            from applypilot.notifications.alerts import dispatch_alert
+            res = dispatch_alert(
+                title="ApplyPilot Mobile Alert Test",
+                body="Real-time mobile notification pipeline operational! You will be alerted the second an OA arrives or interview is scheduled.",
+                url="http://localhost:8765"
+            )
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"status": "ok", "details": res}).encode("utf-8"))
             return
 
         # 1. /api/jobs/{rowid}/tailor (On-Demand JIT Tailoring)
@@ -3971,7 +4528,43 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps(res).encode("utf-8"))
             return
 
-        # 5. /api/jobs/{rowid}/launch (Playwright Assistant)
+        # 5a. /api/jobs/{rowid}/auto_apply (100% Autonomous Auto-Apply - Kanistus Workflow)
+        elif path.startswith("/api/jobs/") and path.endswith("/auto_apply"):
+            parts = path.split("/")
+            rowid = int(parts[3])
+            from applypilot.apply.assistant import launch_application_assistant
+            from applypilot.analytics.activity import mark_job_half_applied
+            mark_job_half_applied(rowid, action="autonomous_apply")
+
+            t = threading.Thread(target=launch_application_assistant, kwargs={"identifier": rowid, "headed": True, "auto_submit": True}, daemon=True)
+            t.start()
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"status": "launched", "mode": "autonomous", "rowid": rowid}).encode("utf-8"))
+            return
+
+        # 5b. /api/auto_apply_batch (Batch Autonomous Execution)
+        elif path == "/api/auto_apply_batch":
+            length = int(self.headers.get("Content-Length", 0))
+            body_data = self.rfile.read(length).decode("utf-8") if length > 0 else "{}"
+            req_data = json.loads(body_data) if body_data else {}
+            limit = int(req_data.get("limit", 5))
+            min_score = int(req_data.get("min_score", 7))
+            auto_submit = bool(req_data.get("auto_submit", True))
+
+            from applypilot.apply.assistant import auto_apply_batch
+            t = threading.Thread(target=auto_apply_batch, kwargs={"limit": limit, "min_score": min_score, "headed": True, "auto_submit": auto_submit}, daemon=True)
+            t.start()
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"status": "batch_launched", "limit": limit, "min_score": min_score}).encode("utf-8"))
+            return
+
+        # 5c. /api/jobs/{rowid}/launch (Playwright Assistant - Review Mode)
         elif path.startswith("/api/jobs/") and path.endswith("/launch"):
             parts = path.split("/")
             rowid = int(parts[3])
@@ -3979,7 +4572,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             from applypilot.analytics.activity import mark_job_half_applied
             mark_job_half_applied(rowid, action="autofill_launch")
 
-            t = threading.Thread(target=launch_application_assistant, args=(rowid, True), daemon=True)
+            t = threading.Thread(target=launch_application_assistant, kwargs={"identifier": rowid, "headed": True, "auto_submit": False}, daemon=True)
             t.start()
 
             self.send_response(200)
@@ -4177,6 +4770,38 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.send_header("Content-Type", "application/json")
             self.end_headers()
             self.wfile.write(json.dumps({"status": "launched"}).encode("utf-8"))
+            return
+
+        # /api/linkedin/compose_dm (Assisted 1-Click Referral DM auto-composer in Brave)
+        elif path == "/api/linkedin/compose_dm":
+            length = int(self.headers.get("Content-Length", 0))
+            body_data = self.rfile.read(length).decode("utf-8") if length > 0 else "{}"
+            try:
+                data = json.loads(body_data)
+                profile_url = data.get("profile_url", "").strip()
+                company = data.get("company", "").strip()
+                role_str = data.get("role", "Backend Engineer").strip()
+                name_str = data.get("name", "").strip()
+                custom_msg = data.get("message", "").strip()
+                template = data.get("template", "referral").strip()
+
+                from applypilot.networking.linkedin import compose_referral_dm
+                res = compose_referral_dm(
+                    profile_url=profile_url,
+                    company=company,
+                    role_title=role_str,
+                    name=name_str,
+                    custom_message=custom_msg,
+                    template_type=template,
+                    headed=True
+                )
+            except Exception as e:
+                res = {"status": "error", "message": str(e)}
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(json.dumps(res).encode("utf-8"))
             return
 
         # 9. /api/naukri/refresh

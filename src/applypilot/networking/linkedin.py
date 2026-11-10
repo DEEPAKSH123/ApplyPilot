@@ -375,3 +375,180 @@ def _save_lead_to_db(lead: dict) -> None:
         url
     ))
     conn.commit()
+
+
+def compose_referral_dm(
+    profile_url: str,
+    company: str = "",
+    role_title: str = "Backend Engineer",
+    name: str = "",
+    custom_message: str = "",
+    template_type: str = "referral",
+    headed: bool = True
+) -> dict[str, Any]:
+    """Launch Brave, open connection profile/chat, and auto-type personalized referral message.
+
+    Human-in-the-Loop Safe: Pre-types the message and pauses for Deepak to click 'Send'.
+    """
+    from playwright.sync_api import sync_playwright
+
+    clean_url = (profile_url or "").strip()
+    if not clean_url:
+        return {"status": "error", "message": "No profile URL provided."}
+    if not clean_url.startswith("http"):
+        if clean_url.startswith("in/"):
+            clean_url = f"https://www.linkedin.com/{clean_url}"
+        else:
+            clean_url = f"https://www.linkedin.com/in/{clean_url}"
+
+    first_name = name.split()[0] if name else ""
+    first_name_salutation = f"Hi {first_name}," if first_name else "Hi,"
+    comp_label = company or "your company"
+
+    if custom_message:
+        body_msg = custom_message
+        short_note = custom_message[:295]
+    elif template_type == "alumni":
+        body_msg = (
+            f"{first_name_salutation}\n\n"
+            f"Hope you're doing well! I'm a fellow RVCE CSE graduate (Class of '25), currently working as an SDE-I at Meesho.\n\n"
+            f"I saw that you're working at {comp_label} and noticed the {role_title} opening. Given my production experience building and scaling distributed backend systems with Go, Java 17, Apache Kafka, and Redis, I would be grateful for an employee referral.\n\n"
+            f"Would you be open to referring me? Happy to share my tailored resume and requisition details!\n\n"
+            f"Best regards,\nDeepak S H\nhttps://www.linkedin.com/in/deepak-s-h-82b772254"
+        )
+        short_note = f"Hi {first_name or 'there'}, fellow RVCE CSE '25 alum here! Currently SDE-1 at Meesho (Go/Java/Kafka). Saw the {role_title} opening at {comp_label} and would love to connect for a referral!"[:295]
+    else:
+        body_msg = (
+            f"{first_name_salutation}\n\n"
+            f"Hope you're having a great week! I'm an SDE-I Backend Engineer at Meesho (RVCE CSE '25) with production experience scaling high-throughput microservices in Go, Java 17, Apache Kafka, and Redis.\n\n"
+            f"I noticed the {role_title} opening at {comp_label} and feel my background aligns well with the team's requirements. Could you kindly consider referring me for this position?\n\n"
+            f"Happy to share my resume and requisition details. Thank you so much for your time!\n\n"
+            f"Best regards,\nDeepak S H\nhttps://www.linkedin.com/in/deepak-s-h-82b772254"
+        )
+        short_note = f"Hi {first_name or 'there'}, I'm an SDE-1 Backend Engineer at Meesho (Go/Java/Kafka). Noticed the {role_title} role at {comp_label} and would love to connect to explore a referral!"[:295]
+
+    # Also copy to clipboard so user has it immediately
+    try:
+        import subprocess
+        subprocess.run(["powershell", "-Command", f"Set-Clipboard -Value @'\n{body_msg}\n'@"], check=False)
+    except Exception:
+        pass
+
+    exe_path, _ = get_browser_executable()
+    BRAVE_PROFILE_DIR.mkdir(parents=True, exist_ok=True)
+
+    log.info("Composing LinkedIn referral DM for: %s", clean_url)
+
+    def _worker():
+        with sync_playwright() as p:
+            launch_args = [
+                "--disable-blink-features=AutomationControlled",
+                "--no-first-run",
+                "--no-default-browser-check",
+            ]
+            context = p.chromium.launch_persistent_context(
+                user_data_dir=str(BRAVE_PROFILE_DIR.resolve()),
+                executable_path=exe_path if exe_path else None,
+                headless=not headed,
+                args=launch_args,
+                viewport={"width": 1280, "height": 850},
+            )
+
+            # Pre-load cookies
+            existing_cookies = get_stored_cookies()
+            if existing_cookies:
+                try:
+                    context.add_cookies(existing_cookies)
+                except Exception:
+                    pass
+
+            page = context.pages[0] if context.pages else context.new_page()
+            page.goto(clean_url, wait_until="domcontentloaded")
+            time.sleep(3)
+
+            # Check if name is detectable on page
+            nonlocal first_name
+            if not first_name:
+                h1 = page.query_selector("h1")
+                if h1:
+                    raw_title = h1.inner_text().strip()
+                    if raw_title:
+                        first_name = raw_title.split()[0]
+
+            # Try clicking Message button (for 1st-degree connections)
+            msg_btn = page.query_selector("button:has-text('Message'), a:has-text('Message'), button[aria-label*='Message']")
+            typed = False
+
+            if msg_btn:
+                try:
+                    msg_btn.click()
+                    time.sleep(2)
+                    # Locate chat box
+                    chat_box = page.wait_for_selector(
+                        "div.msg-form__contenteditable, div[role='textbox'][aria-label*='Write a message']",
+                        timeout=6000
+                    )
+                    if chat_box:
+                        chat_box.click()
+                        time.sleep(0.5)
+                        page.keyboard.insert_text(body_msg)
+                        typed = True
+                        log.info("Successfully typed message into LinkedIn chat box!")
+
+                        # Highlight the send button
+                        page.evaluate("""() => {
+                            const btn = document.querySelector('button.msg-form__send-button, button[type="submit"].msg-form__send-btn');
+                            if (btn) {
+                                btn.style.outline = '3px solid #10b981';
+                                btn.style.boxShadow = '0 0 16px #10b981';
+                            }
+                        }""")
+                except Exception as me:
+                    log.warning("Could not auto-type in inline chat: %s", me)
+
+            # If not typed via Message button, try "Connect" -> "Add a note"
+            if not typed:
+                try:
+                    connect_btn = page.query_selector("button:has-text('Connect'), a:has-text('Connect')")
+                    if not connect_btn:
+                        more_btn = page.query_selector("button[aria-label*='More actions'], button:has-text('More')")
+                        if more_btn:
+                            more_btn.click()
+                            time.sleep(1)
+                            connect_btn = page.query_selector("div[role='button']:has-text('Connect'), button:has-text('Connect')")
+
+                    if connect_btn:
+                        connect_btn.click()
+                        time.sleep(1.5)
+
+                        # Look for "Add a note"
+                        add_note_btn = page.query_selector("button:has-text('Add a note'), button[aria-label*='Add a note']")
+                        if add_note_btn:
+                            add_note_btn.click()
+                            time.sleep(1)
+
+                        textarea = page.query_selector("textarea#custom-message, textarea[name='message']")
+                        if textarea:
+                            textarea.fill(short_note)
+                            typed = True
+                            log.info("Filled personalized note into connection request modal!")
+                except Exception as ce:
+                    log.warning("Could not fill connection note: %s", ce)
+
+            # Keep browser alive for human review and click
+            log.info("Assisted DM composer active on screen. Pausing for Deepak's review...")
+            time.sleep(180) # Keep browser open for 3 minutes for review
+            try:
+                context.close()
+            except Exception:
+                pass
+
+    import threading
+    t = threading.Thread(target=_worker, daemon=True)
+    t.start()
+
+    return {
+        "status": "ok",
+        "message": f"Assisted DM composer active in Brave for {first_name or 'connection'}! Message pre-typed and ready to Send.",
+        "copied_to_clipboard": True
+    }

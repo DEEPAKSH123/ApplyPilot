@@ -19,7 +19,8 @@ from applypilot.networking.linkedin import (
     is_linkedin_authenticated,
     login_to_linkedin,
     search_linkedin_posts,
-    search_linkedin_connections
+    search_linkedin_connections,
+    compose_referral_dm
 )
 
 mcp = MCPServer(
@@ -98,6 +99,30 @@ def linkedin_open_in_brave_tool(url: str) -> dict[str, Any]:
         return {"status": "opened", "url": url}
     except Exception as e:
         return {"status": "error", "message": str(e)}
+
+
+@mcp.tool(
+    name="linkedin_compose_dm",
+    description="Launch Brave browser, navigate to a connection's LinkedIn profile, open chat/connect note, and auto-type a personalized referral DM ready to review and send."
+)
+def linkedin_compose_dm_tool(
+    profile_url: str,
+    company: str = "",
+    role: str = "Backend Engineer",
+    name: str = "",
+    message: str = "",
+    template: str = "referral"
+) -> dict[str, Any]:
+    """Auto-compose a referral outreach message directly in Brave."""
+    return compose_referral_dm(
+        profile_url=profile_url,
+        company=company,
+        role_title=role,
+        name=name,
+        custom_message=message,
+        template_type=template,
+        headed=True
+    )
 
 
 if __name__ == "__main__":
