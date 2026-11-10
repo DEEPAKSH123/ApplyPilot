@@ -138,8 +138,9 @@ def store_jobspy_results(conn: sqlite3.Connection, df, source_label: str) -> tup
             continue
 
         title = str(row.get("title", "")) if str(row.get("title", "")) != "nan" else None
-        company = str(row.get("company", "")) if str(row.get("company", "")) != "nan" else None
-        location_str = str(row.get("location", "")) if str(row.get("location", "")) != "nan" else None
+        raw_company = row.get("company")
+        company = str(raw_company).strip() if (raw_company and str(raw_company).lower() not in ("nan", "none", "")) else None
+        location_str = str(row.get("location", "")) if (str(row.get("location", "")) != "nan" and str(row.get("location", "")).lower() != "none") else None
 
         # Build salary string from min/max
         salary = None
@@ -159,7 +160,8 @@ def store_jobspy_results(conn: sqlite3.Connection, df, source_label: str) -> tup
         site_name = str(row.get("site", source_label))
         is_remote = row.get("is_remote", False)
 
-        site_label = f"{site_name}"
+        # Use actual company name if available (e.g. PhonePe, Apollo.io, PayU)
+        site_label = company if company else site_name
         if is_remote:
             location_str = f"{location_str} (Remote)" if location_str else "Remote"
 
@@ -172,8 +174,9 @@ def store_jobspy_results(conn: sqlite3.Connection, df, source_label: str) -> tup
             full_description = description
             detail_scraped_at = now
 
-        # Extract apply URL if JobSpy provided it
-        apply_url = str(row.get("job_url_direct", "")) if str(row.get("job_url_direct", "")) != "nan" else None
+        # Extract apply URL if JobSpy provided it (prevent literal 'None' string)
+        raw_direct = row.get("job_url_direct")
+        apply_url = str(raw_direct).strip() if (raw_direct and str(raw_direct).lower() not in ("nan", "none", "")) else None
 
         try:
             conn.execute(

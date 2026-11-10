@@ -1184,37 +1184,80 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       const job = allJobs.find(j => j.rowid === rowid);
       if (!job) return;
       const o = job.outreach || {};
+      const comp = job.company || 'Target Company';
 
-      document.getElementById('referral-modal-title').innerHTML = `<i class="fa-solid fa-people-arrows"></i> LinkedIn Referrals: <strong>${job.company}</strong> (${job.title})`;
+      document.getElementById('referral-modal-title').innerHTML = `<i class="fa-brands fa-linkedin" style="color:#38bdf8;"></i> LinkedIn Connections & Outreach: <strong>${comp}</strong> (${job.title})`;
 
       const html = `
-        <div style="background: rgba(30, 41, 59, 0.7); border: 1px solid #334155; border-radius: 12px; padding: 18px; margin-bottom: 20px;">
-          <h4 style="margin: 0 0 8px 0; color: #38bdf8; font-size: 15px;"><i class="fa-brands fa-linkedin"></i> 1. Targeted LinkedIn Searches (Opens in your active Brave)</h4>
+        <!-- Section 1: Active Connections & Network Filters -->
+        <div style="background: rgba(30, 41, 59, 0.75); border: 1.5px solid rgba(56, 189, 248, 0.3); border-radius: 12px; padding: 18px; margin-bottom: 20px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <h4 style="margin: 0; color: #38bdf8; font-size: 15px;"><i class="fa-solid fa-filter"></i> 1. Targeted LinkedIn Network Filters (Opens in active Brave)</h4>
+            <span style="font-size: 11px; background: rgba(56,189,248,0.15); color: #38bdf8; padding: 3px 8px; border-radius: 6px; font-weight: 700;">Deepak's Active Network</span>
+          </div>
           <p style="margin: 0 0 14px 0; font-size: 13px; color: #94a3b8;">
-            💡 <em>Alumni referrals have a 50-80% response rate compared to 2% for cold portal applications!</em>
+            🎯 <em>Filters your live LinkedIn account for 1st-degree friends, 2nd-degree mutuals, and RVCE alumni currently working at ${comp}.</em>
           </p>
           <div style="display: flex; flex-wrap: wrap; gap: 10px;">
-            <a href="${o.alumni_search_url || '#'}" target="_blank" class="btn" style="background:#0284c7;color:white;text-decoration:none;padding:9px 14px;">
-              🎓 Find RVCE Alumni at ${job.company}
+            <a href="${o.first_degree_url || '#'}" id="ref-first-deg-link" target="_blank" class="btn" style="background: linear-gradient(135deg, #059669, #10b981); color: white; text-decoration: none; padding: 9px 14px; font-weight: 700; box-shadow: 0 2px 8px rgba(16,185,129,0.3);">
+              🟢 Find My 1st Degree Connections @ ${comp}
             </a>
-            <a href="${o.recruiter_search_url || '#'}" target="_blank" class="btn" style="background:#7c3aed;color:white;text-decoration:none;padding:9px 14px;">
-              🎯 Find Tech Recruiters at ${job.company}
+            <a href="${o.second_degree_url || '#'}" target="_blank" class="btn" style="background: linear-gradient(135deg, #d97706, #f59e0b); color: white; text-decoration: none; padding: 9px 14px; font-weight: 700;">
+              🟡 Find 2nd Degree (Mutual) Connections @ ${comp}
             </a>
-            <a href="${o.lead_search_url || '#'}" target="_blank" class="btn" style="background:#334155;color:white;text-decoration:none;padding:9px 14px;">
-              ⚡ Find Backend Engineering Managers
+            <a href="${o.alumni_search_url || '#'}" target="_blank" class="btn" style="background: #0284c7; color: white; text-decoration: none; padding: 9px 14px; font-weight: 700;">
+              🎓 Find RVCE Alumni @ ${comp}
+            </a>
+            <a href="${o.recruiter_search_url || '#'}" target="_blank" class="btn" style="background: #7c3aed; color: white; text-decoration: none; padding: 9px 14px; font-weight: 700;">
+              🎯 Find Tech Recruiters @ ${comp}
+            </a>
+            <a href="${o.lead_search_url || '#'}" target="_blank" class="btn" style="background: #334155; color: white; text-decoration: none; padding: 9px 14px;">
+              ⚡ Engineering Managers
             </a>
           </div>
 
-          <!-- Direct Connection Message Box -->
-          <div style="margin-top: 16px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.08); display: flex; gap: 10px; align-items: center;">
-            <input type="text" id="direct-conn-input" placeholder="Paste connection's LinkedIn profile URL or name..." style="flex:1; background: #0f172a; border: 1px solid #334155; color: #fff; padding: 8px 12px; border-radius: 8px; font-size: 12px;">
-            <button class="btn" style="background:#0a66c2;color:white;" onclick="openDirectConnectionChat()"><i class="fa-solid fa-paper-plane"></i> Open Chat</button>
+          <!-- Section 2: Live Connection & Alumni Scanner -->
+          <div style="margin-top: 18px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.08);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+              <span style="font-size: 13px; font-weight: 700; color: #f1f5f9;"><i class="fa-solid fa-radar fa-spin"></i> Live Connection Scanner:</span>
+              <button class="btn btn-brave" onclick="scanCompanyConnections('${comp.replace(/'/g, "\\'")}')" style="padding: 5px 12px; font-size: 11px;">
+                <i class="fa-solid fa-magnifying-glass"></i> Scan My Connections @ ${comp}
+              </button>
+            </div>
+            <div id="live-connections-container" style="min-height: 20px;"></div>
+          </div>
+
+          <!-- Direct Custom LinkedIn Search / Chat Box -->
+          <div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.08); display: flex; gap: 10px; align-items: center;">
+            <input type="text" id="direct-conn-input" placeholder="Paste specific connection's LinkedIn profile URL or name..." style="flex:1; background: #0f172a; border: 1px solid #334155; color: #fff; padding: 8px 12px; border-radius: 8px; font-size: 12px;">
+            <button class="btn" style="background:#0a66c2;color:white;" onclick="openDirectConnectionChat()"><i class="fa-solid fa-paper-plane"></i> Open Chat in Brave</button>
           </div>
         </div>
 
-        <div style="margin-bottom: 20px;">
+        <!-- Section 3: Four Tailored Outreach Templates -->
+        <div style="margin-bottom: 18px;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-            <h4 style="margin: 0; color: #4ade80; font-size: 14px;"><i class="fa-solid fa-graduation-cap"></i> Template A: RVCE Alumni Referral Request</h4>
+            <h4 style="margin: 0; color: #34d399; font-size: 14px;"><i class="fa-solid fa-handshake"></i> Template A: 1st-Degree (Active Connection) Warm Referral</h4>
+            <button class="btn" style="background: #059669; color: white; padding: 4px 10px; font-size: 11px;" onclick="copyOutreachText('first-deg-msg-text')">
+              <i class="fa-regular fa-copy"></i> Copy Message
+            </button>
+          </div>
+          <textarea id="first-deg-msg-text" style="width: 100%; height: 130px; background: #0f172a; color: #f1f5f9; border: 1px solid #334155; border-radius: 8px; padding: 12px; font-family: monospace; font-size: 12px; resize: vertical;" readonly>${o.first_deg_message || ''}</textarea>
+        </div>
+
+        <div style="margin-bottom: 18px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <h4 style="margin: 0; color: #f59e0b; font-size: 14px;"><i class="fa-solid fa-people-arrows"></i> Template B: 2nd-Degree (Mutual Connection) Referral</h4>
+            <button class="btn" style="background: #d97706; color: white; padding: 4px 10px; font-size: 11px;" onclick="copyOutreachText('second-deg-msg-text')">
+              <i class="fa-regular fa-copy"></i> Copy Message
+            </button>
+          </div>
+          <textarea id="second-deg-msg-text" style="width: 100%; height: 130px; background: #0f172a; color: #f1f5f9; border: 1px solid #334155; border-radius: 8px; padding: 12px; font-family: monospace; font-size: 12px; resize: vertical;" readonly>${o.second_deg_message || ''}</textarea>
+        </div>
+
+        <div style="margin-bottom: 18px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <h4 style="margin: 0; color: #4ade80; font-size: 14px;"><i class="fa-solid fa-graduation-cap"></i> Template C: RVCE Alumni Referral Request</h4>
             <button class="btn" style="background: #10b981; color: white; padding: 4px 10px; font-size: 11px;" onclick="copyOutreachText('alumni-msg-text')">
               <i class="fa-regular fa-copy"></i> Copy Message
             </button>
@@ -1224,7 +1267,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
 
         <div style="margin-bottom: 10px;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-            <h4 style="margin: 0; color: #a78bfa; font-size: 14px;"><i class="fa-solid fa-bullhorn"></i> Template B: Recruiter Direct Message</h4>
+            <h4 style="margin: 0; color: #a78bfa; font-size: 14px;"><i class="fa-solid fa-bullhorn"></i> Template D: Recruiter Direct Message</h4>
             <button class="btn" style="background: #7c3aed; color: white; padding: 4px 10px; font-size: 11px;" onclick="copyOutreachText('recruiter-msg-text')">
               <i class="fa-regular fa-copy"></i> Copy Message
             </button>
@@ -1235,6 +1278,84 @@ HTML_DASHBOARD = """<!DOCTYPE html>
 
       document.getElementById('referral-modal-body').innerHTML = html;
       document.getElementById('referral-modal').style.display = 'flex';
+    }
+
+    async function scanCompanyConnections(company) {
+      const container = document.getElementById('live-connections-container');
+      container.innerHTML = `<div style="text-align:center; padding: 14px; color: #38bdf8;"><i class="fa-solid fa-circle-notch fa-spin"></i> Scanning LinkedIn for your connections & RVCE alumni @ ${company}...</div>`;
+
+      try {
+        const res = await fetch(`/api/linkedin/scan?company=${encodeURIComponent(company)}`);
+        const data = await res.json();
+
+        if (data.status === 'not_authenticated') {
+          container.innerHTML = `
+            <div style="background: rgba(15,23,42,0.8); border: 1px dashed #eab308; border-radius: 10px; padding: 14px; text-align: center;">
+              <p style="color: #fde047; font-size: 13px; margin-bottom: 6px;">
+                <i class="fa-solid fa-triangle-exclamation"></i> LinkedIn session not connected yet.
+              </p>
+              <p style="color: #94a3b8; font-size: 12px; margin-bottom: 12px;">
+                Click below to open your 1st-degree filtered connections in Brave, or connect LinkedIn once via ApplyPilot:
+              </p>
+              <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
+                <a href="${document.getElementById('ref-first-deg-link').href}" target="_blank" class="btn" style="background:#0a66c2;color:#fff;">
+                  <i class="fa-brands fa-brave"></i> Open 1st-Degree Filter in Brave
+                </a>
+                <button class="btn" style="background:#334155;color:#fff;" onclick="triggerLinkedInLogin()">
+                  <i class="fa-solid fa-key"></i> Connect LinkedIn in Brave (1-Click)
+                </button>
+              </div>
+            </div>
+          `;
+          return;
+        }
+
+        if (data.status === 'ok' && data.connections && data.connections.length > 0) {
+          container.innerHTML = data.connections.map(c => `
+            <div style="background: #0f172a; border: 1px solid #334155; border-radius: 10px; padding: 12px; display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px;">
+              <div>
+                <div style="font-weight: 700; color: #f8fafc; font-size: 13.5px; display: flex; align-items: center; gap: 8px;">
+                  <span>${c.name}</span>
+                  <span style="background: #065f46; color: #34d399; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 700;">Alumni / Connection</span>
+                </div>
+                <div style="color: #94a3b8; font-size: 12px;">${c.headline}</div>
+                <div style="color: #64748b; font-size: 11px;"><i class="fa-solid fa-location-dot"></i> ${c.location}</div>
+              </div>
+              <div style="display: flex; gap: 6px;">
+                <button class="btn" style="background: #0a66c2; color: #fff; padding: 6px 10px; font-size: 11px;" onclick="openDirectUrl('${c.profile_url}')">
+                  <i class="fa-brands fa-linkedin"></i> View & Chat
+                </button>
+                <button class="btn" style="background: #10b981; color: white; padding: 6px 10px; font-size: 11px;" onclick="copyCustomReferral('${c.name.replace(/'/g, "\\'")}')">
+                  <i class="fa-regular fa-copy"></i> Copy Note
+                </button>
+              </div>
+            </div>
+          `).join('');
+        } else {
+          container.innerHTML = `
+            <div style="background: rgba(15,23,42,0.6); border: 1px solid #334155; border-radius: 10px; padding: 12px; text-align: center; color: #94a3b8; font-size: 13px;">
+              No direct alumni found in quick query. Click <strong>[🟢 Find My 1st Degree Connections @ ${company}]</strong> above to view your full active network in Brave!
+            </div>
+          `;
+        }
+      } catch (err) {
+        container.innerHTML = `<div style="color: #f87171; font-size: 12px;">Error checking connections: ${err}</div>`;
+      }
+    }
+
+    async function triggerLinkedInLogin() {
+      showToast('Launching Brave for LinkedIn login...');
+      await fetch('/api/linkedin/login', { method: 'POST' });
+      showToast('Please log in on Brave. When done, your session will be saved automatically!');
+    }
+
+    function copyCustomReferral(name) {
+      const template = document.getElementById('first-deg-msg-text') || document.getElementById('alumni-msg-text');
+      if (template) {
+        const text = template.value.replace(/\[Name\]/g, name);
+        navigator.clipboard.writeText(text);
+        showToast(`Copied personalized note for ${name}! Ready to paste into LinkedIn.`);
+      }
     }
 
     function closeReferralModal() {
@@ -1447,6 +1568,41 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps(responses).encode("utf-8"))
             return
 
+        elif path.startswith("/api/linkedin/scan"):
+            query_params = urllib.parse.parse_qs(parsed.query)
+            comp_param = query_params.get("company", [""])[0]
+
+            from applypilot.networking.linkedin import search_linkedin_connections, is_linkedin_authenticated
+            if not is_linkedin_authenticated():
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({
+                    "status": "not_authenticated",
+                    "message": "LinkedIn session not active."
+                }).encode("utf-8"))
+                return
+
+            try:
+                results = search_linkedin_connections(company=comp_param, role="backend", school="RV College of Engineering", max_results=8)
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({
+                    "status": "ok",
+                    "connections": results
+                }).encode("utf-8"))
+                return
+            except Exception as e:
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({
+                    "status": "error",
+                    "message": str(e)
+                }).encode("utf-8"))
+                return
+
         elif path.startswith("/files/"):
             # Stream PDF file
             subpath = path[len("/files/"):]
@@ -1501,7 +1657,26 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 self.end_headers()
                 return
 
-            apply_url = row[0] or row[1]
+            app_url = row[0]
+            job_url = row[1]
+            apply_url = None
+            for u in (app_url, job_url):
+                if u and str(u).strip().lower() not in ("none", "null", "", "http://none/", "http://none", "none/"):
+                    u_str = str(u).strip()
+                    if u_str.startswith("http://") or u_str.startswith("https://"):
+                        apply_url = u_str
+                        break
+
+            if not apply_url:
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({
+                    "status": "error",
+                    "message": "No direct application URL found for this position."
+                }).encode("utf-8"))
+                return
+
             tailored_path = row[2]
 
             # Copy PDF path to clipboard if available
@@ -1610,6 +1785,17 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.send_header("Content-Type", "application/json")
             self.end_headers()
             self.wfile.write(json.dumps(res).encode("utf-8"))
+            return
+
+        # 8. /api/linkedin/login
+        elif path == "/api/linkedin/login":
+            from applypilot.networking.linkedin import login_to_linkedin
+            t = threading.Thread(target=login_to_linkedin, kwargs={"timeout_sec": 75, "headed": True}, daemon=True)
+            t.start()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"status": "launched"}).encode("utf-8"))
             return
 
         self.send_response(404)
