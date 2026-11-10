@@ -13,7 +13,7 @@ def clean_company_name(company: str) -> str:
     if not company:
         return ""
     comp_clean = company.replace("WhatsApp (", "").replace(")", "").replace("Recruiter", "").strip()
-    if comp_clean.lower() in ("linkedin", "indeed", "unknown", "tech company", "tech firm"):
+    if comp_clean.lower().startswith("whatsapp") or comp_clean.lower() in ("linkedin", "indeed", "glassdoor", "unknown", "tech company", "tech firm", "rvce_tech_referrals"):
         return ""
     return comp_clean
 
@@ -21,7 +21,18 @@ def clean_company_name(company: str) -> str:
 def generate_linkedin_searches(company: str, role_title: str) -> dict[str, str]:
     """Generate targeted LinkedIn search URLs with official degree and alumni filters."""
     comp_clean = clean_company_name(company)
-    comp_encoded = urllib.parse.quote(f'"{comp_clean}"' if comp_clean else "")
+    if not comp_clean:
+        role_enc = urllib.parse.quote(role_title or "Backend Engineer")
+        return {
+            "first_degree_url": f"https://www.linkedin.com/search/results/people/?keywords={role_enc}&network=%5B%22F%22%5D",
+            "second_degree_url": f"https://www.linkedin.com/search/results/people/?keywords={role_enc}&network=%5B%22S%22%5D",
+            "alumni_search_url": f"https://www.linkedin.com/search/results/people/?keywords=RVCE%20{role_enc}",
+            "recruiter_search_url": "https://www.linkedin.com/search/results/people/?keywords=technical%20recruiter%20backend%20bangalore",
+            "lead_search_url": "https://www.linkedin.com/search/results/people/?keywords=engineering%20manager%20backend%20bangalore",
+            "company_clean": "Hiring Team",
+        }
+
+    comp_encoded = urllib.parse.quote(f'"{comp_clean}"')
 
     # 1. First-Degree Connections at target company (People Deepak is ALREADY connected with!)
     first_deg_url = f"https://www.linkedin.com/search/results/people/?keywords={comp_encoded}&network=%5B%22F%22%5D"
@@ -47,7 +58,7 @@ def generate_linkedin_searches(company: str, role_title: str) -> dict[str, str]:
         "alumni_search_url": alumni_url,
         "recruiter_search_url": recruiter_url,
         "lead_search_url": lead_url,
-        "company_clean": comp_clean or company,
+        "company_clean": comp_clean,
     }
 
 

@@ -32,6 +32,28 @@ log = logging.getLogger(__name__)
 PORT = 8765
 BRAVE_EXE = r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe"
 
+
+def launch_url_in_brave(url: str) -> bool:
+    """Launch URL in Brave browser with shell and browser fallbacks."""
+    if not url or not (str(url).startswith("http://") or str(url).startswith("https://")):
+        return False
+    try:
+        if os.path.exists(BRAVE_EXE):
+            subprocess.Popen([BRAVE_EXE, url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        elif hasattr(os, "startfile"):
+            os.startfile(url)
+        else:
+            webbrowser.open(url)
+        return True
+    except Exception as e:
+        log.warning("Could not launch URL via Brave: %s", e)
+        try:
+            webbrowser.open(url)
+            return True
+        except Exception:
+            return False
+
+
 HTML_DASHBOARD = """<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1163,7 +1185,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
 
             <div class="actions-bar">
               <!-- Live Brave Browser Launcher -->
-              <button class="btn btn-brave" onclick="openInBrave(${job.rowid})">
+              <button class="btn btn-brave" onclick="openJobInBrave(${job.rowid}, '${encodeURIComponent(job.apply_url || job.url || "")}', '${encodeURIComponent(job.tailored_resume_path || "")}')">
                 <i class="fa-brands fa-brave"></i> Open in Brave (Live)
               </button>
 
@@ -1214,14 +1236,52 @@ HTML_DASHBOARD = """<!DOCTYPE html>
 
     /* Actions */
 
-    async function openInBrave(rowid) {
-      showToast('Opening in your active Brave browser & copying Tailored PDF path to clipboard...');
-      const res = await fetch(`/api/jobs/${rowid}/open_brave`, { method: 'POST' });
-      const data = await res.json();
-      if (data.status === 'ok') {
-        showToast(data.message);
+    async function openJobInBrave(rowid, encodedUrl, encodedPdfPath) {
+      const url = decodeURIComponent(encodedUrl || '');
+      const pdfPath = decodeURIComponent(encodedPdfPath || '');
+
+      if (!url || url.toLowerCase().startsWith('none') || !url.startsWith('http')) {
+        showToast('❌ No direct application URL found for this position.');
+        return;
+      }
+
+      // 1. Copy tailored resume path to Windows clipboard if available
+      if (pdfPath && pdfPath !== 'null' && pdfPath !== 'undefined') {
+        const absPath = pdfPath.includes(':') ? pdfPath : `D:\\ApplyPilot_Workspace\\data\\${pdfPath.replace(/^\//, '').replace(/\//g, '\\')}`;
+        try {
+          await navigator.clipboard.writeText(absPath);
+          showToast('📋 Tailored Resume copied to clipboard! Opening portal in Brave...');
+        } catch (e) {
+          showToast('Opening portal in your active Brave browser...');
+        }
       } else {
-        showToast('Error: ' + data.message);
+        showToast('Opening portal in your active Brave browser...');
+      }
+
+      // 2. Open new tab DIRECTLY in active Brave browser session
+      window.open(url, '_blank');
+
+      // 3. Notify backend asynchronously
+      try {
+        fetch(`/api/jobs/${rowid}/open_brave`, { method: 'POST' });
+      } catch (e) {}
+    }
+
+    async function openInBrave(rowid) {
+      const job = allJobs.find(j => j.rowid === rowid);
+      if (job) {
+        return openJobInBrave(rowid, encodeURIComponent(job.apply_url || job.url || ''), encodeURIComponent(job.tailored_resume_path || ''));
+      }
+      showToast('Opening in your active Brave browser...');
+      try {
+        const res = await fetch(`/api/jobs/${rowid}/open_brave`, { method: 'POST' });
+        const data = await res.json();
+        if (data.status === 'ok' && data.apply_url) {
+          window.open(data.apply_url, '_blank');
+        }
+        showToast(data.message || 'Opened in Brave');
+      } catch (err) {
+        showToast('Error opening job in Brave: ' + err);
       }
     }
 
@@ -1522,16 +1582,19 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     }
 
     async function openDirectUrl(url) {
+      if (!url || !url.startsWith('http')) {
+        showToast('❌ Invalid or missing link.');
+        return;
+      }
       showToast('Opening in your active Brave browser...');
+      window.open(url, '_blank');
       try {
-        await fetch('/api/open_url', {
+        fetch('/api/open_url', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ url: url })
         });
-      } catch (e) {
-        window.open(url, '_blank');
-      }
+      } catch (e) {}
     }
 
     function showToast(msg) {
@@ -1803,16 +1866,15 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                         pass
 
             # Open directly in running Brave browser
-            if os.path.exists(BRAVE_EXE):
-                subprocess.Popen([BRAVE_EXE, apply_url])
-            else:
-                webbrowser.open(apply_url)
+            launch_url_in_brave(apply_url)
 
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
             self.wfile.write(json.dumps({
                 "status": "ok",
+                "apply_url": apply_url,
+                "tailored_path": tailored_path,
                 "message": f"Opened portal in your active Brave browser!{msg_clip}"
             }).encode("utf-8"))
             return
@@ -1868,10 +1930,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 data = json.loads(body_data)
                 target_url = data.get("url", "")
                 if target_url:
-                    if os.path.exists(BRAVE_EXE):
-                        subprocess.Popen([BRAVE_EXE, target_url])
-                    else:
-                        webbrowser.open(target_url)
+                    launch_url_in_brave(target_url)
                     self.send_response(200)
                     self.send_header("Content-Type", "application/json")
                     self.end_headers()
@@ -1922,10 +1981,7 @@ def start_dashboard_server(port: int = PORT, open_browser: bool = True):
     print("   Press Ctrl+C to stop the dashboard server.\n")
 
     if open_browser:
-        if os.path.exists(BRAVE_EXE):
-            subprocess.Popen([BRAVE_EXE, url])
-        else:
-            webbrowser.open(url)
+        launch_url_in_brave(url)
 
     try:
         server.serve_forever()

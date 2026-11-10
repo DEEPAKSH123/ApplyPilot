@@ -86,11 +86,18 @@ def linkedin_search_connections_tool(
 )
 def linkedin_open_in_brave_tool(url: str) -> dict[str, Any]:
     """Open URL in active Brave browser."""
-    if os.path.exists(BRAVE_EXE):
-        subprocess.Popen([BRAVE_EXE, url])
-    else:
-        webbrowser.open(url)
-    return {"status": "opened", "url": url}
+    if not url or not (str(url).startswith("http://") or str(url).startswith("https://")):
+        return {"status": "error", "message": "Invalid URL provided"}
+    try:
+        if os.path.exists(BRAVE_EXE):
+            subprocess.Popen([BRAVE_EXE, url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        elif hasattr(os, "startfile"):
+            os.startfile(url)
+        else:
+            webbrowser.open(url)
+        return {"status": "opened", "url": url}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 
 if __name__ == "__main__":
