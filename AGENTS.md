@@ -1,6 +1,7 @@
 # Instructions & Guidelines for Agents Working on ApplyPilot
 
 Refer to `../MEMORY.md` for the complete operational history and candidate persona.
+Foundational architecture conversation: [`1fb6e843-5d62-4307-838d-5292f01ec21d`](conversation://1fb6e843-5d62-4307-838d-5292f01ec21d) (Audit & plan: [`docs/job_search_automation_audit_and_plan.md`](docs/job_search_automation_audit_and_plan.md)).
 
 ## Critical Invariants for Developers & AI Agents:
 
