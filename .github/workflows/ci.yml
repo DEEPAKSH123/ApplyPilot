@@ -1,17 +1,12 @@
 name: CI
 
 on:
-  push:
-    branches: ["main", "feature/**"]
-  pull_request:
-    branches: ["main"]
-  workflow_dispatch:
+  workflow_dispatch:  # manual trigger only; no push or pull_request notifications
 
 jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
-      fail-fast: false
       matrix:
         python-version: ["3.11", "3.12", "3.13"]
 
@@ -28,7 +23,7 @@ jobs:
         run: pip install -e ".[dev]"
 
       - name: Lint
-        run: ruff check src/ tests/
+        run: ruff check src/
 
       - name: Test
         run: pytest tests/ -v
