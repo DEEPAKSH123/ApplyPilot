@@ -157,7 +157,12 @@ def apply(
     min_score: int = typer.Option(7, "--min-score", help="Minimum fit score for job selection."),
     model: str = typer.Option("haiku", "--model", "-m", help="Claude model name."),
     continuous: bool = typer.Option(False, "--continuous", "-c", help="Run forever, polling for new jobs."),
-    dry_run: bool = typer.Option(False, "--dry-run", help="Preview actions without submitting."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Preview actions without submitting (legacy alias)."),
+    submit: bool = typer.Option(
+        False,
+        "--submit",
+        help="Explicitly authorize submission of applications. Without this flag, applications are prepared but not submitted.",
+    ),
     headless: bool = typer.Option(False, "--headless", help="Run browsers in headless mode."),
     url: Optional[str] = typer.Option(None, "--url", help="Apply to a specific job URL."),
     gen: bool = typer.Option(False, "--gen", help="Generate prompt file for manual debugging instead of running."),
@@ -210,16 +215,19 @@ def apply(
     console.print(f"  Limit:      {'unlimited' if continuous else effective_limit}")
     console.print(f"  Min Score:  {min_score}")
     console.print(f"  Headless:   {headless}")
-    console.print(f"  Auto-Submit:{not dry_run}")
+    auto_submit = submit and not dry_run
+    console.print(f"  Auto-Submit:{auto_submit}")
+    if not auto_submit:
+        console.print("  [yellow]Review mode:[/yellow] forms may be prepared, but nothing will be submitted. Use --submit only after reviewing.")
     if url:
         console.print(f"  Target:     {url}")
     console.print()
 
     if url:
-        res = launch_application_assistant(url, headed=not headless, auto_submit=not dry_run, is_batch=False)
+        res = launch_application_assistant(url, headed=not headless, auto_submit=auto_submit, is_batch=False)
         console.print(f"[bold cyan]Result:[/bold cyan] {res}")
     else:
-        res = auto_apply_batch(limit=effective_limit, min_score=min_score, headed=not headless, auto_submit=not dry_run)
+        res = auto_apply_batch(limit=effective_limit, min_score=min_score, headed=not headless, auto_submit=auto_submit)
         console.print(f"[bold green]Batch complete:[/bold green] Attempted {res.get('total_attempted', 0)}, Submitted {res.get('submitted_count', 0)}")
 
 
