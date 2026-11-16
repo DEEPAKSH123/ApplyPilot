@@ -114,7 +114,7 @@ def _persist_scores(conn, results: list[dict], scored_at: str) -> int:
             "UPDATE jobs SET fit_score = ?, score_reasoning = ?, scored_at = ? WHERE url = ?",
             (
                 score,
-                f"{result.get('keywords', '')}\\n{result.get('reasoning', '')}",
+                f"{result.get('keywords', '')}\n{result.get('reasoning', '')}",
                 scored_at,
                 result["url"],
             ),
