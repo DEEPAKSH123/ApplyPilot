@@ -143,6 +143,22 @@ Generates a custom resume per job: reorders experience, emphasizes relevant skil
 ### Cover Letter
 Writes a targeted cover letter per job referencing the specific company, role, and how your experience maps to their requirements.
 
+### Application safety (human approval by default)
+
+The application command runs in review mode by default. It may prepare application forms,
+but it does not submit them unless you explicitly pass `--submit`.
+
+```bash
+applypilot apply --dry-run       # preview the application flow
+applypilot apply                 # prepare forms; do not submit
+applypilot apply --submit        # explicitly authorize submission
+applypilot apply --url <job-url> --submit  # submit one specific application
+```
+
+Review the role, resume, profile fields, and screening answers before authorizing submission.
+Do not use `--submit` for unattended or continuous runs unless you have deliberately
+reviewed and accepted that behavior.
+
 ### Auto-Apply
 Claude Code launches a Chrome instance, navigates to each application page, detects the form type, fills personal information and work history, uploads the tailored resume and cover letter, answers screening questions with AI, and submits. A live dashboard shows progress in real-time.
 
