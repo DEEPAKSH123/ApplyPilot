@@ -1,6 +1,8 @@
 """Focused regression tests for deterministic scoring response parsing."""
 
-from applypilot.scoring.scorer import _parse_score_response
+import sqlite3
+
+from applypilot.scoring.scorer import _parse_score_response, _persist_scores
 
 
 def test_parse_complete_score_response():
@@ -33,3 +35,39 @@ def test_malformed_score_is_marked_unscored():
     assert parsed["score"] == 0
     assert parsed["keywords"] == "Java"
     assert parsed["reasoning"] == "Could not evaluate."
+
+
+
+def test_persist_scores_leaves_transient_failures_pending():
+    conn = sqlite3.connect(":memory:")
+    conn.execute(
+        "CREATE TABLE jobs (url TEXT PRIMARY KEY, fit_score INTEGER, score_reasoning TEXT, scored_at TEXT)"
+    )
+    conn.executemany(
+        "INSERT INTO jobs (url) VALUES (?)",
+        [("https://example.com/valid",), ("https://example.com/retry",)],
+    )
+
+    persisted = _persist_scores(
+        conn,
+        [
+            {
+                "url": "https://example.com/valid",
+                "score": 8,
+                "keywords": "Java",
+                "reasoning": "Good match.",
+            },
+            {
+                "url": "https://example.com/retry",
+                "score": 0,
+                "keywords": "",
+                "reasoning": "LLM error: rate limited",
+            },
+        ],
+        "2026-11-16T00:00:00+00:00",
+    )
+
+    rows = dict(conn.execute("SELECT url, fit_score FROM jobs").fetchall())
+    assert persisted == 1
+    assert rows["https://example.com/valid"] == 8
+    assert rows["https://example.com/retry"] is None
