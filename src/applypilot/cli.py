@@ -1042,6 +1042,49 @@ def alert_test_cmd() -> None:
     console.print(f"  • Windows Desktop Toast: {'Delivered' if res['windows_toast'] else 'Failed'}\n")
 
 
+@app.command("tailor-link")
+def tailor_link_cmd(
+    url: str = typer.Argument(..., help="Job posting link/URL to read and tailor for"),
+    jd: Optional[str] = typer.Option("", "--jd", help="Optional manual JD text if page is behind login"),
+) -> None:
+    """Read a job posting URL, tailor resume & cover letter, and generate referral outreach messages."""
+    _bootstrap()
+    from applypilot.apply.quick_tailor import process_job_link
+
+    console.print(f"[bold cyan]🔍 Fetching and analyzing job posting from URL:[/bold cyan] {url}")
+    res = process_job_link(url, manual_jd=jd)
+
+    if res.get("status") != "ok":
+        console.print(f"[bold red]✗ Failed to process link:[/bold red] {res.get('message')}")
+        raise typer.Exit(1)
+
+    comp = res.get("company", "Company")
+    title = res.get("title", "Software Engineer")
+    loc = res.get("location", "N/A")
+    outreach = res.get("outreach", {})
+
+    console.print(f"\n[bold green]✓ Successfully Extracted & Tailored for {comp}![/bold green]")
+    console.print(f"  • [bold white]Role:[/bold white] {title}")
+    console.print(f"  • [bold white]Location:[/bold white] {loc}")
+    if res.get("pdf_resume_path"):
+        console.print(f"  • [bold white]Tailored Resume PDF:[/bold white] [cyan]{res['pdf_resume_path']}[/cyan]")
+    if res.get("pdf_cover_path"):
+        console.print(f"  • [bold white]Cover Letter PDF:[/bold white] [cyan]{res['pdf_cover_path']}[/cyan]")
+
+    console.print("\n[bold yellow]Targeted LinkedIn Network Searches:[/bold yellow]")
+    console.print(f"  • 1st-Degree Friends: {outreach.get('first_degree_url')}")
+    console.print(f"  • 2nd-Degree Mutuals: {outreach.get('second_degree_url')}")
+    console.print(f"  • RVCE Alumni:        {outreach.get('alumni_search_url')}")
+    console.print(f"  • Recruiters:         {outreach.get('recruiter_search_url')}")
+
+    console.print("\n[bold yellow]Customized Referral Message (1st-Degree / Colleague):[/bold yellow]")
+    console.print(f"[dim]{outreach.get('first_degree_message')}[/dim]")
+
+    console.print("\n[bold yellow]Customized Referral Message (RVCE Alumni):[/bold yellow]")
+    console.print(f"[dim]{outreach.get('alumni_message')}[/dim]")
+    console.print("")
+
+
 if __name__ == "__main__":
 
 

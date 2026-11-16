@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from applypilot.config import APP_DIR, COVER_LETTER_DIR, RESUME_PATH, TAILORED_DIR, load_profile
+from applypilot.config import APP_DIR, COVER_LETTER_DIR, RESUME_PATH, TAILORED_DIR, load_env, load_profile
 from applypilot.database import get_connection
 from applypilot.export.csv_export import export_opportunities_csv
 from applypilot.scoring.cover_letter import generate_cover_letter
@@ -22,6 +22,7 @@ log = logging.getLogger(__name__)
 
 def tailor_single_job(rowid: int, validation_mode: str = "normal") -> dict[str, Any]:
     """Tailor resume and cover letter for a single job by rowid in real-time."""
+    load_env()
     conn = get_connection()
     c = conn.cursor()
     row = c.execute(
@@ -80,7 +81,7 @@ def tailor_single_job(rowid: int, validation_mode: str = "normal") -> dict[str, 
     # 2. Generate Cover Letter
     try:
         log.info("JIT Generating cover letter for: %s @ %s", job['title'], job['site'])
-        cover_txt, c_report = generate_cover_letter(tailored_txt or resume_text, job, profile)
+        cover_txt = generate_cover_letter(tailored_txt or resume_text, job, profile)
 
         c_txt_path = COVER_LETTER_DIR / f"{prefix}_CL.txt"
         c_txt_path.write_text(cover_txt, encoding="utf-8")

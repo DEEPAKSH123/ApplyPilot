@@ -139,6 +139,11 @@ def init_db(db_path: Path | str | None = None) -> sqlite3.Connection:
     # Run migrations for any columns added after initial schema
     ensure_columns(conn)
     init_auxiliary_tables(conn)
+    try:
+        from applypilot.networking.cold_email_tracker import init_cold_email_tables
+        init_cold_email_tables(conn)
+    except Exception:
+        pass
 
     return conn
 

@@ -142,6 +142,17 @@ def run_scoring(limit: int = 0, rescore: bool = False) -> dict:
     from applypilot.discovery.workday import _title_ok
     search_cfg = load_search_config()
     exclude_titles = search_cfg.get("exclude_titles", [])
+    seniority_cfg = search_cfg.get("seniority", {})
+    reject_titles = [t.lower() for t in seniority_cfg.get("reject_titles", [
+        "senior", "sr.", "sr ", "lead", "tech lead", "staff", "principal", "manager", "mgr", "director", "architect", "head"
+    ])]
+
+    exp_patterns = [
+        re.compile(r'(\d+)\+?\s*(?:to|-)\s*(\d+)\s*(?:years?|yrs?)', re.IGNORECASE),
+        re.compile(r'(\d+)\+?\s*(?:years?|yrs?)(?:\s*of)?\s*(?:relevant|hands-on|industry|software|backend|work)?\s*experience', re.IGNORECASE),
+        re.compile(r'experience(?:\s*of)?\s*:?\s*(\d+)\+?\s*(?:to|-)?\s*(\d+)?\s*(?:years?|yrs?)', re.IGNORECASE),
+        re.compile(r'(?:minimum|min|at least)\s*(\d+)\+?\s*(?:years?|yrs?)', re.IGNORECASE),
+    ]
 
     def _eval(job_item):
         title = job_item.get("title", "?")
@@ -155,6 +166,39 @@ def run_scoring(limit: int = 0, rescore: bool = False) -> dict:
                 "score": 2,
                 "keywords": "non-backend role",
                 "reasoning": f"Filtered pre-LLM: Title '{title}' matches excluded seniority/domain.",
+            }
+
+        title_lower = title.lower()
+        if any(st in title_lower for st in reject_titles):
+            return {
+                "url": url,
+                "title": title,
+                "score": 1,
+                "keywords": "seniority mismatch",
+                "reasoning": f"Directly rejected: Title '{title}' exceeds target seniority (0-3 YOE).",
+            }
+
+        # Check experience in description / full_description
+        full_text = f"{title} {job_item.get('description', '')} {job_item.get('full_description', '')}"
+        is_over_exp = False
+        min_detected_yrs = None
+        for pat in exp_patterns:
+            for m in pat.finditer(full_text):
+                groups = [int(g) for g in m.groups() if g and g.isdigit()]
+                if groups and min(groups) > 4:
+                    is_over_exp = True
+                    min_detected_yrs = min(groups)
+                    break
+            if is_over_exp:
+                break
+
+        if is_over_exp:
+            return {
+                "url": url,
+                "title": title,
+                "score": 1,
+                "keywords": f"experience > 4 yrs ({min_detected_yrs}+ yrs)",
+                "reasoning": f"Directly rejected: Required experience ({min_detected_yrs}+ years) exceeds 4 years threshold.",
             }
 
         res = score_job(resume_text, job_item)

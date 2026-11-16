@@ -196,6 +196,60 @@ def _scrape_smartrecruiters(employer_key: str, emp: dict, accept_locs: list[str]
     return matched
 
 
+def _scrape_ashby(employer_key: str, emp: dict, accept_locs: list[str], reject_locs: list[str],
+                   max_days_old: int, exclude_titles: list[str]) -> list[dict]:
+    """Fetch and filter jobs from Ashby public posting API."""
+    slug = emp.get("slug")
+    name = emp.get("name", employer_key)
+    api_url = emp.get("api_url") or f"https://api.ashbyhq.com/posting-api/job-board/{slug}"
+
+    try:
+        with httpx.Client(headers=HEADERS, timeout=8) as client:
+            r = client.get(api_url)
+        if r.status_code != 200:
+            log.warning("Ashby [%s] HTTP %d", name, r.status_code)
+            return []
+        data = r.json()
+        raw_jobs = data.get("jobs", [])
+    except Exception as e:
+        log.error("Ashby [%s] error: %s", name, e)
+        return []
+
+    matched = []
+    for j in raw_jobs:
+        title = j.get("title", "")
+        if not _title_ok(title, exclude_titles):
+            continue
+
+        loc = j.get("location", "") or ""
+        sec_locs = j.get("secondaryLocations", [])
+        if sec_locs and isinstance(sec_locs, list):
+            loc += " " + " ".join(str(s) for s in sec_locs)
+
+        if not _location_ok(loc, accept_locs, reject_locs):
+            continue
+
+        pub = j.get("publishedAt")
+        if pub and max_days_old > 0 and not _posted_within_days(pub, max_days_old):
+            continue
+
+        apply_url = j.get("applyUrl") or j.get("jobUrl") or f"https://jobs.ashbyhq.com/{slug}/{j.get('id')}"
+        desc = j.get("descriptionPlain") or strip_html(j.get("descriptionHtml", ""))
+
+        matched.append({
+            "title": title,
+            "site": name,
+            "location": loc.strip(),
+            "url": apply_url,
+            "application_url": apply_url,
+            "full_description": desc if desc else None,
+            "description": desc[:500] if desc else title,
+            "strategy": "ashby_api",
+        })
+
+    return matched
+
+
 # ── Main ATS Runner ───────────────────────────────────────────────────────
 
 def run_ats_discovery(workers: int = 4) -> dict:
@@ -222,6 +276,8 @@ def run_ats_discovery(workers: int = 4) -> dict:
             return _scrape_lever(key, emp, accept_locs, reject_locs, max_days_old, exclude_titles)
         elif ats == "smartrecruiters":
             return _scrape_smartrecruiters(key, emp, accept_locs, reject_locs, max_days_old, exclude_titles)
+        elif ats == "ashby":
+            return _scrape_ashby(key, emp, accept_locs, reject_locs, max_days_old, exclude_titles)
         return []
 
     all_matched = []

@@ -267,9 +267,16 @@ def extract_from_json_ld(intel: dict) -> dict | None:
         if not apply_url:
             apply_url = posting.get("url")
 
+        date_posted = posting.get("datePosted")
+        if date_posted and isinstance(date_posted, str):
+            date_posted = date_posted.split("T")[0]
+        else:
+            date_posted = None
+
         return {
             "full_description": desc_clean,
             "application_url": apply_url,
+            "date_posted": date_posted,
         }
 
     return None
@@ -663,11 +670,20 @@ def scrape_site_batch(
 
                 if status in ("ok", "partial"):
                     stats[status] += 1
-                    conn.execute(
-                        "UPDATE jobs SET full_description = ?, application_url = ?, "
-                        "detail_scraped_at = ?, detail_error = NULL WHERE url = ?",
-                        (result.get("full_description"), result.get("application_url"), now, url),
-                    )
+                    dp = result.get("date_posted")
+                    if dp:
+                        conn.execute(
+                            "UPDATE jobs SET full_description = ?, application_url = ?, "
+                            "detail_scraped_at = ?, detail_error = NULL, "
+                            "date_posted = COALESCE(NULLIF(date_posted, ''), ?) WHERE url = ?",
+                            (result.get("full_description"), result.get("application_url"), now, dp, url),
+                        )
+                    else:
+                        conn.execute(
+                            "UPDATE jobs SET full_description = ?, application_url = ?, "
+                            "detail_scraped_at = ?, detail_error = NULL WHERE url = ?",
+                            (result.get("full_description"), result.get("application_url"), now, url),
+                        )
                 else:
                     stats["error"] += 1
                     conn.execute(

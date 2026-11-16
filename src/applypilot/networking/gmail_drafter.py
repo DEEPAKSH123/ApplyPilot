@@ -55,27 +55,32 @@ def generate_recruiter_email(
     job_url: str = "",
     recruiter_name: str = "",
     candidate_profile: dict[str, Any] | None = None,
+    pitch_style: str = "quick_pitch",
 ) -> dict[str, str]:
-    """Generate high-converting recruiter cold email subject and clean, human-written body."""
+    """Generate high-converting cold emails tailored for founders and hiring managers.
+    
+    Styles:
+    - 'quick_pitch': Ultra-concise (<5 lines), 0 fluff, instant hook for hiring posts.
+    - 'founder_value': High-leverage pitch for founders/early hires highlighting scale problem solving and immediate impact.
+    - 'standard': Clean professional email for HR/Talent Acquisition.
+    """
     # Clean company name
     comp = (company or "").replace("WhatsApp (", "").replace(")", "").strip()
     for drop in ["WhatsApp Live Referral", "WhatsApp", "Telegram Channel", "Telegram", "KaDegree", "JobSpy"]:
         comp = comp.replace(drop, "").strip()
     if not comp or comp.lower() in ("unknown", "linkedin", "indeed", "glassdoor", "tech company", "tech firm", "team"):
-        comp = "your engineering team"
+        comp = "your team"
 
     # Clean role title
-    clean_role = role_title or "Backend Software Engineer"
+    clean_role = role_title or "Backend Engineer"
     if clean_role.lower() in ("sde i", "sde 1", "sde-1", "sde-i"):
-        clean_role = "Software Development Engineer I (SDE-I) - Backend"
+        clean_role = "SDE-I Backend Engineer"
 
     # Candidate details
     full_name = "Deepak S H"
     phone = "+91 8431433659"
     email = "deepakshkarkala@gmail.com"
     linkedin_url = "https://www.linkedin.com/in/deepak-s-h-82b772254"
-    github_url = "https://github.com/Deepak-S-H"
-    leetcode_url = "https://leetcode.com/u/Deepak_S_H/"
 
     if candidate_profile:
         personal = candidate_profile.get("personal", {})
@@ -83,39 +88,70 @@ def generate_recruiter_email(
         phone = personal.get("phone", phone)
         email = personal.get("email", email)
         linkedin_url = personal.get("linkedin_url", linkedin_url)
-        github_url = personal.get("github_url", github_url) or github_url
 
-    # Salutation: extract first name if full name passed
+    # Salutation
     first_name = recruiter_name.strip().split()[0] if recruiter_name and recruiter_name.strip() else ""
     if first_name.lower() in ("whatsapp", "telegram", "unknown", "lead", "community"):
         first_name = ""
-    salutation = f"Hi {first_name}," if first_name else "Hi Hiring Team,"
+    salutation = f"Hi {first_name}," if first_name else "Hi,"
 
-    subject = f"Application: {clean_role} - {full_name} (RVCE '25 | SDE-I @ Meesho)"
+    if pitch_style == "quick_pitch":
+        subject = f"{clean_role} (SDE-1 @ Meesho) - Saw your hiring post"
+        body = (
+            f"{salutation}\n\n"
+            f"Saw your post about the {clean_role} opening at {comp}.\n\n"
+            f"I'm an SDE-1 Backend Engineer at Meesho (RVCE CSE '25, CGPA 8.92). My day-to-day work is building "
+            f"high-throughput backend services using Java, Go, Kafka, and Redis, focusing on financial reconciliation and event streaming.\n\n"
+            f"Can join immediately / 0 days notice. Tailored resume attached.\n\n"
+            f"Would love to chat if my background looks relevant for your team.\n\n"
+            f"Best,\n"
+            f"{full_name} | {phone}\n"
+            f"{linkedin_url}\n"
+        )
+    elif pitch_style == "founder_value":
+        subject = f"Building backend at {comp} - Deepak (SDE-1 @ Meesho)"
+        body = (
+            f"{salutation}\n\n"
+            f"I've been following what you're building at {comp} and wanted to reach out directly.\n\n"
+            f"I'm an SDE-1 Backend Engineer at Meesho. My core focus is distributed systems and data consistency under high volume—handling "
+            f"millions of transactions with Kafka, Java, Go, and Redis caching. A recent problem I tackled was redesigning "
+            f"out-of-order webhook reconciliation pipelines using idempotent consumers and distributed locks to prevent financial data drift.\n\n"
+            f"I'm looking for an early/growth engineering team where I can ship high-impact backend infrastructure. "
+            f"I graduated from RVCE (CGPA 8.92) and can join immediately.\n\n"
+            f"Resume is attached. Happy to jump on a quick 10-minute call this week if this sounds like a fit.\n\n"
+            f"Best,\n"
+            f"{full_name}\n"
+            f"Phone: {phone}\n"
+            f"LinkedIn: {linkedin_url}\n"
+        )
+    else:
+        subject = f"Application: {clean_role} - {full_name} (SDE-I Backend @ Meesho)"
+        body = (
+            f"{salutation}\n\n"
+            f"I came across the {clean_role} opening at {comp} and wanted to apply.\n\n"
+            f"I am currently working as an SDE-I Backend Engineer at Meesho. My day-to-day work involves building "
+            f"and maintaining distributed backend systems using Java, Go, Kafka, Redis, and Spring Boot. At Meesho, "
+            f"I work on financial reconciliation and event-driven pipelines handling large transaction volumes.\n\n"
+            f"I graduated in Computer Science from RVCE (CGPA 8.92) and have hands-on experience with:\n"
+            f"• Distributed services and REST APIs in Java & Go\n"
+            f"• Event streaming with Apache Kafka\n"
+            f"• In-memory caching with Redis (sub-10ms latency)\n"
+            f"• Relational databases (MySQL), Docker, and GCP\n\n"
+            f"I have attached my resume for your review. My LinkedIn profile is also linked below:\n"
+            f"LinkedIn: {linkedin_url}\n"
+            f"Phone: {phone}\n\n"
+            f"If my background looks like a good fit for your team, I'd appreciate the chance to discuss further.\n\n"
+            f"Thanks,\n\n"
+            f"{full_name}\n"
+            f"SDE-I Backend Engineer, Meesho\n"
+            f"Phone: {phone}\n"
+            f"Email: {email}\n"
+        )
 
-    body = (
-        f"{salutation}\n\n"
-        f"I hope you are having a productive week!\n\n"
-        f"I am writing to express my strong interest in joining {comp} for the {clean_role} role.\n\n"
-        f"I am currently an SDE-I Backend Engineer at Meesho and an RVCE CSE 2025 graduate (CGPA 8.92) "
-        f"with production experience designing, building, and scaling high-throughput distributed systems:\n\n"
-        f"• Core Tech Stack: Java 17, Go (Golang), Spring Boot, Apache Kafka, Redis, MySQL, Docker, Kubernetes, GCP.\n"
-        f"• High-Scale Impact: Architected and scaled distributed financial reconciliation engines, event-driven pipelines handling millions of daily transactions, and sub-10ms Redis caching layers.\n"
-        f"• Production Reliability: Built robust idempotent consumers, distributed locking mechanisms, and self-healing Dead Letter Queue (DLQ) workers.\n"
-        f"• Problem Solving: Strong Data Structures & Algorithms foundation with 500+ problems solved across LeetCode and GeeksforGeeks.\n\n"
-        f"I have attached my tailored resume (PDF) highlighting relevant backend and distributed systems experience for your review. You can also explore my background and profiles here:\n"
-        f"• LinkedIn: {linkedin_url}\n"
-        f"• GitHub: {github_url}\n"
-        f"• LeetCode: {leetcode_url}\n"
-        f"• Phone: {phone}\n\n"
-        f"Would you be open to a brief 5-minute conversation or forwarding my profile to the hiring manager for this role?\n\n"
-        f"Thank you so much for your time and consideration!\n\n"
-        f"Best regards,\n\n"
-        f"{full_name}\n"
-        f"SDE-I Backend Engineer, Meesho\n"
-        f"RVCE CSE '25 | {phone}\n"
-        f"{email}\n"
-    )
+    return {
+        "subject": subject,
+        "body_markdown": body,
+    }
 
     return {
         "subject": subject,
@@ -149,8 +185,24 @@ def create_gmail_draft(
             if cand_rel.exists() and cand_rel.is_file():
                 pdf_to_attach = cand_rel
 
-    if not pdf_to_attach and RESUME_PDF_PATH.exists():
-        pdf_to_attach = RESUME_PDF_PATH.resolve()
+    if not pdf_to_attach:
+        for candidate_name in ["Deepak_S_H_Resume.pdf", "resume.pdf"]:
+            cand = APP_DIR / candidate_name
+            if cand.exists():
+                pdf_to_attach = cand.resolve()
+                break
+
+    # Stage attachment with standard recruiter-visible name Deepak_S_H_Resume.pdf
+    if pdf_to_attach and pdf_to_attach.exists():
+        import shutil
+        upload_staging_dir = APP_DIR / "apply-workers" / "current"
+        upload_staging_dir.mkdir(parents=True, exist_ok=True)
+        named_pdf = upload_staging_dir / "Deepak_S_H_Resume.pdf"
+        try:
+            shutil.copy2(str(pdf_to_attach), str(named_pdf))
+            pdf_to_attach = named_pdf.resolve()
+        except Exception:
+            pass
 
     # Write body to a temporary markdown file to avoid Windows shell quoting issues
     temp_body = Path(tempfile.gettempdir()) / f"applypilot_draft_{os.getpid()}_{hash(to_email) & 0xffffffff}.md"
@@ -238,8 +290,24 @@ def send_gmail_email(
             if cand_rel.exists() and cand_rel.is_file():
                 pdf_to_attach = cand_rel
 
-    if not pdf_to_attach and RESUME_PDF_PATH.exists():
-        pdf_to_attach = RESUME_PDF_PATH.resolve()
+    if not pdf_to_attach:
+        for candidate_name in ["Deepak_S_H_Resume.pdf", "resume.pdf"]:
+            cand = APP_DIR / candidate_name
+            if cand.exists():
+                pdf_to_attach = cand.resolve()
+                break
+
+    # Stage attachment with standard recruiter-visible name Deepak_S_H_Resume.pdf
+    if pdf_to_attach and pdf_to_attach.exists():
+        import shutil
+        upload_staging_dir = APP_DIR / "apply-workers" / "current"
+        upload_staging_dir.mkdir(parents=True, exist_ok=True)
+        named_pdf = upload_staging_dir / "Deepak_S_H_Resume.pdf"
+        try:
+            shutil.copy2(str(pdf_to_attach), str(named_pdf))
+            pdf_to_attach = named_pdf.resolve()
+        except Exception:
+            pass
 
     temp_body = Path(tempfile.gettempdir()) / f"applypilot_send_{os.getpid()}_{hash(to_email) & 0xffffffff}.md"
     try:
@@ -331,14 +399,35 @@ def send_for_job(rowid: int, custom_recipient: str | None = None) -> dict[str, A
         }
 
     # Ensure personalized tailored resume exists
-    if not tailored_path or not Path(tailored_path).exists():
+    tailored_file = None
+    if tailored_path:
+        cand = Path(tailored_path)
+        if cand.exists() and cand.is_file():
+            tailored_file = cand.resolve()
+        else:
+            cand2 = (APP_DIR / tailored_path).resolve()
+            if cand2.exists() and cand2.is_file():
+                tailored_file = cand2
+            else:
+                cand3 = (APP_DIR / "data" / tailored_path).resolve()
+                if cand3.exists() and cand3.is_file():
+                    tailored_file = cand3
+
+    if not tailored_file:
         try:
             from applypilot.scoring.jit_tailor import tailor_single_job
             t_res = tailor_single_job(rowid)
             if t_res.get("tailored_resume_path"):
-                tailored_path = t_res["tailored_resume_path"]
+                cand_res = Path(t_res["tailored_resume_path"])
+                if cand_res.exists():
+                    tailored_file = cand_res.resolve()
         except Exception:
             pass
+
+    if not tailored_file and RESUME_PDF_PATH.exists():
+        tailored_file = RESUME_PDF_PATH.resolve()
+
+    tailored_path = str(tailored_file) if tailored_file else None
 
     # Extract recruiter name if present
     recruiter_name = ""
@@ -356,6 +445,7 @@ def send_for_job(rowid: int, custom_recipient: str | None = None) -> dict[str, A
         job_url=target_url,
         recruiter_name=recruiter_name,
         candidate_profile=profile,
+        pitch_style=pitch_style,
     )
 
     res = send_gmail_email(
@@ -373,7 +463,7 @@ def send_for_job(rowid: int, custom_recipient: str | None = None) -> dict[str, A
     return res
 
 
-def draft_for_job(rowid: int, custom_recipient: str | None = None) -> dict[str, Any]:
+def draft_for_job(rowid: int, custom_recipient: str | None = None, pitch_style: str = "quick_pitch") -> dict[str, Any]:
     """Generate and create a Gmail draft for a specific job in ApplyPilot DB."""
     conn = get_connection()
     c = conn.cursor()
@@ -405,14 +495,35 @@ def draft_for_job(rowid: int, custom_recipient: str | None = None) -> dict[str, 
         }
 
     # Ensure personalized tailored resume exists
-    if not tailored_path or not Path(tailored_path).exists():
+    tailored_file = None
+    if tailored_path:
+        cand = Path(tailored_path)
+        if cand.exists() and cand.is_file():
+            tailored_file = cand.resolve()
+        else:
+            cand2 = (APP_DIR / tailored_path).resolve()
+            if cand2.exists() and cand2.is_file():
+                tailored_file = cand2
+            else:
+                cand3 = (APP_DIR / "data" / tailored_path).resolve()
+                if cand3.exists() and cand3.is_file():
+                    tailored_file = cand3
+
+    if not tailored_file:
         try:
             from applypilot.scoring.jit_tailor import tailor_single_job
             t_res = tailor_single_job(rowid)
             if t_res.get("tailored_resume_path"):
-                tailored_path = t_res["tailored_resume_path"]
+                cand_res = Path(t_res["tailored_resume_path"])
+                if cand_res.exists():
+                    tailored_file = cand_res.resolve()
         except Exception:
             pass
+
+    if not tailored_file and RESUME_PDF_PATH.exists():
+        tailored_file = RESUME_PDF_PATH.resolve()
+
+    tailored_path = str(tailored_file) if tailored_file else None
 
     # Extract recruiter name if present
     recruiter_name = ""
@@ -430,6 +541,7 @@ def draft_for_job(rowid: int, custom_recipient: str | None = None) -> dict[str, 
         job_url=target_url,
         recruiter_name=recruiter_name,
         candidate_profile=profile,
+        pitch_style=pitch_style,
     )
 
     return create_gmail_draft(

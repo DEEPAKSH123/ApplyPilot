@@ -37,11 +37,18 @@ PORT = 8765
 BRAVE_EXE = r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe"
 
 
-def launch_url_in_brave(url: str) -> bool:
+def launch_url_in_brave(url: str, incognito: bool = False) -> bool:
     """Launch URL in Brave browser using Windows Shell or direct process without pipe redirection."""
     if not url or not (str(url).startswith("http://") or str(url).startswith("https://")):
         return False
     try:
+        if incognito:
+            if os.path.exists(BRAVE_EXE):
+                subprocess.Popen([BRAVE_EXE, "--incognito", url])
+                return True
+            else:
+                subprocess.Popen(["cmd", "/c", "start", "brave", "--incognito", url])
+                return True
         if hasattr(os, "startfile"):
             os.startfile(url)
             return True
@@ -55,7 +62,8 @@ def launch_url_in_brave(url: str) -> bool:
         log.warning("Could not launch URL via Brave: %s", e)
         try:
             if os.path.exists(BRAVE_EXE):
-                subprocess.Popen([BRAVE_EXE, url])
+                cmd = [BRAVE_EXE, "--incognito", url] if incognito else [BRAVE_EXE, url]
+                subprocess.Popen(cmd)
             else:
                 webbrowser.open(url)
             return True
@@ -430,6 +438,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     .tag-email { background: #1e293b; color: #f472b6; border: 1px solid #334155; }
     .tag-approved { background: #064e3b; color: #6ee7b7; border: 1px solid #059669; }
     .tag-applied { background: #1e293b; color: #cbd5e1; border: 1px solid #475569; }
+    .tag-ignored { background: #334155; color: #94a3b8; border: 1px solid #475569; }
 
     .reasoning {
       background: #0f172a;
@@ -513,6 +522,16 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       background: #1e293b;
       border: 1px solid #475569;
       color: #94a3b8;
+    }
+    .btn-ignore {
+      background: rgba(148, 163, 184, 0.1);
+      border: 1px solid #475569;
+      color: #94a3b8;
+    }
+    .btn-ignore:hover {
+      background: rgba(239, 68, 68, 0.15);
+      border-color: #ef4444;
+      color: #fca5a5;
     }
     .btn-email {
       background: #991b1b;
@@ -969,13 +988,27 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       <div class="quick-pill" onclick="copyText('Immediate', 'Notice Period')"><i class="fa-solid fa-bolt"></i> Immediate</div>
       <a href="https://www.linkedin.com/feed/" target="_blank" rel="noopener noreferrer" class="quick-pill"><i class="fa-brands fa-linkedin"></i> Feed</a>
       <a href="https://www.linkedin.com/search/results/content/?keywords=backend%20engineer%20AND%20(%22hiring%22%20OR%20%22requirement%22)&sortBy=%22date_posted%22" target="_blank" rel="noopener noreferrer" class="quick-pill" title="Open live LinkedIn hiring & requirement posts feed"><i class="fa-solid fa-magnifying-glass"></i> Hiring Posts</a>
+      <div class="quick-pill" onclick="triggerLinkedInIncognitoScan()" style="background: linear-gradient(135deg, #4f46e5, #3730a3); color: #fff; font-weight: 800; border: 1px solid #a5b4fc; box-shadow: 0 0 10px rgba(99,102,241,0.35); cursor: pointer;" title="Primary Action: Search LinkedIn incognito for multiple strings across fresh openings posted in the last 8 hours, scrape them, and switch view to show them immediately"><i class="fa-solid fa-bolt"></i> Incognito Multi-Search (Fresh 8h) ⚡</div>
+      <a href="https://www.linkedin.com/jobs/search/?keywords=%28%22Software%20Engineer%22%20OR%20%22Backend%20Engineer%22%20OR%20%22Java%20Developer%22%20OR%20%22Golang%20Developer%22%29%20NOT%20Senior%20NOT%20Lead%20NOT%20Staff%20NOT%20Manager%20NOT%20Director&geoId=105126231&f_TPR=r14400&f_JT=F&sortBy=DD" target="_blank" rel="noopener noreferrer" class="quick-pill" style="background: linear-gradient(135deg, #0284c7, #0369a1); color: #fff; font-weight: 700; border: 1px solid #38bdf8;" title="Fresh SDE-1 Backend Jobs posted in last 4 hours in Bangalore (Sorted by Date Descending)"><i class="fa-solid fa-bolt"></i> 4h Fresh (DD)</a>
+      <a href="https://www.linkedin.com/jobs/search/?keywords=%28%22Software%20Engineer%22%20OR%20%22Backend%20Engineer%22%29%20NOT%20Senior%20NOT%20Lead&geoId=105126231&f_TPR=r86400&f_EA=true&f_AL=true&f_JT=F&sortBy=DD" target="_blank" rel="noopener noreferrer" class="quick-pill" style="background: linear-gradient(135deg, #15803d, #166534); color: #fff; font-weight: 700; border: 1px solid #4ade80;" title="Easy Apply Jobs with <10 Applicants posted in last 24h"><i class="fa-solid fa-user-group"></i> &lt;10 Applicants</a>
       <a href="https://referral-community.kadegree.in/get" target="_blank" rel="noopener noreferrer" class="quick-pill"><i class="fa-solid fa-users"></i> KaDegree</a>
+      <a href="https://remotive.com/remote-jobs/software-dev?search=backend" target="_blank" rel="noopener noreferrer" class="quick-pill" style="background: linear-gradient(135deg, #0d9488, #0f766e); color: #fff; font-weight: 700; border: 1px solid #2dd4bf;" title="Remotive Curated Remote Backend Roles"><i class="fa-solid fa-globe"></i> Remotive</a>
+      <a href="https://www.workingnomads.com/jobs?category=development" target="_blank" rel="noopener noreferrer" class="quick-pill" style="background: linear-gradient(135deg, #4338ca, #3730a3); color: #fff; font-weight: 700; border: 1px solid #818cf8;" title="Working Nomads Worldwide Developer Roles"><i class="fa-solid fa-laptop-code"></i> Working Nomads</a>
+      <a href="https://www.remoterocketship.com/?search=backend+engineer" target="_blank" rel="noopener noreferrer" class="quick-pill" style="background: linear-gradient(135deg, #c026d3, #a21caf); color: #fff; font-weight: 700; border: 1px solid #e879f9;" title="Remote Rocketship Unlisted Remote Roles"><i class="fa-solid fa-rocket"></i> Remote Rocketship</a>
+      <div class="quick-pill" onclick="triggerRemoteBoardsSync()" style="background: linear-gradient(135deg, #0284c7, #0891b2); color: #fff; font-weight: 700; border: 1px solid #38bdf8; cursor: pointer;" title="Crawl & ingest fresh remote backend jobs from Remotive and Working Nomads APIs into ApplyPilot"><i class="fa-solid fa-cloud-arrow-down"></i> Sync Remote APIs</div>
+      <a href="http://127.0.0.1:5000" target="_blank" rel="noopener noreferrer" class="quick-pill" style="background: linear-gradient(135deg, #7c3aed, #6d28d9); color: #fff; font-weight: 700; border: 1px solid #a78bfa;" title="Open Auto Job Applier Control Panel (Port 5000)"><i class="fa-solid fa-robot"></i> Auto-Applier Bot UI</a>
       <a href="https://mail.google.com/mail/u/0/#drafts" target="_blank" rel="noopener noreferrer" class="quick-pill"><i class="fa-solid fa-envelope"></i> Gmail Drafts</a>
-      <div id="naukri-quick-pill" class="quick-pill" onclick="triggerNaukriRefresh()" title="Naukri Daily Refresh Active (Click to refresh now)"><i class="fa-solid fa-arrows-rotate"></i> <span id="naukri-pill-label">Naukri: 9 AM Active</span></div>
+      <div class="quick-pill" onclick="triggerLinkedInEasyApplyScan()" style="background: linear-gradient(135deg, #1e3a8a, #2563eb); color: #fff; font-weight: 700; border: 1px solid #3b82f6;" title="Scan LinkedIn specifically for Easy Apply backend openings"><i class="fa-brands fa-linkedin"></i> Scan Easy Apply</div>
+      <div class="quick-pill" id="pill-sync-ats" onclick="triggerAtsSync()" style="background: linear-gradient(135deg, #065f46, #059669); color: #fff; font-weight: 700; border: 1px solid #10b981;" title="Sync Direct Corporate ATS (Workday, Greenhouse, Lever, SmartRecruiters)"><i class="fa-solid fa-building-circle-check" id="icon-sync-ats-pill"></i> Sync Direct ATS</div>
+      <div class="quick-pill" onclick="syncGmailNow()" title="Scan Gmail inbox for application acknowledgments, OAs & interview invites"><i class="fa-solid fa-envelope-open-text"></i> Sync Gmail</div>
+      <div id="naukri-quick-pill" class="quick-pill" onclick="triggerNaukriRefresh()" title="Naukri Daily Refresh Active (Click to refresh now)"><i class="fa-solid fa-arrows-rotate"></i> <span id="naukri-pill-label">Naukri: 8:55 AM Active</span></div>
+      <div class="quick-pill" onclick="openScreeningCopilotModal()" style="background: linear-gradient(135deg, #4f46e5, #7c3aed); color: #fff; font-weight: 700; border: 1px solid #818cf8; cursor: pointer;" title="Gemini Application & Screening Copilot: Paste any question asked in forms for human, grounded answers"><i class="fa-solid fa-robot"></i> Screening Copilot 🤖</div>
+      <div class="quick-pill" onclick="openJobLinkTailorModal()" style="background: linear-gradient(135deg, #0284c7, #2563eb); color: #fff; font-weight: 700; border: 1px solid #38bdf8; cursor: pointer;" title="Input any job link: auto-reads JD, tailors resume & generates referral messages"><i class="fa-solid fa-wand-magic-sparkles"></i> Tailor from Job Link ⚡</div>
       <div class="quick-pill" onclick="openLogCallModal()"><i class="fa-solid fa-phone"></i> Log Recruiter Call</div>
       <div class="quick-pill" onclick="openCheatsheetModal('PhonePe', 'SDE-1 Backend')" title="Technical & HR Interview Cheat-Sheet"><i class="fa-solid fa-file-code"></i> Tech Cheat-Sheet</div>
       <div class="quick-pill" onclick="testAlertsFromUI()" title="Test instant alerts to Telegram, WhatsApp & Desktop"><i class="fa-solid fa-bell"></i> Mobile Alerts</div>
       <div class="quick-pill" onclick="syncGSheetsNow()"><i class="fa-solid fa-table"></i> Google Sheet</div>
+      <div class="quick-pill" onclick="triggerLinkedInPostsPoll()" title="Scan LinkedIn for fresh hiring posts right now"><i class="fa-brands fa-linkedin"></i> Fetch LinkedIn Posts</div>
       <div class="quick-pill" onclick="openCustomDraftModal()"><i class="fa-solid fa-pen-nib"></i> Draft Cold Email</div>
       <div class="quick-pill" onclick="triggerBatchAutoApply()" title="Auto-apply to qualified roles in Brave"><i class="fa-solid fa-play"></i> Auto-Apply</div>
       <div class="quick-pill" onclick="triggerChannelPoll(event)" title="Poll WhatsApp, Telegram, and Gmail for referral leads"><i class="fa-solid fa-satellite-dish"></i> Poll Channels</div>
@@ -1042,6 +1075,41 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       </div>
     </div>
 
+    <!-- Incognito Fresh Announcement Banner -->
+    <div id="incognito-banner" class="queue-banner" style="display: flex; background: rgba(99, 102, 241, 0.12); border-left: 4px solid #818cf8; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+      <div class="queue-banner-title" style="color: #e0e7ff;">
+        <i class="fa-solid fa-bolt" style="color: #818cf8; font-size: 16px;"></i>
+        <span><strong>Incognito Fresh Pipeline (Multi-Query < 8h):</strong> Live LinkedIn openings scraped without login across configured backend search strings strictly posted in the last 8 hours. Ready to review and apply!</span>
+      </div>
+      <button onclick="triggerLinkedInIncognitoScan()" style="background: linear-gradient(135deg, #4f46e5, #4338ca); color: #fff; border: 1px solid #818cf8; border-radius: 9999px; padding: 5px 14px; font-size: 12px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+        <i class="fa-solid fa-arrows-rotate"></i> Trigger Incognito Scan Now
+      </button>
+    </div>
+
+    <!-- Yet to Apply Announcement Banner -->
+    <div id="yet-to-apply-banner" class="queue-banner" style="display: none; background: rgba(56, 189, 248, 0.08); border-left: 4px solid #38bdf8;">
+      <div class="queue-banner-title">
+        <i class="fa-solid fa-clock-rotate-left" style="color: #38bdf8; font-size: 16px;"></i>
+        <span><strong>Yet to Apply Pipeline:</strong> High-fit roles (Score ≥ 7 & tailored resumes ready) awaiting submission, cold email, or KA referral.</span>
+      </div>
+    </div>
+
+    <!-- Fresh Posts Announcement Banner (Apply within 4 hours) -->
+    <div id="fresh-banner" class="queue-banner" style="display: none; background: rgba(245, 158, 11, 0.12); border-left: 4px solid #f59e0b;">
+      <div class="queue-banner-title" style="color: #fef08a;">
+        <i class="fa-solid fa-fire-flame-curved" style="color: #f59e0b; font-size: 16px;"></i>
+        <span><strong>Urgent Pipeline: Posted Within 4 Hours ⚡</strong> Applying within the first 4 hours gives a 4x higher recruiter view rate before ATS queues fill up!</span>
+      </div>
+    </div>
+
+    <!-- Applied Announcement Banner -->
+    <div id="applied-banner" class="queue-banner" style="display: none; background: rgba(16, 185, 129, 0.08); border-left: 4px solid #10b981;">
+      <div class="queue-banner-title">
+        <i class="fa-solid fa-circle-check" style="color: #10b981; font-size: 16px;"></i>
+        <span><strong>Applied Roles:</strong> Confirmed submissions, cold emails sent, and Gmail-acknowledged applications.</span>
+      </div>
+    </div>
+
     <!-- Active Tab Announcement Banner -->
     <div id="queue-banner" class="queue-banner" style="display: none;">
       <div class="queue-banner-title">
@@ -1064,7 +1132,31 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     <!-- Tabs & Search -->
     <div class="controls">
       <div class="tabs">
-        <button class="tab-btn active" onclick="setTab('high')">
+        <button class="tab-btn active" onclick="setTab('incognito_fresh')" style="color: #c7d2fe; font-weight: 700;" title="Primary Tab: Openings discovered via fresh LinkedIn Incognito multi-query search (< 8h)">
+          <i class="fa-solid fa-bolt" style="margin-right: 5px; color: #818cf8;"></i> Incognito Fresh ⚡
+          <span class="tab-badge" id="badge-incognito-fresh" style="background: rgba(99, 102, 241, 0.3); color: #c7d2fe; border: 1px solid #818cf8;">0</span>
+        </button>
+        <button class="tab-btn" onclick="setTab('yet_to_apply')">
+          <i class="fa-solid fa-clock-rotate-left" style="margin-right: 5px; color: #38bdf8;"></i> Yet to Apply
+          <span class="tab-badge" id="badge-yet-to-apply">0</span>
+        </button>
+        <button class="tab-btn" onclick="setTab('fresh')" style="color: #fbbf24;" title="Openings discovered or posted within the last 4 hours">
+          <i class="fa-solid fa-bolt" style="margin-right: 5px; color: #f59e0b;"></i> < 4 Hours Fresh ⚡
+          <span class="tab-badge" id="badge-fresh" style="background: rgba(245, 158, 11, 0.25); color: #fbbf24; border: 1px solid #f59e0b;">0</span>
+        </button>
+        <button class="tab-btn" onclick="setTab('applied')">
+          <i class="fa-solid fa-circle-check" style="margin-right: 5px; color: #10b981;"></i> Applied
+          <span class="tab-badge" id="badge-applied">0</span>
+        </button>
+        <button class="tab-btn" onclick="setTab('asked_referral')" style="color: #c084fc;" title="Roles where you have reached out to a connection, alumnus or recruiter for a referral">
+          <i class="fa-solid fa-people-arrows" style="margin-right: 5px; color: #a855f7;"></i> Asked for Referral
+          <span class="tab-badge" id="badge-asked-referral" style="background: rgba(168, 85, 247, 0.25); color: #d8b4fe; border: 1px solid #a855f7;">0</span>
+        </button>
+        <button class="tab-btn" onclick="setTab('ignored')">
+          <i class="fa-solid fa-ban" style="margin-right: 5px; color: #94a3b8;"></i> Ignored
+          <span class="tab-badge" id="badge-ignored">0</span>
+        </button>
+        <button class="tab-btn" onclick="setTab('high')">
           High Fit (≥ 7)
           <span class="tab-badge" id="badge-high">0</span>
         </button>
@@ -1084,6 +1176,20 @@ HTML_DASHBOARD = """<!DOCTYPE html>
           KaDegree Referrals
           <span class="tab-badge" id="badge-kadegree">0</span>
         </button>
+
+        <button class="tab-btn" onclick="setTab('remote_portals')" style="color: #34d399; font-weight: 600;" title="Top Remote Engineering Platforms & Agencies (Uplers, Arc, DistantJob, Turing, etc.)">
+          <i class="fa-solid fa-globe" style="margin-right: 5px; color: #10b981;"></i> Remote Portals & Agencies
+          <span class="tab-badge" id="badge-remote-portals" style="background: rgba(16, 185, 129, 0.25); color: #6ee7b7; border: 1px solid #10b981;">18</span>
+        </button>
+        <button class="tab-btn" onclick="setTab('cold_crm')" style="color: #38bdf8;" title="Cold Email Sales Funnel & Tracking CRM">
+          <i class="fa-solid fa-bullseye" style="margin-right: 5px; color: #0284c7;"></i> Cold Email CRM
+          <span class="tab-badge" id="badge-cold-crm" style="background: rgba(14, 165, 233, 0.25); color: #7dd3fc; border: 1px solid #0284c7;">0</span>
+        </button>
+
+        <button class="tab-btn" onclick="setTab('easy_apply')" style="color: #60a5fa;" title="LinkedIn 1-Click Easy Apply Openings">
+          <i class="fa-brands fa-linkedin" style="margin-right: 5px; color: #3b82f6;"></i> Easy Apply
+          <span class="tab-badge" id="badge-easy-apply" style="background: rgba(59, 130, 246, 0.25); color: #93c5fd; border: 1px solid #3b82f6;">0</span>
+        </button>
         <button class="tab-btn" onclick="setTab('strategy')">
           Conversion Strategy
         </button>
@@ -1091,16 +1197,25 @@ HTML_DASHBOARD = """<!DOCTYPE html>
           Analytics
           <span class="tab-badge" id="badge-analytics">0</span>
         </button>
-        <button class="tab-btn" onclick="setTab('applied')">
-          Applied
-          <span class="tab-badge" id="badge-applied">0</span>
-        </button>
         <button class="tab-btn" onclick="setTab('all')">All Opportunities</button>
       </div>
 
       <div class="search-box">
         <i class="fa-solid fa-magnifying-glass"></i>
         <input type="text" id="search-input" placeholder="Search company, skills (Java, Go, Kafka)..." oninput="renderJobs()">
+      </div>
+
+      <!-- Sort Controls -->
+      <div style="display: flex; align-items: center; gap: 8px; margin-left: 8px;">
+        <label for="sort-select" style="font-size: 12px; font-weight: 700; color: #94a3b8; display: flex; align-items: center; gap: 4px; white-space: nowrap;">
+          <i class="fa-solid fa-arrow-down-wide-short" style="color: #38bdf8;"></i> Sort by:
+        </label>
+        <select id="sort-select" onchange="changeSort(this.value)" style="background: #1e293b; border: 1px solid #334155; color: #f1f5f9; padding: 7px 12px; border-radius: 8px; font-size: 12.5px; font-weight: 600; cursor: pointer; outline: none;">
+          <option value="recent">⚡ Most Recent First (Date/Time)</option>
+          <option value="fit">🎯 High Fit Score (10 → 1)</option>
+          <option value="oldest">⏳ Oldest / Needs Immediate Action</option>
+          <option value="company">🏢 Company Name (A-Z)</option>
+        </select>
       </div>
     </div>
 
@@ -1132,7 +1247,13 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       <div class="source-pill pill-ats" id="src-ats" onclick="filterBySource('ats')">
         <i class="fa-solid fa-building-circle-check"></i> 🏢 Direct ATS (<span id="cnt-src-ats">0</span>)
       </div>
-      <button class="btn btn-sm" id="btn-sync-kadegree" onclick="triggerKaDegreeSync()" style="margin-left: auto; background: linear-gradient(135deg, #b45309, #d97706); color: #fff; font-weight: 700; border-radius: 9999px; padding: 6px 14px; font-size: 11.5px; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+      <div class="source-pill pill-seed" id="src-seed" onclick="filterBySource('seed_funded')" style="border-color: #ec4899; color: #f472b6;">
+        <i class="fa-solid fa-seedling"></i> 🚀 YC & Seed Startups (<span id="cnt-src-seed">0</span>)
+      </div>
+      <button class="btn btn-sm" id="btn-sync-ats" onclick="triggerAtsSync()" style="margin-left: auto; background: linear-gradient(135deg, #065f46, #059669); color: #fff; font-weight: 700; border-radius: 9999px; padding: 6px 14px; font-size: 11.5px; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+        <i class="fa-solid fa-arrows-rotate" id="icon-sync-ats"></i> Sync Direct ATS
+      </button>
+      <button class="btn btn-sm" id="btn-sync-kadegree" onclick="triggerKaDegreeSync()" style="background: linear-gradient(135deg, #b45309, #d97706); color: #fff; font-weight: 700; border-radius: 9999px; padding: 6px 14px; font-size: 11.5px; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px;">
         <i class="fa-solid fa-arrows-rotate" id="icon-sync-kadegree"></i> Sync KaDegree
       </button>
     </div>
@@ -1156,11 +1277,29 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       </div>
     </div>
 
+    <!-- LinkedIn Easy Apply Info Banner -->
+    <div id="easy-apply-info-banner" style="display: none; background: linear-gradient(90deg, rgba(30, 58, 138, 0.4), rgba(15, 23, 42, 0.95)); border: 1.5px solid #3b82f6; border-radius: 12px; padding: 14px 20px; margin-bottom: 20px; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+      <div style="display: flex; align-items: center; gap: 14px;">
+        <span style="font-size: 26px;"><i class="fa-brands fa-linkedin" style="color: #60a5fa;"></i></span>
+        <div>
+          <div style="color: #93c5fd; font-weight: 800; font-size: 15px;">LinkedIn 1-Click Easy Apply Openings</div>
+          <div style="color: #cbd5e1; font-size: 12.5px; margin-top: 2px;">Direct 1-click applications via your connected Brave browser. Click "Auto-Apply (Easy Apply)" on any card to automatically fill fields, screening answers, attach your tailored resume, and submit!</div>
+        </div>
+      </div>
+      <div style="display: flex; gap: 10px;">
+        <button class="btn btn-sm" onclick="triggerLinkedInEasyApplyScan()" style="background: linear-gradient(135deg, #1d4ed8, #2563eb); color: #fff; font-weight: 700; border-radius: 8px; padding: 8px 16px; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+          <i class="fa-solid fa-arrows-rotate"></i> Scan LinkedIn Easy Apply Now ⚡
+        </button>
+      </div>
+    </div>
+
     <div id="jobs-container" class="jobs-grid"></div>
     <!-- Application Analytics & Lifecycle Ledger View -->
     <div id="analytics-container" style="display: none;"></div>
     <!-- ⚡ 30-Day Conversion Funnel, Everyday Active Time & Gemini Strategy Container -->
     <div id="strategy-container" style="display: none;"></div>
+    <div id="remote-portals-container" style="display: none;"></div>
+    <div id="cold-crm-container" style="display: none;"></div>
   </div>
 
   <!-- PDF Preview Modal -->
@@ -1262,6 +1401,60 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     </div>
   </div>
 
+  <!-- Application & Screening Question Copilot Modal -->
+  <div id="screening-copilot-modal" class="modal-backdrop" onclick="if(event.target===this) closeScreeningCopilotModal()">
+    <div class="modal-content" style="max-width: 720px; border: 1px solid #6366f1;">
+      <div class="modal-header" style="background: linear-gradient(90deg, #1e1b4b, #312e81);">
+        <h3 style="color:#c7d2fe; display: flex; align-items: center; gap: 8px;">
+          <i class="fa-solid fa-robot" style="color: #818cf8;"></i> Gemini Application & Screening Copilot
+        </h3>
+        <button class="modal-close" onclick="closeScreeningCopilotModal()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div style="padding: 24px; color: #cbd5e1; font-size: 13.5px; line-height: 1.6;">
+        <p style="margin-top:0; color: #94a3b8; font-size: 13px;">
+          Paste any question from an application form, ATS portal, or screening questionnaire. The copilot answers in your authentic voice using your Meesho metrics (50K+ orders/day, 95% latency reduction), RVCE background, and curated system design stories.
+        </p>
+
+        <div style="display:flex; flex-direction:column; gap: 12px; margin-bottom: 16px;">
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <div>
+              <label style="display:block; font-size: 12px; font-weight:700; color: #cbd5e1; margin-bottom: 4px;">Company Name</label>
+              <input type="text" id="copilot-comp" placeholder="e.g. Razorpay, Stripe, Cisco..." style="width:100%; background:#0f172a; border:1px solid #334155; color:#fff; padding:9px 12px; border-radius:8px; font-size:13px;">
+            </div>
+            <div>
+              <label style="display:block; font-size: 12px; font-weight:700; color: #cbd5e1; margin-bottom: 4px;">Role Title</label>
+              <input type="text" id="copilot-role" placeholder="e.g. SDE-I Backend / Software Engineer" value="SDE-I Backend Engineer" style="width:100%; background:#0f172a; border:1px solid #334155; color:#fff; padding:9px 12px; border-radius:8px; font-size:13px;">
+            </div>
+          </div>
+
+          <div>
+            <label style="display:block; font-size: 12px; font-weight:700; color: #818cf8; margin-bottom: 4px;">Screening Question Asked *</label>
+            <textarea id="copilot-question" rows="3" placeholder="e.g. 'Why do you want to work at our company?' or 'Describe a complex technical challenge you solved.' or 'What is your current notice period and YOE?'" style="width:100%; background:#0f172a; border:1px solid #4f46e5; color:#fff; padding:10px 12px; border-radius:8px; font-size:13.5px; resize:vertical; font-family:inherit;"></textarea>
+          </div>
+
+          <div>
+            <button id="copilot-submit-btn" class="btn" style="background: linear-gradient(135deg, #4f46e5, #7c3aed); color:white; font-weight:700; padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 14px rgba(79, 70, 229, 0.4);" onclick="submitScreeningCopilot()">
+              <i class="fa-solid fa-wand-magic-sparkles"></i> Generate Personalized Human Answer (Gemini)
+            </button>
+          </div>
+
+          <!-- Answer Container -->
+          <div id="copilot-answer-box" style="display: none; margin-top: 10px; background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(129, 140, 248, 0.3); border-radius: 8px; padding: 16px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <span style="font-weight: 700; font-size: 13px; color: #818cf8;">
+                <i class="fa-solid fa-sparkles"></i> Tailored Answer Ready to Paste:
+              </span>
+              <button onclick="copyCopilotAnswer()" class="btn" style="background: rgba(99, 102, 241, 0.2); border: 1px solid #6366f1; color: #c7d2fe; padding: 4px 10px; font-size: 12px; border-radius: 4px; cursor: pointer;">
+                <i class="fa-regular fa-copy"></i> Copy to Clipboard
+              </button>
+            </div>
+            <div id="copilot-answer-text" style="white-space: pre-wrap; font-size: 13.5px; color: #f8fafc; line-height: 1.6; max-height: 320px; overflow-y: auto; background: #090d16; padding: 14px; border-radius: 6px; border: 1px solid #1e293b;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Standalone Custom Recruiter Draft Modal -->
   <div id="custom-draft-modal" class="modal-backdrop" onclick="if(event.target===this) closeCustomDraftModal()">
     <div class="modal-content" style="max-width: 620px;">
@@ -1308,6 +1501,50 @@ HTML_DASHBOARD = """<!DOCTYPE html>
   </div>
 
   <!-- Standalone Technical Interview Strategy & Cheat-Sheet Modal -->
+  <div id="job-link-tailor-modal" class="modal-backdrop" onclick="if(event.target===this) closeJobLinkTailorModal()">
+    <div class="modal-content" style="max-width: 860px; max-height: 92vh; overflow-y: auto;">
+      <div class="modal-header" style="background: linear-gradient(90deg, #0284c7, #1d4ed8);">
+        <h3 style="color:#ffffff;"><i class="fa-solid fa-wand-magic-sparkles"></i> Instant Job Link Intake & Tailor</h3>
+        <button class="modal-close" onclick="closeJobLinkTailorModal()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div style="padding: 24px; color: #cbd5e1; font-size: 13.5px; line-height: 1.6;">
+        <p style="margin-top:0; color: #94a3b8; font-size: 13px;">
+          Paste any external job link (LinkedIn, Greenhouse, Lever, Workday, Naukri, or Company Careers page).
+          ApplyPilot reads the JD, generates targeted referral messages, and instantly compiles an ATS-optimized tailored resume PDF.
+        </p>
+
+        <div style="display: flex; flex-direction: column; gap: 14px; margin-bottom: 18px;">
+          <div>
+            <label style="display:block; font-size: 12px; font-weight:700; color: #38bdf8; margin-bottom: 5px;">
+              Job Link (URL) *
+            </label>
+            <div style="display: flex; gap: 8px;">
+              <input type="url" id="jlink-url" placeholder="https://www.linkedin.com/jobs/view/... or careers page URL" style="flex: 1; background: #0f172a; border: 1px solid #0284c7; color: #fff; padding: 10px 14px; border-radius: 8px; font-size: 13px;">
+              <button class="btn" id="btn-jlink-process" onclick="submitJobLinkIntake()" style="background: linear-gradient(135deg, #0284c7, #2563eb); color: white; font-weight: 700; padding: 10px 20px; font-size: 13px; border-radius: 8px; border: none; cursor: pointer; white-space: nowrap;">
+                <i class="fa-solid fa-bolt"></i> Analyze & Generate
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label style="display:block; font-size: 12px; font-weight:700; color: #94a3b8; margin-bottom: 5px;">
+              Or Paste Job Description Directly (Optional fallback if page is behind login)
+            </label>
+            <textarea id="jlink-jd" placeholder="Paste JD text here (optional if URL is public)..." style="width: 100%; height: 80px; background: #0f172a; border: 1px solid #334155; color: #fff; padding: 10px; border-radius: 8px; font-size: 12px; resize: vertical;"></textarea>
+          </div>
+        </div>
+
+        <div id="jlink-loading" style="display: none; text-align: center; padding: 30px 0;">
+          <i class="fa-solid fa-spinner fa-spin fa-2x" style="color: #38bdf8;"></i>
+          <p id="jlink-loading-text" style="margin-top: 12px; color: #94a3b8; font-size: 13.5px;">Extracting Job Description from URL & tailoring resume...</p>
+        </div>
+
+        <!-- Result Box -->
+        <div id="jlink-result" style="display: none; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 20px;"></div>
+      </div>
+    </div>
+  </div>
+
   <div id="cheatsheet-modal" class="modal-backdrop" onclick="if(event.target===this) closeCheatsheetModal()">
     <div class="modal-content" style="max-width: 820px; max-height: 90vh; overflow-y: auto;">
       <div class="modal-header" style="background: linear-gradient(90deg, #3b0764, #1e1b4b);">
@@ -1331,7 +1568,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     let analyticsData = null;
     let analyticsSourceFilter = 'all';
     let analyticsStageFilter = 'all';
-    let currentTab = 'high';
+    let currentTab = 'incognito_fresh';
     let currentSourceFilter = 'all';
 
     function filterBySource(src) {
@@ -1356,6 +1593,40 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       }).catch(() => {
         showToast('Selected pitch copied to clipboard!');
       });
+    }
+
+    async function triggerAtsSync() {
+      const btn = document.getElementById('btn-sync-ats');
+      const icon = document.getElementById('icon-sync-ats');
+      const iconPill = document.getElementById('icon-sync-ats-pill');
+      if (icon) icon.classList.add('fa-spin');
+      if (iconPill) iconPill.classList.add('fa-spin');
+      if (btn) btn.disabled = true;
+      showToast('Scraping Direct ATS & Workday corporate career portals in background...');
+      try {
+        const res = await fetch('/api/ats/sync', { method: 'POST' });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          showToast(`⚡ Direct ATS & Workday background crawler started! Checking fresh corporate portals...`);
+          setTimeout(async () => {
+            await fetchJobs();
+          }, 8000);
+          setTimeout(async () => {
+            await fetchJobs();
+            showToast('✓ Direct ATS sync complete! Fresh openings loaded.');
+          }, 25000);
+        } else {
+          showToast('ATS sync note: ' + (data.message || 'Error syncing ATS'));
+        }
+      } catch (e) {
+        showToast('Error syncing Direct ATS: ' + e);
+      } finally {
+        setTimeout(() => {
+          if (icon) icon.classList.remove('fa-spin');
+          if (iconPill) iconPill.classList.remove('fa-spin');
+          if (btn) btn.disabled = false;
+        }, 5000);
+      }
     }
 
     async function triggerKaDegreeSync() {
@@ -1795,6 +2066,19 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       }
     }
 
+    async function triggerRemoteBoardsSync() {
+      showToast('🌐 Crawling Remotive & Working Nomads official APIs for remote backend roles...');
+      try {
+        const res = await fetch('/api/remote_boards/sync', { method: 'POST' });
+        const data = await res.json();
+        showToast(`✅ Remote sync done: ${data.total_found || 0} fetched, ${data.new_stored || 0} new roles saved!`);
+        loadJobs();
+        loadStats();
+      } catch (err) {
+        showToast('Remote boards sync error: ' + err);
+      }
+    }
+
     async function triggerChannelPoll(e) {
       const btn = e ? e.currentTarget : null;
       const originalHtml = btn ? btn.innerHTML : '';
@@ -2012,11 +2296,60 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       document.getElementById('stat-applied').textContent = allJobs.filter(j => j.apply_status === 'applied').length;
       document.getElementById('stat-responses').textContent = allResponses.length;
 
-      document.getElementById('badge-high').textContent = allJobs.filter(j => j.fit_score >= 7).length;
-      document.getElementById('badge-top').textContent = allJobs.filter(j => j.fit_score >= 8).length;
+      const yetToApplyCount = allJobs.filter(j => (j.fit_score >= 7 || !!j.tailored_resume_path) && j.apply_status !== 'applied' && j.apply_status !== 'asked_referral' && j.apply_status !== 'interview' && j.apply_status !== 'rejected' && j.apply_status !== 'ignored').length;
+      const appliedCount = allJobs.filter(j => j.apply_status === 'applied').length;
+      const askedReferralCount = allJobs.filter(j => j.apply_status === 'asked_referral').length;
+      const ignoredCount = allJobs.filter(j => j.apply_status === 'ignored').length;
+
+      // Calculate fresh posts (< 4 hours old)
+      const nowMs = Date.now();
+      const fourHoursMs = 4 * 60 * 60 * 1000;
+      const freshCount = allJobs.filter(j => {
+        if (j.apply_status === 'applied' || j.apply_status === 'ignored' || j.apply_status === 'rejected') return false;
+        const d = getJobEffectiveDate(j);
+        if (!d) return false;
+        return (nowMs - d.getTime()) <= fourHoursMs && (nowMs - d.getTime()) >= 0;
+      }).length;
+
+      const freshBadge = document.getElementById('badge-fresh');
+      if (freshBadge) freshBadge.textContent = freshCount;
+
+      const yetBadge = document.getElementById('badge-yet-to-apply');
+      if (yetBadge) yetBadge.textContent = yetToApplyCount;
+      document.getElementById('badge-high').textContent = allJobs.filter(j => j.fit_score >= 7 && j.apply_status !== 'ignored').length;
+      document.getElementById('badge-top').textContent = allJobs.filter(j => j.fit_score >= 8 && j.apply_status !== 'ignored').length;
       document.getElementById('badge-approved').textContent = allJobs.filter(j => j.apply_status === 'approved').length;
-      document.getElementById('badge-applied').textContent = allJobs.filter(j => j.apply_status === 'applied').length;
-      document.getElementById('badge-responses').textContent = allResponses.length;
+      document.getElementById('badge-applied').textContent = appliedCount;
+      const refBadge = document.getElementById('badge-asked-referral');
+      if (refBadge) refBadge.textContent = askedReferralCount;
+      const ignBadge = document.getElementById('badge-ignored');
+      if (ignBadge) ignBadge.textContent = ignoredCount;
+      const rBadge = document.getElementById('badge-responses');
+      if (rBadge) rBadge.textContent = allResponses.length;
+
+      // Sync Cold Email CRM badge
+      fetch('/api/cold_crm/summary').then(res => res.json()).then(data => {
+        const crmBadge = document.getElementById('badge-cold-crm');
+        if (crmBadge && data && data.metrics) {
+          crmBadge.textContent = data.metrics.due_followups_count || data.metrics.total_sent || 0;
+        }
+      }).catch(() => {});
+
+      const easyApplyJobsCount = allJobs.filter(j => (j.is_easy_apply === 1 || (j.source_category === 'linkedin' && j.strategy === 'linkedin_easy_apply')) && j.apply_status !== 'ignored').length;
+      const easyBadge = document.getElementById('badge-easy-apply');
+      if (easyBadge) easyBadge.textContent = easyApplyJobsCount;
+
+      const incognitoJobsCount = allJobs.filter(j => {
+        if (j.strategy !== 'linkedin_1h_incognito' || j.apply_status === 'ignored') return false;
+        const d = getJobEffectiveDate(j);
+        if (d) {
+          const diff = Date.now() - d.getTime();
+          if (!isNaN(diff) && diff > 8 * 60 * 60 * 1000) return false;
+        }
+        return true;
+      }).length;
+      const incognitoBadge = document.getElementById('badge-incognito-fresh');
+      if (incognitoBadge) incognitoBadge.textContent = incognitoJobsCount;
 
       const kaJobsCount = allJobs.filter(j => j.source_category === 'kadegree' || j.is_kadegree).length;
       const kaBadge = document.getElementById('badge-kadegree');
@@ -2064,6 +2397,8 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       if (cntSrcWa) cntSrcWa.textContent = whatsappJobs.length;
       const cntSrcAts = document.getElementById('cnt-src-ats');
       if (cntSrcAts) cntSrcAts.textContent = atsJobs.length;
+      const cntSrcSeed = document.getElementById('cnt-src-seed');
+      if (cntSrcSeed) cntSrcSeed.textContent = allJobs.filter(j => j.strategy === 'seed_funded').length;
 
       // Update Top Urgent / Missed OA Banner
       const urgentBanner = document.getElementById('urgent-oa-alert');
@@ -2098,12 +2433,566 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       }
     }
 
+    function renderRemotePortalsView() {
+      const container = document.getElementById('remote-portals-container');
+      if (!container) return;
+
+      const portals = [
+        {
+          name: "Uplers",
+          category: "Direct Talent Network (India <-> Global)",
+          tag: "Top Rec: Fast Track for Indian Devs",
+          tagColor: "#10b981",
+          url: "https://www.uplers.com/talent/",
+          logo: "https://www.google.com/s2/favicons?domain=uplers.com&sz=128",
+          bestFor: "Indian developers seeking full-time remote roles with Indian startups & overseas companies. Strong on Node.js, Python/Django, React, AWS.",
+          hiringModel: "Vetted Talent Pool -> Client matches you directly -> No freelance bidding. Fixed monthly INR/USD payout.",
+          actions: [
+            { label: "Apply as Talent", url: "https://www.uplers.com/talent/" },
+            { label: "Search Open Roles", url: "https://jobs.uplers.com/" }
+          ],
+          tips: "Pass their initial vetting assessment once; your profile is actively pitched by Uplers account managers to global clients."
+        },
+        {
+          name: "DistantJob",
+          category: "Specialist Global Recruitment Agency",
+          tag: "Full-Time Remote Agency",
+          tagColor: "#3b82f6",
+          url: "https://distantjob.com/careers/",
+          logo: "https://www.google.com/s2/favicons?domain=distantjob.com&sz=128",
+          bestFor: "Specialised recruitment agency placing skilled engineers in long-term, full-time remote positions with US & European enterprises.",
+          hiringModel: "Headhunters act like traditional recruiters: you interview directly with CTOs & VPs of Engineering for direct-hire remote roles.",
+          actions: [
+            { label: "View Open Jobs", url: "https://distantjob.com/careers/" },
+            { label: "Submit Resume", url: "https://distantjob.com/contact-us/" }
+          ],
+          tips: "High focus on communication skills and autonomous problem solving. Highlight your Meesho backend scalability numbers."
+        },
+        {
+          name: "itForte",
+          category: "Specialist Tech Recruitment Firm",
+          tag: "India-Based Global IT Recruiter",
+          tagColor: "#8b5cf6",
+          url: "https://www.itforte.com/",
+          logo: "https://www.google.com/s2/favicons?domain=itforte.com&sz=128",
+          bestFor: "India-headquartered technology recruitment specialist with international enterprise placements and offshore engineering team staffing.",
+          hiringModel: "Executive and senior engineering staffing for MNCs, high-growth startups, and international software companies.",
+          actions: [
+            { label: "Job Seekers Portal", url: "https://www.itforte.com/job-seekers/" },
+            { label: "Current Openings", url: "https://www.itforte.com/current-openings/" }
+          ],
+          tips: "Send your tailored resume directly to their recruitment consultants; they handle high-budget permanent and contract roles."
+        },
+        {
+          name: "Arc.dev",
+          category: "Global Remote Developer Network",
+          tag: "Top Global Vetted Platform",
+          tagColor: "#f59e0b",
+          url: "https://arc.dev/",
+          logo: "https://www.google.com/s2/favicons?domain=arc.dev&sz=128",
+          bestFor: "Vetted global community for remote full-time software engineers. Connects to US, EU, and global tech firms without US work visa restrictions.",
+          hiringModel: "Dual model: Apply directly to remote JDs on their job board OR get featured in their bi-weekly reverse-interview hiring batches.",
+          actions: [
+            { label: "Explore Remote Jobs", url: "https://arc.dev/remote-jobs" },
+            { label: "Join Talent Directory", url: "https://arc.dev/developers" }
+          ],
+          tips: "Always check the 'Location Restrictions' filter: select 'Anywhere' or 'India / APAC' to filter out US-citizen-only roles."
+        },
+        {
+          name: "Turing",
+          category: "AI-Powered Vetted Engineering Network",
+          tag: "Global USD Compensation",
+          tagColor: "#06b6d4",
+          url: "https://www.turing.com/",
+          logo: "https://www.google.com/s2/favicons?domain=turing.com&sz=128",
+          bestFor: "Global talent cloud matching developers to Silicon Valley and Fortune 500 remote jobs and LLM/AI training projects.",
+          hiringModel: "Automated technical vetting (coding tests + system design quizzes) -> AI matches vetted developers to long-term remote contracts.",
+          actions: [
+            { label: "Take Skills Assessment", url: "https://www.turing.com/jobs" },
+            { label: "Browse Roles", url: "https://www.turing.com/jobs/browse" }
+          ],
+          tips: "Take tests for Python, Node.js, and Backend Architecture. Once your Turing score is 'Matched', clients reach out to you."
+        },
+        {
+          name: "Wellfound (formerly AngelList Talent)",
+          category: "Global Startup Ecosystem",
+          tag: "Essential for Funded Startups",
+          tagColor: "#ec4899",
+          url: "https://wellfound.com/jobs",
+          logo: "https://www.google.com/s2/favicons?domain=wellfound.com&sz=128",
+          bestFor: "Direct applications to Founders & Engineering Leads at Y Combinator, US, European, and top Indian venture-backed startups.",
+          hiringModel: "Direct founder & hiring manager chat. Transparent salary & equity numbers shown upfront on every single listing.",
+          actions: [
+            { label: "Search Remote Roles", url: "https://wellfound.com/jobs?location=Remote" }
+          ],
+          tips: "Include a strong 2-sentence intro note mentioning your Meesho high-throughput experience when clicking 'Apply'."
+        },
+        {
+          name: "Instahyre",
+          category: "AI Matchmaking Platform (India & Global)",
+          tag: "High Conversion in India",
+          tagColor: "#14b8a6",
+          url: "https://www.instahyre.com/candidate/opportunities/",
+          logo: "https://www.google.com/s2/favicons?domain=instahyre.com&sz=128",
+          bestFor: "Zero spam, recruiter-reachout model for top product companies (Swiggy, Uber, PhonePe, and international remote engineering offices).",
+          hiringModel: "Inbound model: Set profile to 'Actively Looking', enter target CTC & remote preferences, recruiters request interviews.",
+          actions: [
+            { label: "Candidate Dashboard", url: "https://www.instahyre.com/candidate/opportunities/" }
+          ],
+          tips: "Keep your profile 100% complete and log in at least once every 3 days so the algorithm ranks you at the top of recruiter searches."
+        },
+        {
+          name: "Remotive",
+          category: "Curated Remote Tech Board",
+          tag: "Hand-Screened Worldwide Roles",
+          tagColor: "#6366f1",
+          url: "https://remotive.com/",
+          logo: "https://www.google.com/s2/favicons?domain=remotive.com&sz=128",
+          bestFor: "Hand-curated remote software development roles with transparent remote location tags (Worldwide / Anywhere in the World).",
+          hiringModel: "Direct career portal links with no middleman. Zero spam listings.",
+          actions: [
+            { label: "Browse Software Dev Roles", url: "https://remotive.com/remote-jobs/software-dev" }
+          ],
+          tips: "Filter strictly by 'Worldwide' to skip roles restricted to North American timezones."
+        },
+        {
+          name: "We Work Remotely (WWR)",
+          category: "Largest Global Remote Community",
+          tag: "Pioneer Remote Board",
+          tagColor: "#f43f5e",
+          url: "https://weworkremotely.com/",
+          logo: "https://www.google.com/s2/favicons?domain=weworkremotely.com&sz=128",
+          bestFor: "The largest remote work community in the world. High volume of backend, full-stack, and DevOps positions from bootstrapped and VC firms.",
+          hiringModel: "Direct employer applications. Employers pay $299+ to post, guaranteeing high hiring intent.",
+          actions: [
+            { label: "View Programming Jobs", url: "https://weworkremotely.com/categories/remote-programming-jobs" }
+          ],
+          tips: "Check listings tagged 'Anywhere in the World'. Apply within the first 48 hours for top consideration."
+        },
+        {
+          name: "Crossover",
+          category: "Full-Time High USD Remote Contractor",
+          tag: "Standardized High Pay ($60k - $100k+)",
+          tagColor: "#84cc16",
+          url: "https://www.crossover.com/jobs",
+          logo: "https://www.google.com/s2/favicons?domain=crossover.com&sz=128",
+          bestFor: "Standardized high-paying full-time remote contracts ($60k - $100k/yr) for software developers across the globe.",
+          hiringModel: "Strictly assessment-driven: cognitive test + technical coding challenge -> direct hire offer if you hit threshold.",
+          actions: [
+            { label: "Browse Open Engineering Roles", url: "https://www.crossover.com/jobs" }
+          ],
+          tips: "Fastest way to high USD pay if you score well on standardized tests (CCAT and HackerRank)."
+        },
+        {
+          name: "RemoteOK",
+          category: "Global Tech Aggregator",
+          tag: "Live Feed & Salary Ranges",
+          tagColor: "#0ea5e9",
+          url: "https://remoteok.com/",
+          logo: "https://www.google.com/s2/favicons?domain=remoteok.com&sz=128",
+          bestFor: "One of the most active feeds of remote engineering positions across startups, scaleups, and web3/crypto enterprises.",
+          hiringModel: "Direct career portal links with compensation benchmarks.",
+          actions: [
+            { label: "Filter Developer Jobs", url: "https://remoteok.com/remote-dev-jobs" }
+          ],
+          tips: "Use keyboard shortcut / search tag 'worldwide' to locate roles without regional geo-fencing."
+        },
+        {
+          name: "Jobgether",
+          category: "Remote & Hybrid Job Aggregator",
+          tag: "Transparent Location Filter",
+          tagColor: "#a855f7",
+          url: "https://jobgether.com/",
+          logo: "https://www.google.com/s2/favicons?domain=jobgether.com&sz=128",
+          bestFor: "Explicitly indexes 100% remote roles and tags them by true hiring geography (Global, APAC, EMEA).",
+          hiringModel: "Aggregates ATS career sites (Greenhouse, Lever, Ashby) directly.",
+          actions: [
+            { label: "Find 100% Remote Tech Jobs", url: "https://jobgether.com/offers" }
+          ],
+          tips: "Filter by '100% Remote' and 'Location: India / Worldwide' for instant matches."
+        }
+      ];
+
+      let cardsHtml = portals.map(p => {
+        let actBtns = p.actions.map(a => `
+          <a href="${a.url}" target="_blank" rel="noopener noreferrer" 
+             style="display: inline-flex; align-items: center; gap: 6px; padding: 7px 14px; background: #1e293b; border: 1px solid #334155; color: #f8fafc; border-radius: 6px; font-size: 13px; font-weight: 500; text-decoration: none; transition: all 0.15s ease;"
+             onmouseover="this.style.background='#334155'; this.style.borderColor='#64748b';"
+             onmouseout="this.style.background='#1e293b'; this.style.borderColor='#334155';">
+            <i class="fa-solid fa-arrow-up-right-from-square" style="font-size: 11px; color: ${p.tagColor};"></i> ${a.label}
+          </a>
+        `).join('');
+
+        return `
+          <div style="background: #0f172a; border: 1px solid #1e293b; border-radius: 12px; padding: 22px; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.3); transition: transform 0.15s ease, border-color 0.15s ease;"
+               onmouseover="this.style.borderColor='${p.tagColor}88'; this.style.transform='translateY(-2px)';"
+               onmouseout="this.style.borderColor='#1e293b'; this.style.transform='none';">
+            <div>
+              <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 12px;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <img src="${p.logo}" alt="${p.name}" onerror="this.src='https://cdn-icons-png.flaticon.com/512/3135/3135715.png'" style="width: 32px; height: 32px; border-radius: 6px; background: #fff; padding: 2px; object-fit: contain;">
+                  <div>
+                    <h3 style="margin: 0; font-size: 18px; font-weight: 700; color: #f8fafc;">${p.name}</h3>
+                    <div style="font-size: 12px; color: #94a3b8; margin-top: 2px;">${p.category}</div>
+                  </div>
+                </div>
+                <span style="background: ${p.tagColor}22; color: ${p.tagColor}; border: 1px solid ${p.tagColor}55; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; white-space: nowrap;">
+                  ${p.tag}
+                </span>
+              </div>
+
+              <p style="color: #cbd5e1; font-size: 13.5px; line-height: 1.5; margin: 12px 0 10px 0;">
+                ${p.bestFor}
+              </p>
+
+              <div style="background: #1e293b55; border-left: 3px solid ${p.tagColor}; padding: 8px 12px; border-radius: 0 6px 6px 0; margin-bottom: 12px; font-size: 12.5px; color: #94a3b8;">
+                <strong style="color: #e2e8f0;">Hiring Model:</strong> ${p.hiringModel}
+              </div>
+
+              <div style="background: #111827; padding: 8px 12px; border-radius: 6px; font-size: 12px; color: #a5f3fc; border: 1px solid #1e293b; margin-bottom: 16px;">
+                <i class="fa-solid fa-lightbulb" style="color: #fbbf24; margin-right: 5px;"></i> <strong>Insider Tip:</strong> ${p.tips}
+              </div>
+            </div>
+
+            <div style="display: flex; flex-wrap: wrap; gap: 8px; border-top: 1px solid #1e293b; padding-top: 14px; margin-top: auto;">
+              ${actBtns}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      container.innerHTML = `
+        <div style="max-width: 1400px; margin: 0 auto; padding: 10px 0 40px 0;">
+          <!-- Header Banner -->
+          <div style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(6, 182, 212, 0.15)); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 12px; padding: 24px 28px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+            <div>
+              <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 6px;">
+                <span style="background: #10b981; color: #022c22; font-size: 11px; font-weight: 700; text-transform: uppercase; padding: 3px 8px; border-radius: 4px;">Top Channels</span>
+                <h2 style="margin: 0; font-size: 22px; font-weight: 800; color: #f8fafc;">Remote Engineering Agencies & Multi-Site Hub</h2>
+              </div>
+              <p style="margin: 0; color: #cbd5e1; font-size: 14px; max-width: 800px; line-height: 1.5;">
+                Diversify beyond LinkedIn and Naukri. These vetted talent networks, direct agency headhunters, and curated global job boards actively place Indian backend & full-stack engineers into high-paying remote roles.
+              </p>
+            </div>
+            <div style="display: flex; gap: 10px;">
+              <button onclick="window.open('https://www.uplers.com/talent/', '_blank')" style="background: #10b981; border: none; color: #064e3b; font-weight: 700; padding: 10px 18px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 6px rgba(16,185,129,0.3);">
+                <i class="fa-solid fa-rocket"></i> Fast-Track Uplers Vetting
+              </button>
+            </div>
+          </div>
+
+          <!-- Quick Rule Cards -->
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin-bottom: 24px;">
+            <div style="background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 14px 18px;">
+              <div style="color: #34d399; font-weight: 700; font-size: 13px; margin-bottom: 4px;"><i class="fa-solid fa-check-circle"></i> 1. The 'Anywhere' Filter Rule</div>
+              <div style="color: #94a3b8; font-size: 12px; line-height: 1.4;">"Remote" doesn't always mean open to India. Always toggle location filters to 'Worldwide', 'Global', or 'APAC' to avoid US-citizen tax restrictions.</div>
+            </div>
+            <div style="background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 14px 18px;">
+              <div style="color: #38bdf8; font-weight: 700; font-size: 13px; margin-bottom: 4px;"><i class="fa-solid fa-bolt"></i> 2. Pass Vetting Tests Once</div>
+              <div style="color: #94a3b8; font-size: 12px; line-height: 1.4;">On Uplers and Turing, complete your coding assessment once. Account managers then market your profile directly to multiple inbound clients.</div>
+            </div>
+            <div style="background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 14px 18px;">
+              <div style="color: #fbbf24; font-weight: 700; font-size: 13px; margin-bottom: 4px;"><i class="fa-solid fa-shield-halved"></i> 3. Direct Contact Info Only</div>
+              <div style="color: #94a3b8; font-size: 12px; line-height: 1.4;">For agencies like DistantJob and itForte, email recruitment partners directly with your tailored Meesho backend summary and CV.</div>
+            </div>
+          </div>
+
+          <!-- Portals Grid -->
+          <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 18px;">
+            ${cardsHtml}
+          </div>
+        </div>
+      `;
+    }
+
+    async function renderColdCrmView() {
+      const container = document.getElementById('cold-crm-container');
+      if (!container) return;
+      container.innerHTML = '<div style="text-align:center; padding: 60px; color:#94a3b8;"><i class="fa-solid fa-spinner fa-spin" style="font-size:24px;"></i><p style="margin-top:10px;">Loading Cold Email Sales CRM...</p></div>';
+
+      try {
+        const res = await fetch('/api/cold_crm/summary');
+        const data = await res.json();
+        const m = data.metrics || { total_sent: 0, total_opened: 0, open_rate: 0, hot_leads: 0, total_replies: 0, total_calls: 0, due_followups_count: 0 };
+        const due = data.due_followups || [];
+        const leads = data.leads || [];
+        const tpls = data.templates || [];
+
+        let dueHtml = '';
+        if (due.length === 0) {
+          dueHtml = '<div style="background: rgba(30, 41, 59, 0.4); border: 1px dashed rgba(148, 163, 184, 0.25); border-radius: 8px; padding: 20px; text-align: center; color: #94a3b8;"><i class="fa-solid fa-circle-check" style="color: #10b981; margin-right: 8px;"></i> All caught up! No follow-ups due today. Follow-ups will trigger automatically based on open rates.</div>';
+        } else {
+          dueHtml = due.map(d => {
+            const hotBadge = d.open_count >= 6 ? '<span style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid #ef4444; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 700; margin-left: 8px;">🔥 HOT LEAD (6+ OPENS)</span>' : '';
+            return `
+              <div style="background: rgba(15, 23, 42, 0.65); border: 1px solid rgba(14, 165, 233, 0.35); border-radius: 8px; padding: 16px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+                <div>
+                  <div style="font-weight: 700; font-size: 16px; color: #f8fafc;">
+                    🏢 ${d.company} &mdash; <span style="color: #38bdf8;">${d.role_title}</span> ${hotBadge}
+                  </div>
+                  <div style="color: #94a3b8; font-size: 13px; margin-top: 4px;">
+                    Recipient: <strong>${d.recipient_name || d.recipient_email}</strong> (${d.recipient_role}) | Opens: <span style="color: #fde047; font-weight: 700;">${d.open_count}</span> | Follow-ups sent: ${d.followup_count}/${d.max_followups}
+                  </div>
+                  <div style="color: #cbd5e1; font-size: 12px; margin-top: 4px;">
+                    Strategy: <span style="color: #a78bfa; font-weight: 600;">${d.strategy_label}</span>
+                  </div>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                  <button class="btn btn-action" onclick="prepareFollowupAction(${d.id}, '${escapeHtml(d.company)}', '${escapeHtml(d.role_title)}', '${escapeHtml(d.recipient_name)}', '${escapeHtml(d.recipient_email)}', '${escapeHtml(d.subject)}', ${d.followup_count + 1}, ${d.open_count})" style="background: #0284c7; color: white; padding: 8px 14px; border-radius: 6px; font-size: 13px; cursor: pointer; border: none;">
+                    <i class="fa-solid fa-paper-plane" style="margin-right: 6px;"></i> Draft Follow-Up #${d.followup_count + 1}
+                  </button>
+                  <button class="btn btn-secondary" onclick="quickLogReply(${d.id})" style="background: rgba(51, 65, 85, 0.8); color: #cbd5e1; padding: 8px 12px; border-radius: 6px; font-size: 13px; cursor: pointer; border: 1px solid #475569;">
+                    <i class="fa-solid fa-reply" style="margin-right: 6px;"></i> Log Reply
+                  </button>
+                </div>
+              </div>
+            `;
+          }).join('');
+        }
+
+        let leadsHtml = '';
+        if (leads.length === 0) {
+          leadsHtml = '<div style="color: #94a3b8; text-align: center; padding: 30px;">No cold email campaigns logged yet. Click <strong>"+ New Cold Email Campaign"</strong> below to launch your first 3-target campaign!</div>';
+        } else {
+          leadsHtml = `
+            <table style="width: 100%; border-collapse: collapse; font-size: 13px; color: #f1f5f9; text-align: left;">
+              <thead>
+                <tr style="border-bottom: 2px solid rgba(148, 163, 184, 0.2); color: #94a3b8; text-transform: uppercase; font-size: 11px;">
+                  <th style="padding: 10px;">Company / Role</th>
+                  <th style="padding: 10px;">Contact</th>
+                  <th style="padding: 10px;">Opens</th>
+                  <th style="padding: 10px;">Follow-Ups</th>
+                  <th style="padding: 10px;">Status</th>
+                  <th style="padding: 10px;">Strategy</th>
+                  <th style="padding: 10px;">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${leads.map(l => {
+                  const statusColor = l.status === 'replied' ? '#34d399' : (l.status === 'call_scheduled' ? '#60a5fa' : (l.status === 'closed' ? '#94a3b8' : '#fbbf24'));
+                  return `
+                    <tr style="border-bottom: 1px solid rgba(148, 163, 184, 0.1);">
+                      <td style="padding: 10px;">
+                        <strong>${l.company}</strong><br><span style="color: #94a3b8; font-size: 11px;">${l.role_title}</span>
+                      </td>
+                      <td style="padding: 10px;">
+                        ${l.recipient_name || l.recipient_email}<br><span style="color: #64748b; font-size: 11px;">${l.recipient_role}</span>
+                      </td>
+                      <td style="padding: 10px;">
+                        <input type="number" min="0" value="${l.open_count}" style="width: 48px; background: rgba(15, 23, 42, 0.8); border: 1px solid #475569; color: #fde047; font-weight: 700; border-radius: 4px; padding: 2px 4px; text-align: center;" onchange="updateLeadOpens(${l.id}, this.value)">
+                      </td>
+                      <td style="padding: 10px;">
+                        ${l.followup_count} / ${l.max_followups}
+                      </td>
+                      <td style="padding: 10px;">
+                        <span style="color: ${statusColor}; font-weight: 600;">${l.status}</span>
+                      </td>
+                      <td style="padding: 10px; font-size: 11px; color: #cbd5e1;">
+                        ${l.followup_strategy}
+                      </td>
+                      <td style="padding: 10px;">
+                        <button onclick="openLogModal(${l.id}, '${escapeHtml(l.company)}', '${escapeHtml(l.recipient_email)}')" style="background: rgba(14, 165, 233, 0.15); border: 1px solid #0284c7; color: #38bdf8; border-radius: 4px; padding: 4px 8px; font-size: 11px; cursor: pointer;">
+                          Update
+                        </button>
+                      </td>
+                    </tr>
+                  `;
+                }).join('')}
+              </tbody>
+            </table>
+          `;
+        }
+
+        container.innerHTML = `
+          <div style="margin-bottom: 24px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
+              <div>
+                <h2 style="font-size: 22px; font-weight: 800; color: #f8fafc; margin: 0; display: flex; align-items: center; gap: 8px;">
+                  <i class="fa-solid fa-bullseye" style="color: #0284c7;"></i> Cold Email Sales CRM
+                </h2>
+                <p style="color: #94a3b8; font-size: 13px; margin: 4px 0 0 0;">
+                  Treating job hunting like a sales process: 3 contacts per company, open tracking, and intent-driven follow-ups.
+                </p>
+              </div>
+              <div>
+                <button onclick="openNewCampaignModal()" style="background: linear-gradient(135deg, #0284c7, #0369a1); color: white; border: none; padding: 10px 18px; border-radius: 8px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 14px rgba(2, 132, 199, 0.35);">
+                  <i class="fa-solid fa-plus"></i> New Cold Email Campaign (3 Contacts)
+                </button>
+              </div>
+            </div>
+
+            <!-- Funnel KPI Cards -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 24px;">
+              <div class="stat-card" style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(148, 163, 184, 0.15); border-radius: 10px; padding: 16px;">
+                <div style="color: #94a3b8; font-size: 12px; text-transform: uppercase;">Total Sent</div>
+                <div style="font-size: 28px; font-weight: 800; color: #f8fafc; margin-top: 4px;">${m.total_sent}</div>
+                <div style="color: #64748b; font-size: 11px;">Target: 20/day across 6 companies</div>
+              </div>
+              <div class="stat-card" style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(148, 163, 184, 0.15); border-radius: 10px; padding: 16px;">
+                <div style="color: #94a3b8; font-size: 12px; text-transform: uppercase;">Opens / Rate</div>
+                <div style="font-size: 28px; font-weight: 800; color: #fde047; margin-top: 4px;">${m.open_rate}%</div>
+                <div style="color: #64748b; font-size: 11px;">${m.total_opened} emails opened</div>
+              </div>
+              <div class="stat-card" style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 10px; padding: 16px;">
+                <div style="color: #f87171; font-size: 12px; text-transform: uppercase; font-weight: 700;">🔥 Hot Leads (6+ Opens)</div>
+                <div style="font-size: 28px; font-weight: 800; color: #f87171; margin-top: 4px;">${m.hot_leads}</div>
+                <div style="color: #94a3b8; font-size: 11px;">Internally forwarded / High intent</div>
+              </div>
+              <div class="stat-card" style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(148, 163, 184, 0.15); border-radius: 10px; padding: 16px;">
+                <div style="color: #94a3b8; font-size: 12px; text-transform: uppercase;">Replies / Calls</div>
+                <div style="font-size: 28px; font-weight: 800; color: #34d399; margin-top: 4px;">${m.total_replies} <span style="font-size: 16px; color: #60a5fa;">(${m.total_calls} calls)</span></div>
+                <div style="color: #64748b; font-size: 11px;">Reply rate: ${m.reply_rate}%</div>
+              </div>
+            </div>
+
+            <!-- Due Follow-Ups Section -->
+            <div style="margin-bottom: 24px;">
+              <h3 style="font-size: 16px; font-weight: 700; color: #38bdf8; margin: 0 0 12px 0; display: flex; align-items: center; gap: 8px;">
+                <i class="fa-solid fa-clock-rotate-left"></i> Follow-Ups Due Today (${due.length})
+              </h3>
+              ${dueHtml}
+            </div>
+
+            <!-- Leads Pipeline Table -->
+            <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(148, 163, 184, 0.15); border-radius: 10px; padding: 18px; margin-bottom: 24px;">
+              <h3 style="font-size: 16px; font-weight: 700; color: #f8fafc; margin: 0 0 14px 0;">
+                <i class="fa-solid fa-list-check" style="margin-right: 8px; color: #0284c7;"></i> Outreach Leads Ledger
+              </h3>
+              ${leadsHtml}
+            </div>
+          </div>
+        `;
+      } catch (err) {
+        container.innerHTML = `<div style="color: #ef4444; padding: 40px; text-align: center;">Failed to load Cold Email CRM: ${err.message}</div>`;
+      }
+    }
+
+    async function updateLeadOpens(id, val) {
+      const opens = parseInt(val, 10);
+      if (isNaN(opens)) return;
+      await fetch('/api/cold_crm/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ outreach_id: id, open_count: opens })
+      });
+      renderColdCrmView();
+    }
+
+    function openNewCampaignModal() {
+      openCustomDraftModal();
+    }
+
+    async function prepareFollowupAction(id, company, role, name, email, subject, fNum, opens) {
+      try {
+        const res = await fetch('/api/cold_crm/generate_followup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ company, role_title: role, recipient_name: name, subject, followup_number: fNum, open_count: opens })
+        });
+        const data = await res.json();
+        
+        // Populate custom draft modal with follow-up content
+        const modalTo = document.getElementById('custom-draft-to');
+        const modalComp = document.getElementById('custom-draft-comp');
+        const modalRole = document.getElementById('custom-draft-role');
+        if (modalTo) modalTo.value = email;
+        if (modalComp) modalComp.value = company;
+        if (modalRole) modalRole.value = role;
+
+        openCustomDraftModal();
+
+        // Increment follow-up in CRM
+        await fetch('/api/cold_crm/update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ outreach_id: id, increment_followup: true })
+        });
+      } catch (e) {
+        alert('Could not prepare follow-up: ' + e.message);
+      }
+    }
+
+    function openScreeningCopilotModal(comp, role) {
+      if (comp) document.getElementById('copilot-comp').value = comp;
+      if (role) document.getElementById('copilot-role').value = role;
+      document.getElementById('copilot-answer-box').style.display = 'none';
+      document.getElementById('screening-copilot-modal').classList.add('active');
+    }
+
+    function closeScreeningCopilotModal() {
+      document.getElementById('screening-copilot-modal').classList.remove('active');
+    }
+
+    async function submitScreeningCopilot() {
+      const q = (document.getElementById('copilot-question').value || '').trim();
+      const comp = (document.getElementById('copilot-comp').value || '').trim();
+      const role = (document.getElementById('copilot-role').value || '').trim();
+
+      if (!q) {
+        alert('Please enter the question asked in the application.');
+        return;
+      }
+
+      const btn = document.getElementById('copilot-submit-btn');
+      const ansBox = document.getElementById('copilot-answer-box');
+      const ansText = document.getElementById('copilot-answer-text');
+
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating Grounded Human Answer...';
+      ansBox.style.display = 'none';
+
+      try {
+        const res = await fetch('/api/copilot/answer', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question: q, company: comp, role_title: role })
+        });
+        const data = await res.json();
+        ansText.textContent = data.answer || 'No answer generated.';
+        ansBox.style.display = 'block';
+      } catch (err) {
+        alert('Copilot failed: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> Generate Personalized Human Answer (Gemini)';
+      }
+    }
+
+    function copyCopilotAnswer() {
+      const text = document.getElementById('copilot-answer-text').textContent;
+      navigator.clipboard.writeText(text).then(() => {
+        alert('Copied to clipboard! Ready to paste into application form.');
+      }).catch(() => {
+        alert('Failed to copy text.');
+      });
+    }
+
+    function openLogModal(id, company, email) {
+      const reply = prompt(`Log update for ${company} (${email}):\nReply status? (positive / polite / negative / none):`, 'positive');
+      if (!reply) return;
+      const call = confirm('Did this interaction lead to an interview or phone screen?');
+      const notes = prompt('Any notes from the interaction?', '');
+
+      fetch('/api/cold_crm/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ outreach_id: id, reply_status: reply, led_to_call: call, notes: notes })
+      }).then(() => renderColdCrmView());
+    }
+
+    function quickLogReply(id) {
+      openLogModal(id, '', '');
+    }
+
     function setTab(tab) {
       currentTab = tab;
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
       const activeBtn = Array.from(document.querySelectorAll('.tab-btn')).find(b => b.getAttribute('onclick') && b.getAttribute('onclick').includes(`'${tab}'`));
       if (activeBtn) activeBtn.classList.add('active');
 
+      const yetBanner = document.getElementById('yet-to-apply-banner');
+      const freshBanner = document.getElementById('fresh-banner');
+      const appBanner = document.getElementById('applied-banner');
       const qBanner = document.getElementById('queue-banner');
       const rBanner = document.getElementById('responses-banner');
       const respFilterBar = document.getElementById('resp-filter-bar');
@@ -2111,14 +3000,50 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       const jobsContainer = document.getElementById('jobs-container');
       const analyticsContainer = document.getElementById('analytics-container');
       const strategyContainer = document.getElementById('strategy-container');
+      const coldCrmContainer = document.getElementById('cold-crm-container');
 
       if (sourceFilterBar) {
-        sourceFilterBar.style.display = (tab === 'responses' || tab === 'analytics' || tab === 'strategy') ? 'none' : 'flex';
+        sourceFilterBar.style.display = (tab === 'responses' || tab === 'analytics' || tab === 'strategy' || tab === 'cold_crm' || tab === 'remote_portals') ? 'none' : 'flex';
       }
 
       if (strategyContainer) strategyContainer.style.display = (tab === 'strategy') ? 'block' : 'none';
+      if (coldCrmContainer) coldCrmContainer.style.display = (tab === 'cold_crm') ? 'block' : 'none';
+      const remotePortalsContainer = document.getElementById('remote-portals-container');
+      if (remotePortalsContainer) remotePortalsContainer.style.display = (tab === 'remote_portals') ? 'block' : 'none';
+
+      if (tab === 'remote_portals') {
+        if (yetBanner) yetBanner.style.display = 'none';
+        if (freshBanner) freshBanner.style.display = 'none';
+        if (appBanner) appBanner.style.display = 'none';
+        qBanner.style.display = 'none';
+        rBanner.style.display = 'none';
+        if (respFilterBar) respFilterBar.style.display = 'none';
+        if (jobsContainer) jobsContainer.style.display = 'none';
+        if (analyticsContainer) analyticsContainer.style.display = 'none';
+        if (strategyContainer) strategyContainer.style.display = 'none';
+        if (coldCrmContainer) coldCrmContainer.style.display = 'none';
+        renderRemotePortalsView();
+        return;
+      }
+
+      if (tab === 'cold_crm') {
+        if (yetBanner) yetBanner.style.display = 'none';
+        if (freshBanner) freshBanner.style.display = 'none';
+        if (appBanner) appBanner.style.display = 'none';
+        qBanner.style.display = 'none';
+        rBanner.style.display = 'none';
+        if (respFilterBar) respFilterBar.style.display = 'none';
+        if (jobsContainer) jobsContainer.style.display = 'none';
+        if (analyticsContainer) analyticsContainer.style.display = 'none';
+        if (strategyContainer) strategyContainer.style.display = 'none';
+        renderColdCrmView();
+        return;
+      }
 
       if (tab === 'strategy') {
+        if (yetBanner) yetBanner.style.display = 'none';
+        if (freshBanner) freshBanner.style.display = 'none';
+        if (appBanner) appBanner.style.display = 'none';
         qBanner.style.display = 'none';
         rBanner.style.display = 'none';
         if (respFilterBar) respFilterBar.style.display = 'none';
@@ -2129,6 +3054,9 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       }
 
       if (tab === 'analytics') {
+        if (yetBanner) yetBanner.style.display = 'none';
+        if (freshBanner) freshBanner.style.display = 'none';
+        if (appBanner) appBanner.style.display = 'none';
         qBanner.style.display = 'none';
         rBanner.style.display = 'none';
         if (respFilterBar) respFilterBar.style.display = 'none';
@@ -2140,6 +3068,12 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         if (analyticsContainer) analyticsContainer.style.display = 'none';
         if (jobsContainer) jobsContainer.style.display = 'grid';
       }
+
+      const incognitoBanner = document.getElementById('incognito-banner');
+      if (incognitoBanner) incognitoBanner.style.display = (tab === 'incognito_fresh' || tab === 'incognito_1h') ? 'flex' : 'none';
+      if (yetBanner) yetBanner.style.display = (tab === 'yet_to_apply') ? 'flex' : 'none';
+      if (freshBanner) freshBanner.style.display = (tab === 'fresh') ? 'flex' : 'none';
+      if (appBanner) appBanner.style.display = (tab === 'applied') ? 'flex' : 'none';
 
       if (tab === 'approved') {
         qBanner.style.display = 'flex';
@@ -2157,6 +3091,9 @@ HTML_DASHBOARD = """<!DOCTYPE html>
 
       const kaBanner = document.getElementById('kadegree-info-banner');
       if (kaBanner) kaBanner.style.display = (tab === 'kadegree') ? 'flex' : 'none';
+
+      const easyBanner = document.getElementById('easy-apply-info-banner');
+      if (easyBanner) easyBanner.style.display = (tab === 'easy_apply') ? 'flex' : 'none';
 
       if (tab === 'kadegree') {
         currentSourceFilter = 'kadegree';
@@ -2633,6 +3570,63 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       showToast('Analytics refreshed!');
     }
 
+    let currentSort = 'recent';
+
+    function changeSort(val) {
+      currentSort = val;
+      renderJobs();
+    }
+    function getJobEffectiveDate(job) {
+      // For incognito fresh jobs or if date_posted has only YYYY-MM-DD date without time (diff will be artificially offset),
+      // prioritize the exact discovered_at timestamp
+      if (job.strategy === 'linkedin_1h_incognito') {
+        if (job.date_posted && job.date_posted.includes('T')) {
+          const dp = new Date(job.date_posted);
+          if (!isNaN(dp.getTime())) return dp;
+        }
+        if (job.discovered_at && job.discovered_at.trim() !== '') {
+          const da = new Date(job.discovered_at);
+          if (!isNaN(da.getTime())) return da;
+        }
+      }
+      if (job.date_posted && job.date_posted.trim() !== '') {
+        const dp = new Date(job.date_posted);
+        if (!isNaN(dp.getTime())) return dp;
+      }
+      if (job.discovered_at && job.discovered_at.trim() !== '') {
+        const da = new Date(job.discovered_at);
+        if (!isNaN(da.getTime())) return da;
+      }
+      return null;
+    }
+
+    function formatJobTime(job) {
+      const isExplicitPosted = !!(job.date_posted && job.date_posted.trim() !== '');
+      const d = getJobEffectiveDate(job);
+      if (!d) return '';
+
+      const diffMs = Date.now() - d.getTime();
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMins / 60);
+      const diffDays = Math.floor(diffHours / 24);
+
+      let relText = '';
+      if (diffMins < 1) relText = 'Just now';
+      else if (diffMins < 60) relText = `${diffMins}m ago`;
+      else if (diffHours < 24) relText = `${diffHours}h ago`;
+      else if (diffDays === 1) relText = 'Yesterday';
+      else relText = `${diffDays}d ago`;
+
+      const isFresh = diffMs >= 0 && diffMs <= 4 * 60 * 60 * 1000;
+      const formattedDate = d.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
+      const labelPrefix = isExplicitPosted ? 'Posted' : 'Discovered';
+
+      if (isFresh) {
+        return `<span style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4); padding: 2px 7px; border-radius: 6px; font-weight: 700; font-size: 11px;" title="${labelPrefix} on ${d.toLocaleString()} (Under 4 hours ago!)"><i class="fa-solid fa-bolt"></i> ${labelPrefix} ${relText} (${formattedDate})</span>`;
+      }
+      return `<span style="color: #94a3b8; font-size: 11px;" title="${labelPrefix} on ${d.toLocaleString()}"><i class="fa-regular fa-calendar"></i> ${labelPrefix} ${formattedDate} (${relText})</span>`;
+    }
+
     function renderJobs() {
       if (currentTab === 'responses') {
         renderResponses();
@@ -2641,17 +3635,44 @@ HTML_DASHBOARD = """<!DOCTYPE html>
 
       const q = document.getElementById('search-input').value.toLowerCase().trim();
       let filtered = allJobs.filter(job => {
-        if (currentTab === 'high' && (job.fit_score === null || job.fit_score < 7)) return false;
-        if (currentTab === 'top' && (job.fit_score === null || job.fit_score < 8)) return false;
+        if (currentTab === 'yet_to_apply') {
+          const isEligible = (job.fit_score !== null && job.fit_score >= 7) || !!job.tailored_resume_path;
+          if (!isEligible || job.apply_status === 'applied' || job.apply_status === 'interview' || job.apply_status === 'rejected' || job.apply_status === 'ignored') return false;
+        }
+        if (currentTab === 'fresh') {
+          if (job.apply_status === 'applied' || job.apply_status === 'ignored' || job.apply_status === 'rejected') return false;
+          const d = getJobEffectiveDate(job);
+          if (!d) return false;
+          const diff = Date.now() - d.getTime();
+          if (isNaN(diff) || diff > 4 * 60 * 60 * 1000 || diff < 0) return false;
+        }
+        if (currentTab === 'high' && (job.fit_score === null || job.fit_score < 7 || job.apply_status === 'ignored')) return false;
+        if (currentTab === 'top' && (job.fit_score === null || job.fit_score < 8 || job.apply_status === 'ignored')) return false;
         if (currentTab === 'approved' && job.apply_status !== 'approved') return false;
         if (currentTab === 'applied' && job.apply_status !== 'applied') return false;
-        if (currentTab === 'kadegree' && !job.is_kadegree && job.source_category !== 'kadegree') return false;
+        if (currentTab === 'asked_referral' && job.apply_status !== 'asked_referral') return false;
+        if (currentTab === 'ignored' && job.apply_status !== 'ignored') return false;
+        if (currentTab === 'kadegree' && (!job.is_kadegree && job.source_category !== 'kadegree' || job.apply_status === 'ignored')) return false;
+        if (currentTab === 'incognito_fresh' || currentTab === 'incognito_1h') {
+          if (job.strategy !== 'linkedin_1h_incognito' || job.apply_status === 'ignored') return false;
+          const d = getJobEffectiveDate(job);
+          if (d) {
+            const diff = Date.now() - d.getTime();
+            // Strict 8-hour filter
+            if (!isNaN(diff) && diff > 8 * 60 * 60 * 1000) return false;
+          }
+        }
+        if (currentTab === 'easy_apply') {
+          const isLinkedInEasy = (job.is_easy_apply === 1) || (job.source_category === 'linkedin' && job.strategy === 'linkedin_easy_apply');
+          if (!isLinkedInEasy || job.apply_status === 'ignored') return false;
+        }
 
         if (currentSourceFilter !== 'all') {
           if (currentSourceFilter === 'kadegree' && !job.is_kadegree && job.source_category !== 'kadegree') return false;
           if (currentSourceFilter === 'linkedin' && job.source_category !== 'linkedin') return false;
           if (currentSourceFilter === 'whatsapp' && job.source_category !== 'whatsapp') return false;
-          if (currentSourceFilter === 'ats' && (job.is_kadegree || job.source_category === 'linkedin' || job.source_category === 'whatsapp')) return false;
+          if (currentSourceFilter === 'seed_funded' && job.strategy !== 'seed_funded') return false;
+          if (currentSourceFilter === 'ats' && (job.is_kadegree || job.source_category === 'linkedin' || job.source_category === 'whatsapp' || job.strategy === 'seed_funded')) return false;
         }
 
         if (q) {
@@ -2659,6 +3680,29 @@ HTML_DASHBOARD = """<!DOCTYPE html>
           if (!hay.includes(q)) return false;
         }
         return true;
+      });
+
+      // Apply User-Selected Sorting
+      filtered.sort((a, b) => {
+        const da = getJobEffectiveDate(a);
+        const db = getJobEffectiveDate(b);
+        const ta = da ? da.getTime() : 0;
+        const tb = db ? db.getTime() : 0;
+        if (currentSort === 'recent') {
+          return tb - ta;
+        } else if (currentSort === 'fit') {
+          const fa = a.fit_score ?? 0;
+          const fb = b.fit_score ?? 0;
+          if (fb !== fa) return fb - fa;
+          return tb - ta;
+        } else if (currentSort === 'oldest') {
+          const ota = da ? da.getTime() : Date.now();
+          const otb = db ? db.getTime() : Date.now();
+          return ota - otb;
+        } else if (currentSort === 'company') {
+          return (a.company || '').localeCompare(b.company || '');
+        }
+        return 0;
       });
 
       const container = document.getElementById('jobs-container');
@@ -2681,6 +3725,27 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         const hasCover = !!job.cover_letter_path;
         const isApproved = job.apply_status === 'approved';
         const isApplied = job.apply_status === 'applied';
+        const isAskedReferral = job.apply_status === 'asked_referral';
+        const isIgnored = job.apply_status === 'ignored';
+
+        // Calculate Age & Reminder Urgency
+        let urgencyBadge = '';
+        if (!isApplied && !isIgnored && job.discovered_at) {
+          const postDate = new Date(job.discovered_at);
+          const ageDays = (Date.now() - postDate.getTime()) / (1000 * 60 * 60 * 24);
+          if (ageDays >= 3 && !isAskedReferral) {
+            urgencyBadge = `<span style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid #ef4444; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; margin-left: 6px;" title="Discovered ${Math.floor(ageDays)} days ago. Apply or ask for a referral immediately before opening fills!"><i class="fa-solid fa-triangle-exclamation"></i> Late: Apply/Referral Urgently!</span>`;
+          } else if (ageDays >= 1.5 && !isAskedReferral) {
+            urgencyBadge = `<span style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid #f59e0b; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; margin-left: 6px;" title="Discovered over 36 hours ago. Action recommended today."><i class="fa-solid fa-hourglass-half"></i> Apply / Ask Soon</span>`;
+          }
+        }
+        if (isAskedReferral && job.referral_contacted_at) {
+          const refDate = new Date(job.referral_contacted_at);
+          const refAgeDays = (Date.now() - refDate.getTime()) / (1000 * 60 * 60 * 24);
+          if (refAgeDays >= 2) {
+            urgencyBadge = `<span style="background: rgba(168, 85, 247, 0.25); color: #e9d5ff; border: 1px solid #a855f7; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; margin-left: 6px;" title="Referral requested ${Math.floor(refAgeDays)} days ago. Time to send a polite follow-up message!"><i class="fa-solid fa-bell"></i> Follow Up with ${job.referral_contact_name || 'Referrer'}</span>`;
+          }
+        }
 
         const initial = (job.company || 'C').charAt(0).toUpperCase();
 
@@ -2692,6 +3757,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
                 <div>
                   <div class="job-title-row">
                     <span class="job-title">${job.title}</span>
+                    ${urgencyBadge}
                   </div>
                   <div class="job-sub">
                     <span><i class="fa-regular fa-building"></i> <strong>${job.company}</strong></span>
@@ -2699,6 +3765,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
                     <span class="source-badge-meta ${job.is_kadegree ? 'source-kadegree-badge' : ''}">
                       <i class="${job.source_icon || 'fa-solid fa-layer-group'}"></i> <strong>${job.source || 'Direct ATS'}</strong>
                     </span>
+                    ${formatJobTime(job)}
                   </div>
                 </div>
               </div>
@@ -2724,7 +3791,8 @@ HTML_DASHBOARD = """<!DOCTYPE html>
               ${job.recruiter_email ? `<span class="tag tag-email"><i class="fa-solid fa-envelope"></i> ${job.recruiter_email}</span>` : ''}
               ${hasResume ? `<span class="tag tag-resume"><i class="fa-solid fa-file-pdf"></i> Tailored Resume Ready</span>` : '<span class="tag" style="background:#334155;color:#94a3b8;"><i class="fa-solid fa-clock"></i> Base Resume</span>'}
               ${hasCover ? `<span class="tag tag-cover"><i class="fa-solid fa-envelope-open-text"></i> Cover Letter Ready</span>` : ''}
-              ${isApplied ? `<span class="tag tag-applied"><i class="fa-solid fa-check-double"></i> Applied</span>` : isApproved ? `<span class="tag tag-approved"><i class="fa-solid fa-thumbs-up"></i> Approved Shortlist</span>` : ''}
+              ${isApplied ? `<span class="tag tag-applied"><i class="fa-solid fa-check-double"></i> Applied</span>` : job.apply_status === 'asked_referral' ? `<span class="tag" style="background:rgba(168,85,247,0.25);color:#d8b4fe;border:1px solid #a855f7;"><i class="fa-solid fa-people-arrows"></i> Asked Referral${job.referral_contact_name ? ' (' + job.referral_contact_name + ')' : ''}</span>` : isApproved ? `<span class="tag tag-approved"><i class="fa-solid fa-thumbs-up"></i> Approved Shortlist</span>` : isIgnored ? `<span class="tag tag-ignored"><i class="fa-solid fa-ban"></i> Ignored</span>` : ''}
+              ${job.referral_contacted_at ? `<span class="tag" style="background:#1e1b4b;color:#c084fc;border:1px solid #4338ca;"><i class="fa-regular fa-clock"></i> Outreach: ${new Date(job.referral_contacted_at).toLocaleDateString('en-IN', {month:'short', day:'numeric'})}</span>` : ''}
             </div>
 
             ${job.score_reasoning ? `<div class="reasoning">${job.score_reasoning.replace(/\\n/g, '<br>')}</div>` : ''}
@@ -2741,8 +3809,8 @@ HTML_DASHBOARD = """<!DOCTYPE html>
               ` : ''}
 
               <!-- 1-Click Autonomous Auto-Apply Button (Kanistus Workflow) -->
-              <button class="btn btn-auto-apply" id="btn-auto-apply-${job.rowid}" onclick="launchAutonomousApply(${job.rowid})" title="Does everything itself: fills forms, answers screening questions, attaches resume, and submits autonomously">
-                <i class="fa-solid fa-bolt"></i> Auto-Apply (Autonomous)
+              <button class="btn btn-auto-apply" id="btn-auto-apply-${job.rowid}" onclick="launchAutonomousApply(${job.rowid})" title="Does everything itself in Brave: navigates, clicks Easy Apply/ATS apply, answers screening questions, attaches tailored resume, and submits">
+                <i class="fa-solid fa-bolt"></i> ${job.is_easy_apply || (job.url && job.url.includes('linkedin.com')) ? 'Auto-Apply (Easy Apply)' : 'Auto-Apply (Autonomous)'}
               </button>
 
               <!-- Application Assistant Autofill & Review Button -->
@@ -2751,7 +3819,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
               </button>
 
               <!-- Live Brave Browser Launcher -->
-              <a href="${job.apply_url || job.url || '#'}" target="_blank" rel="noopener noreferrer" class="btn btn-brave" onclick="handleJobClick(event, ${job.rowid}, '${encodeURIComponent(job.tailored_resume_path || "")}')" style="text-decoration: none;">
+              <a href="${(job.apply_url && !job.apply_url.toLowerCase().startsWith('none')) ? job.apply_url : (job.url || '#')}" target="_blank" rel="noopener noreferrer" class="btn btn-brave" onclick="handleJobClick(event, ${job.rowid}, '${encodeURIComponent(job.tailored_resume_path || "")}')" style="text-decoration: none;">
                 <i class="fa-brands fa-brave"></i> Open Portal
               </a>
 
@@ -2763,6 +3831,9 @@ HTML_DASHBOARD = """<!DOCTYPE html>
               ` : `
                 <button class="btn btn-preview" onclick="previewResume(${job.rowid})">
                   <i class="fa-solid fa-file-pdf"></i> View Resume PDF
+                </button>
+                <button class="btn" onclick="copyResumeFilePath(${job.rowid})" style="background: #1e293b; border: 1px solid #38bdf8; color: #38bdf8; font-size: 11px; padding: 6px 10px; border-radius: 8px; cursor: pointer; font-weight: 600;" title="Copy absolute file path to clipboard (for pasting in file upload dialogues or Gmail)">
+                  <i class="fa-regular fa-copy"></i> Copy Path
                 </button>
               `}
 
@@ -2801,11 +3872,24 @@ HTML_DASHBOARD = """<!DOCTYPE html>
                 </button>
               ` : ''}
 
-              ${!isApplied ? `
+              ${!isApplied && !isIgnored ? `
                 <button class="btn btn-applied" onclick="markApplied(${job.rowid})">
                   <i class="fa-solid fa-check-circle"></i> Mark Applied
                 </button>
+                <button class="btn" onclick="promptMarkReferralAsked(${job.rowid}, '${encodeURIComponent(job.company || '')}')" style="background: rgba(168, 85, 247, 0.2); border: 1px solid #a855f7; color: #d8b4fe; font-size: 11.5px; font-weight: 700; border-radius: 8px; padding: 7px 11px; cursor: pointer;" title="Mark that you asked for a referral so ApplyPilot actively tracks follow-ups">
+                  <i class="fa-solid fa-people-arrows"></i> Asked Referral
+                </button>
               ` : ''}
+
+              ${!isIgnored ? `
+                <button class="btn btn-ignore" onclick="ignoreJob(${job.rowid})" title="Hide / ignore this job (e.g. broken or invalid link)">
+                  <i class="fa-solid fa-ban"></i> Ignore
+                </button>
+              ` : `
+                <button class="btn btn-ignore" onclick="unignoreJob(${job.rowid})" title="Restore job back to active queue">
+                  <i class="fa-solid fa-arrow-rotate-left"></i> Restore
+                </button>
+              `}
             </div>
           </div>
         `;
@@ -2922,7 +4006,68 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       }
     }
 
-        function previewResume(rowid) {
+    async function promptMarkReferralAsked(rowid, compEncoded) {
+      const comp = decodeURIComponent(compEncoded || 'this company');
+      const contactName = prompt(`Who did you ask for a referral at ${comp}?\n(Enter connection/alumnus name, or leave blank):`);
+      if (contactName === null) return; // user cancelled
+
+      try {
+        const res = await fetch(`/api/jobs/${rowid}/asked_referral`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contact_name: contactName.trim(),
+            platform: 'LinkedIn'
+          })
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          showToast(`🤝 Referral tracked! Follow-up reminder active for ${comp}.`);
+          triggerConfetti();
+          fetchJobs();
+        } else {
+          showToast('Error recording referral: ' + (data.message || 'unknown error'));
+        }
+      } catch (err) {
+        showToast('Failed to record referral: ' + err);
+      }
+    }
+
+    async function ignoreJob(rowid) {
+      const res = await fetch(`/api/jobs/${rowid}/ignore`, { method: 'POST' });
+      const data = await res.json();
+      if (data.status === 'ok') {
+        showToast('🚫 Job ignored and removed from active feeds.');
+        fetchJobs();
+      }
+    }
+
+    async function unignoreJob(rowid) {
+      const res = await fetch(`/api/jobs/${rowid}/unignore`, { method: 'POST' });
+      const data = await res.json();
+      if (data.status === 'ok') {
+        showToast('↩️ Job restored to active feed.');
+        fetchJobs();
+      }
+    }
+
+        function copyResumeFilePath(rowid) {
+      const job = allJobs.find(j => j.rowid === rowid);
+      if (!job || !job.tailored_resume_path) {
+        showToast('⚠️ No tailored resume path found.');
+        return;
+      }
+      const raw = job.tailored_resume_path;
+      const absPath = raw.includes(':') ? raw : `D:\\ApplyPilot_Workspace\\data\\${raw.replace(/^\//, '').replace(/\//g, '\\')}`;
+      try {
+        navigator.clipboard.writeText(absPath);
+        showToast('📋 Copied resume path! Paste (Ctrl+V) directly into file upload.');
+      } catch (e) {
+        showToast('Path: ' + absPath);
+      }
+    }
+
+    function previewResume(rowid) {
       const job = allJobs.find(j => j.rowid === rowid);
       const title = job ? `${job.company} - ${job.title} Resume` : 'Tailored Resume';
       const url = `/api/jobs/${rowid}/resume?t=${Date.now()}`;
@@ -3458,7 +4603,13 @@ HTML_DASHBOARD = """<!DOCTYPE html>
             }
           }, 300);
         } else if (data.status === 'fallback') {
-          showToast('✨ Email draft prepared! Opening in Gmail Web...');
+          // Copy resume path to clipboard for instant attachment in Gmail Web
+          if (data.attachment) {
+            try {
+              navigator.clipboard.writeText(data.attachment);
+              showToast('📎 Resume path copied to clipboard! (Ctrl+V in file picker)');
+            } catch (err) {}
+          }
           if (btn) {
             btn.innerHTML = '<i class="fa-solid fa-arrow-up-right-from-square"></i> Open in Gmail';
             btn.style.background = '#0284c7';
@@ -3523,7 +4674,13 @@ HTML_DASHBOARD = """<!DOCTYPE html>
           }
           fetchJobs();
         } else if (data.status === 'fallback') {
-          showToast('✨ Email prepared! Opening in Gmail Web for review & send...');
+          // Copy resume path to clipboard for instant attachment in Gmail Web
+          if (data.attachment) {
+            try {
+              navigator.clipboard.writeText(data.attachment);
+              showToast('📎 Resume path copied to clipboard! (Ctrl+V in file picker)');
+            } catch (err) {}
+          }
           if (btn) {
             btn.innerHTML = '<i class="fa-solid fa-arrow-up-right-from-square"></i> Open in Gmail';
             btn.style.background = '#0284c7';
@@ -3675,6 +4832,171 @@ HTML_DASHBOARD = """<!DOCTYPE html>
 
     function closeCustomDraftModal() {
       document.getElementById('custom-draft-modal').style.display = 'none';
+    }
+
+    /* Job Link Tailor Modal Functions */
+    function openJobLinkTailorModal() {
+      document.getElementById('jlink-url').value = '';
+      document.getElementById('jlink-jd').value = '';
+      document.getElementById('jlink-loading').style.display = 'none';
+      document.getElementById('jlink-result').style.display = 'none';
+      document.getElementById('btn-jlink-process').disabled = false;
+      document.getElementById('btn-jlink-process').innerHTML = '<i class="fa-solid fa-bolt"></i> Analyze & Generate';
+      document.getElementById('job-link-tailor-modal').style.display = 'flex';
+    }
+
+    function closeJobLinkTailorModal() {
+      document.getElementById('job-link-tailor-modal').style.display = 'none';
+    }
+
+    async function submitJobLinkIntake() {
+      const url = document.getElementById('jlink-url').value.trim();
+      const manualJd = document.getElementById('jlink-jd').value.trim();
+      if (!url && !manualJd) {
+        alert('Please enter a job link (URL) or paste JD text.');
+        return;
+      }
+
+      const btn = document.getElementById('btn-jlink-process');
+      const loader = document.getElementById('jlink-loading');
+      const resultBox = document.getElementById('jlink-result');
+
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Processing...';
+      loader.style.display = 'block';
+      resultBox.style.display = 'none';
+
+      try {
+        const res = await fetch('/api/jobs/process_link', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: url, jd: manualJd })
+        });
+        const data = await res.json();
+
+        loader.style.display = 'none';
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-bolt"></i> Analyze & Generate';
+
+        if (data.status !== 'ok') {
+          alert(data.message || 'Error processing job link');
+          return;
+        }
+
+        const o = data.outreach || {};
+        const comp = data.company || 'Company';
+        const role = data.title || 'Software Engineer';
+        const pdfPath = data.pdf_resume_path || '';
+        const rowid = data.rowid;
+
+        resultBox.innerHTML = `
+          <div style="background: rgba(2, 132, 199, 0.1); border: 1.5px solid #0284c7; border-radius: 12px; padding: 16px; margin-bottom: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+              <div>
+                <h3 style="margin: 0; color: #fff; font-size: 18px;">${role} @ <span style="color: #38bdf8;">${comp}</span></h3>
+                <div style="font-size: 12px; color: #94a3b8; margin-top: 4px;">
+                  <i class="fa-solid fa-location-dot"></i> ${data.location || 'Bengaluru'} &bull; 
+                  <span style="color: #34d399;"><i class="fa-solid fa-check-circle"></i> Tailored Resume Compiled</span>
+                  ${data.skills ? ` &bull; Skills: <code style="color: #f59e0b;">${data.skills}</code>` : ''}
+                </div>
+              </div>
+              <div style="display: flex; gap: 8px;">
+                ${rowid ? `
+                  <button class="btn" onclick="openPdfModal('${pdfPath}', 'Tailored Resume - ${comp}')" style="background: #2563eb; color: #fff; font-weight: 700; padding: 7px 14px; border-radius: 6px;">
+                    <i class="fa-solid fa-file-pdf"></i> Preview Resume PDF
+                  </button>
+                  <a href="/api/jobs/${rowid}/resume?download=1" download class="btn" style="background: #059669; color: #fff; font-weight: 700; padding: 7px 14px; border-radius: 6px; text-decoration: none;">
+                    <i class="fa-solid fa-download"></i> Download PDF
+                  </a>
+                ` : ''}
+                <button class="btn" onclick="copyText(decodeURIComponent('${encodeURIComponent(data.tailored_resume_text || '')}'), 'Tailored Resume Text')" style="background: #475569; color: #fff; padding: 7px 12px; border-radius: 6px;">
+                  <i class="fa-regular fa-copy"></i> Copy Resume Text
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Referral 1-Click Search Links -->
+          <div style="background: #0f172a; border: 1px solid #1e293b; border-radius: 10px; padding: 14px; margin-bottom: 18px;">
+            <div style="font-weight: 700; color: #f8fafc; font-size: 13.5px; margin-bottom: 10px;">
+              <i class="fa-brands fa-linkedin" style="color: #38bdf8;"></i> 1-Click Targeted LinkedIn Searches for ${comp}:
+            </div>
+            <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+              <a href="${o.first_degree_url || '#'}" target="_blank" rel="noopener noreferrer" class="btn" style="background: #065f46; color: #6ee7b7; text-decoration: none; font-size: 11.5px; font-weight: 600;">
+                <i class="fa-solid fa-user-group"></i> 1st-Degree Friends @ ${comp}
+              </a>
+              <a href="${o.second_degree_url || '#'}" target="_blank" rel="noopener noreferrer" class="btn" style="background: #1e3a8a; color: #93c5fd; text-decoration: none; font-size: 11.5px; font-weight: 600;">
+                <i class="fa-solid fa-users"></i> 2nd-Degree Mutuals @ ${comp}
+              </a>
+              <a href="${o.alumni_search_url || '#'}" target="_blank" rel="noopener noreferrer" class="btn" style="background: #0369a1; color: #7dd3fc; text-decoration: none; font-size: 11.5px; font-weight: 600;">
+                <i class="fa-solid fa-graduation-cap"></i> RVCE Alumni @ ${comp}
+              </a>
+              <a href="${o.recruiter_search_url || '#'}" target="_blank" rel="noopener noreferrer" class="btn" style="background: #581c87; color: #d8b4fe; text-decoration: none; font-size: 11.5px; font-weight: 600;">
+                <i class="fa-solid fa-briefcase"></i> Recruiters @ ${comp}
+              </a>
+              <a href="${o.hiring_posts_url || '#'}" target="_blank" rel="noopener noreferrer" class="btn" style="background: #9a3412; color: #fdba74; text-decoration: none; font-size: 11.5px; font-weight: 600;">
+                <i class="fa-solid fa-bullhorn"></i> Hiring Posts @ ${comp}
+              </a>
+            </div>
+          </div>
+
+          <!-- Personalized Messages Section -->
+          <div style="display: flex; flex-direction: column; gap: 14px;">
+            <!-- Template 1: Colleague / 1st Degree -->
+            <div style="background: #111827; border: 1px solid #1f2937; border-radius: 8px; padding: 12px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <h4 style="margin: 0; color: #60a5fa; font-size: 13px;"><i class="fa-solid fa-user-check"></i> 1st-Degree Connection / Friend Referral Message</h4>
+                <button class="btn" style="background: #2563eb; color: white; padding: 4px 10px; font-size: 11px;" onclick="copyOutreachText('jlink-msg-1st')">
+                  <i class="fa-regular fa-copy"></i> Copy
+                </button>
+              </div>
+              <textarea id="jlink-msg-1st" style="width: 100%; height: 95px; background: #0f172a; color: #f1f5f9; border: 1px solid #334155; border-radius: 6px; padding: 10px; font-family: monospace; font-size: 12px; resize: vertical;" readonly>${o.first_degree_message || ''}</textarea>
+            </div>
+
+            <!-- Template 2: Mutual / 2nd Degree -->
+            <div style="background: #111827; border: 1px solid #1f2937; border-radius: 8px; padding: 12px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <h4 style="margin: 0; color: #38bdf8; font-size: 13px;"><i class="fa-solid fa-users"></i> 2nd-Degree Mutual / Post Referrer Message</h4>
+                <button class="btn" style="background: #0284c7; color: white; padding: 4px 10px; font-size: 11px;" onclick="copyOutreachText('jlink-msg-2nd')">
+                  <i class="fa-regular fa-copy"></i> Copy
+                </button>
+              </div>
+              <textarea id="jlink-msg-2nd" style="width: 100%; height: 110px; background: #0f172a; color: #f1f5f9; border: 1px solid #334155; border-radius: 6px; padding: 10px; font-family: monospace; font-size: 12px; resize: vertical;" readonly>${o.second_degree_message || ''}</textarea>
+            </div>
+
+            <!-- Template 3: RVCE Alumni -->
+            <div style="background: #111827; border: 1px solid #1f2937; border-radius: 8px; padding: 12px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <h4 style="margin: 0; color: #4ade80; font-size: 13px;"><i class="fa-solid fa-graduation-cap"></i> RVCE Alumni Referral Request</h4>
+                <button class="btn" style="background: #10b981; color: white; padding: 4px 10px; font-size: 11px;" onclick="copyOutreachText('jlink-msg-alumni')">
+                  <i class="fa-regular fa-copy"></i> Copy
+                </button>
+              </div>
+              <textarea id="jlink-msg-alumni" style="width: 100%; height: 100px; background: #0f172a; color: #f1f5f9; border: 1px solid #334155; border-radius: 6px; padding: 10px; font-family: monospace; font-size: 12px; resize: vertical;" readonly>${o.alumni_message || ''}</textarea>
+            </div>
+
+            <!-- Template 4: Recruiter InMail / DM -->
+            <div style="background: #111827; border: 1px solid #1f2937; border-radius: 8px; padding: 12px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <h4 style="margin: 0; color: #a78bfa; font-size: 13px;"><i class="fa-solid fa-bullhorn"></i> Recruiter Direct InMail / DM</h4>
+                <button class="btn" style="background: #7c3aed; color: white; padding: 4px 10px; font-size: 11px;" onclick="copyOutreachText('jlink-msg-recruiter')">
+                  <i class="fa-regular fa-copy"></i> Copy
+                </button>
+              </div>
+              <textarea id="jlink-msg-recruiter" style="width: 100%; height: 100px; background: #0f172a; color: #f1f5f9; border: 1px solid #334155; border-radius: 6px; padding: 10px; font-family: monospace; font-size: 12px; resize: vertical;" readonly>${o.recruiter_message || ''}</textarea>
+            </div>
+          </div>
+        `;
+        resultBox.style.display = 'block';
+
+        // Refresh dashboard list if a new row was added to jobs
+        loadJobs();
+      } catch (err) {
+        loader.style.display = 'none';
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-bolt"></i> Analyze & Generate';
+        alert('Request failed: ' + err.message);
+      }
     }
 
     /* Technical Interview Cheat-Sheet Modal */
@@ -3872,7 +5194,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
           if (data.last_update && data.last_update.status === 'success') {
             lbl.innerText = 'Naukri: Refreshed Today ✓';
           } else if (data.task && data.task.registered) {
-            lbl.innerText = 'Naukri: 9 AM Active ⚡';
+            lbl.innerText = 'Naukri: 8:55 AM Active ⚡';
           }
         }
       } catch (e) {}
@@ -3891,9 +5213,54 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       }
     }
 
+    async function triggerLinkedInEasyApplyScan() {
+      showToast('🔍 Scanning LinkedIn for Easy Apply backend openings in background...');
+      try {
+        const res = await fetch('/api/linkedin/easy_apply_scan', { method: 'POST' });
+        const data = await res.json();
+        showToast('🚀 ' + (data.message || 'Scanning LinkedIn Easy Apply...'));
+        setTimeout(fetchJobs, 6000);
+        setTimeout(fetchJobs, 15000);
+        setTimeout(fetchJobs, 30000);
+      } catch (e) {
+        showToast('⚠️ Could not start Easy Apply scan: ' + e);
+      }
+    }
+
+    async function triggerLinkedInIncognitoScan() {
+      setTab('incognito_fresh');
+      showToast('⚡ Scanning LinkedIn in Incognito across multiple search strings (< 8h)...');
+      try {
+        const res = await fetch('/api/linkedin/incognito_scan', { method: 'POST' });
+        const data = await res.json();
+        showToast('🚀 ' + (data.message || 'Scanning LinkedIn incognito for multiple strings...'));
+        setTimeout(fetchJobs, 4000);
+        setTimeout(fetchJobs, 8000);
+        setTimeout(fetchJobs, 15000);
+        setTimeout(fetchJobs, 25000);
+      } catch (e) {
+        showToast('⚠️ Could not start Incognito multi-search: ' + e);
+      }
+    }
+
+    async function triggerLinkedInPostsPoll(silent = false) {
+      if (!silent) showToast('🔍 Scanning LinkedIn for fresh hiring posts (< 4h) in background...');
+      try {
+        const res = await fetch('/api/linkedin/posts_poll', { method: 'POST' });
+        const data = await res.json();
+        if (!silent && data.message) showToast('📡 ' + data.message);
+        // Refresh jobs after 10s and 25s as browser finds posts
+        setTimeout(fetchJobs, 10000);
+        setTimeout(fetchJobs, 25000);
+      } catch (e) {
+        if (!silent) showToast('⚠️ LinkedIn posts scan error: ' + e);
+      }
+    }
+
     // Initial load
     fetchJobs();
     checkNaukriStatus();
+    triggerLinkedInPostsPoll(true); // Automatically fetch fresh hiring posts on page load!
     setInterval(fetchJobs, 25000); // live sync every 25s
     setInterval(checkNaukriStatus, 60000); // check Naukri status every min
   </script>
@@ -3981,7 +5348,12 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     COALESCE(description, '') AS desc,
                     COALESCE(strategy, '') AS strategy,
                     COALESCE(salary, '') AS salary,
-                    COALESCE(discovered_at, '') AS discovered_at
+                    COALESCE(discovered_at, '') AS discovered_at,
+                    COALESCE(referral_contacted_at, '') AS referral_contacted_at,
+                    COALESCE(referral_contact_name, '') AS referral_contact_name,
+                    COALESCE(referral_contact_platform, '') AS referral_contact_platform,
+                    COALESCE(is_easy_apply, 0) AS is_easy_apply,
+                    COALESCE(date_posted, '') AS date_posted
                 FROM jobs
                 ORDER BY fit_score DESC NULLS LAST, discovered_at DESC
             """
@@ -3994,7 +5366,12 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             reject_titles = [t.lower() for t in seniority_cfg.get("reject_titles", [
                 "senior", "sr.", "sr ", "lead", "tech lead", "staff", "principal", "manager", "mgr", "director", "architect", "head"
             ])]
-            exp_pattern = re.compile(r'(\d+)\+?\s*(?:to\s*(\d+))?\s*(?:years?|yrs?)(?:\s*of)?\s*experience', re.IGNORECASE)
+            exp_patterns = [
+                re.compile(r'(\d+)\+?\s*(?:to|-)\s*(\d+)\s*(?:years?|yrs?)', re.IGNORECASE),
+                re.compile(r'(\d+)\+?\s*(?:years?|yrs?)(?:\s*of)?\s*(?:relevant|hands-on|industry|software|backend|work)?\s*experience', re.IGNORECASE),
+                re.compile(r'experience(?:\s*of)?\s*:?\s*(\d+)\+?\s*(?:to|-)?\s*(\d+)?\s*(?:years?|yrs?)', re.IGNORECASE),
+                re.compile(r'(?:minimum|min|at least)\s*(\d+)\+?\s*(?:years?|yrs?)', re.IGNORECASE),
+            ]
 
             jobs = []
             for j in all_raw:
@@ -4009,13 +5386,19 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 if any(st in tit for st in reject_titles):
                     continue
 
-                # 3. Explicit 4+ years experience rejection
+                # 3. Explicit >4 years experience rejection
                 text = f"{tit} {j.get('full_desc', '')} {j.get('desc', '')}"
-                matches = exp_pattern.findall(text)
-                if matches:
-                    years = [int(m[0]) for m in matches if m[0].isdigit()]
-                    if years and min(years) >= 4:
-                        continue
+                is_over_exp = False
+                for pat in exp_patterns:
+                    for m in pat.finditer(text):
+                        groups = [int(g) for g in m.groups() if g and g.isdigit()]
+                        if groups and min(groups) > 4:
+                            is_over_exp = True
+                            break
+                    if is_over_exp:
+                        break
+                if is_over_exp:
+                    continue
 
                 # Derive Source & Job Related Info
                 c_raw = (j.get("company") or "").strip()
@@ -4098,6 +5481,10 @@ class DashboardHandler(SimpleHTTPRequestHandler):
 
             # Attach LinkedIn referral outreach data to each job
             for j in jobs:
+                # Sanitize apply_url against 'None' or empty
+                app_u = j.get("apply_url")
+                if not app_u or str(app_u).strip().lower() in ("none", "null", "", "http://none/", "http://none", "none/"):
+                    j["apply_url"] = j.get("url") or "#"
                 u_str = (j.get("apply_url") or "").lower()
                 c_str = (j.get("company") or "").lower()
                 if "razorpay" in u_str or "razorpay" in c_str:
@@ -4127,6 +5514,16 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.send_header("Content-Type", "application/json; charset=utf-8")
             self.end_headers()
             self.wfile.write(json.dumps(responses).encode("utf-8"))
+            return
+
+        # /api/cold_crm/summary (Cold email sales funnel summary, due follow-ups, leads)
+        elif path == "/api/cold_crm/summary":
+            from applypilot.networking.cold_email_tracker import get_cold_email_funnel_summary
+            summary = get_cold_email_funnel_summary()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(json.dumps(summary).encode("utf-8"))
             return
 
         # /api/funnel (Everyday time spent, full vs half applied, 30-day conversion stats)
@@ -4255,11 +5652,15 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 if doc_type == "resume":
                     if tailored_path and Path(tailored_path).is_file():
                         target_file = Path(tailored_path)
+                    elif tailored_path and (APP_DIR / tailored_path).is_file():
+                        target_file = APP_DIR / tailored_path
                     elif (APP_DIR / "resume.pdf").is_file():
                         target_file = APP_DIR / "resume.pdf"
                 elif doc_type == "cover_letter":
                     if cover_path and Path(cover_path).is_file():
                         target_file = Path(cover_path)
+                    elif cover_path and (APP_DIR / cover_path).is_file():
+                        target_file = APP_DIR / cover_path
 
                 if target_file and target_file.is_file():
                     pdf_bytes = target_file.read_bytes()
@@ -4310,6 +5711,27 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         path = parsed.path
         from applypilot.database import get_connection
 
+        # /api/jobs/process_link (Instant Job Link Intake -> JD extraction + tailored resume + referral messages)
+        if path == "/api/jobs/process_link":
+            length = int(self.headers.get("Content-Length", 0))
+            body_data = self.rfile.read(length).decode("utf-8") if length > 0 else "{}"
+            try:
+                payload = json.loads(body_data)
+                url = payload.get("url", "").strip()
+                manual_jd = payload.get("jd", "").strip()
+                from applypilot.apply.quick_tailor import process_job_link
+                result = process_job_link(url, manual_jd=manual_jd)
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps(result).encode("utf-8"))
+            except Exception as e:
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"status": "error", "message": str(e)}).encode("utf-8"))
+            return
+
         # /api/activity/heartbeat (Track active search time)
         if path == "/api/activity/heartbeat":
             length = int(self.headers.get("Content-Length", 0))
@@ -4328,6 +5750,47 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps({"status": "ok"}).encode("utf-8"))
             return
 
+        # /api/ats/sync (Sync direct ATS: Greenhouse, Lever, SmartRecruiters, Workday)
+        elif path == "/api/ats/sync":
+            def _bg_ats_sync():
+                try:
+                    from applypilot.discovery.ats import run_ats_discovery
+                    from applypilot.discovery.workday import run_workday_discovery
+                    from applypilot.export.csv_export import export_opportunities_csv
+                    print("[ATS Sync] Scraping Greenhouse, Lever, SmartRecruiters & Workday...")
+                    ats_res = run_ats_discovery(workers=4)
+                    wd_res = run_workday_discovery(workers=4)
+                    print(f"[ATS Sync] Complete: ATS={ats_res}, Workday={wd_res}")
+                    try:
+                        export_opportunities_csv()
+                    except Exception:
+                        pass
+                except Exception as ex:
+                    print(f"[ATS Sync Error] {ex}")
+
+            threading.Thread(target=_bg_ats_sync, daemon=True).start()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "status": "ok",
+                "message": "Direct ATS & Workday background sync initiated! Fresh corporate postings will load into your pipeline."
+            }).encode("utf-8"))
+            return
+
+        # /api/seed_startups/sync (Sync YC & Seed Funded Startups)
+        elif path == "/api/seed_startups/sync":
+            try:
+                from applypilot.discovery.seed_startups import ingest_seed_funded_startups
+                res = ingest_seed_funded_startups()
+            except Exception as e:
+                res = {"status": "error", "message": str(e)}
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps(res).encode("utf-8"))
+            return
+
         # /api/kadegree/sync (Sync latest openings from KaDegree Kannada Referral Community)
         elif path == "/api/kadegree/sync":
             from applypilot.discovery.kadegree import sync_kadegree_jobs
@@ -4339,6 +5802,51 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.send_header("Content-Type", "application/json")
             self.end_headers()
             self.wfile.write(json.dumps(res).encode("utf-8"))
+            return
+
+        # /api/linkedin/easy_apply_scan (Scan LinkedIn specifically for Easy Apply jobs)
+        elif path == "/api/linkedin/easy_apply_scan":
+            def _bg_easy_apply_scan():
+                try:
+                    from applypilot.networking.linkedin import scan_linkedin_easy_apply_jobs
+                    scan_linkedin_easy_apply_jobs()
+                except Exception as ex:
+                    print(f"LinkedIn easy apply scan error: {ex}")
+            threading.Thread(target=_bg_easy_apply_scan, daemon=True).start()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"status": "ok", "message": "Scanning LinkedIn specifically for Easy Apply openings..."}).encode("utf-8"))
+            return
+
+        # /api/linkedin/incognito_scan (Scrape 24-hour fresh jobs in incognito mode across multiple strings)
+        elif path == "/api/linkedin/incognito_scan":
+            def _bg_incognito_scan():
+                try:
+                    from applypilot.networking.linkedin import scan_linkedin_incognito_recent_jobs
+                    scan_linkedin_incognito_recent_jobs(hours_old=8, max_pages=2)
+                except Exception as ex:
+                    print(f"LinkedIn incognito scan error: {ex}")
+            threading.Thread(target=_bg_incognito_scan, daemon=True).start()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"status": "ok", "message": "Scanning LinkedIn Incognito across multiple search queries for fresh openings (< 8h)..."}).encode("utf-8"))
+            return
+
+        # /api/linkedin/posts_poll (Scan LinkedIn for fresh hiring posts in real-time)
+        elif path == "/api/linkedin/posts_poll":
+            def _bg_linkedin_posts():
+                try:
+                    from applypilot.networking.linkedin import search_linkedin_posts
+                    search_linkedin_posts(max_results=12, save_to_db=True)
+                except Exception as ex:
+                    print(f"LinkedIn posts poll error: {ex}")
+            threading.Thread(target=_bg_linkedin_posts, daemon=True).start()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"status": "ok", "message": "LinkedIn hiring post scan active in background."}).encode("utf-8"))
             return
 
         # /api/channels/poll (Trigger community & inbound polling cycle)
@@ -4511,12 +6019,64 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps({"status": "ok", "rowid": rowid}).encode("utf-8"))
             return
 
+        # 3b. /api/jobs/{rowid}/ignore
+        elif path.startswith("/api/jobs/") and path.endswith("/ignore"):
+            parts = path.split("/")
+            rowid = int(parts[3])
+            conn = get_connection()
+            conn.execute("UPDATE jobs SET apply_status = 'ignored' WHERE rowid = ?", (rowid,))
+            conn.commit()
+            export_opportunities_csv()
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"status": "ok", "rowid": rowid}).encode("utf-8"))
+            return
+
+        # 3c. /api/jobs/{rowid}/unignore
+        elif path.startswith("/api/jobs/") and path.endswith("/unignore"):
+            parts = path.split("/")
+            rowid = int(parts[3])
+            conn = get_connection()
+            conn.execute("UPDATE jobs SET apply_status = NULL WHERE rowid = ?", (rowid,))
+            conn.commit()
+            export_opportunities_csv()
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"status": "ok", "rowid": rowid}).encode("utf-8"))
+            return
+
         # 4. /api/jobs/{rowid}/applied
         elif path.startswith("/api/jobs/") and path.endswith("/applied"):
             parts = path.split("/")
             rowid = int(parts[3])
             from applypilot.apply.assistant import mark_job_applied
             res = mark_job_applied(rowid)
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps(res).encode("utf-8"))
+            return
+
+        # 4b. /api/jobs/{rowid}/asked_referral
+        elif path.startswith("/api/jobs/") and path.endswith("/asked_referral"):
+            parts = path.split("/")
+            rowid = int(parts[3])
+            length = int(self.headers.get("Content-Length", 0))
+            payload = {}
+            if length > 0:
+                try:
+                    payload = json.loads(self.rfile.read(length).decode("utf-8"))
+                except Exception:
+                    pass
+            from applypilot.apply.assistant import mark_job_referral_asked
+            contact_name = payload.get("contact_name", "")
+            platform = payload.get("platform", "LinkedIn")
+            res = mark_job_referral_asked(rowid, contact_name=contact_name, platform=platform)
 
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
@@ -4577,6 +6137,22 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps({"status": "ok", "rowid": rowid}).encode("utf-8"))
             return
 
+        # 5c. /api/remote_boards/sync (Sync Remotive & Working Nomads APIs)
+        elif path == "/api/remote_boards/sync":
+            from applypilot.discovery.remote_boards import run_remote_boards_discovery
+            try:
+                res = run_remote_boards_discovery()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps(res).encode("utf-8"))
+            except Exception as e:
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"status": "error", "message": str(e)}).encode("utf-8"))
+            return
+
         # 6. /api/open_url (Directly open URL in running Brave)
         elif path == "/api/open_url":
             length = int(self.headers.get("Content-Length", 0))
@@ -4584,12 +6160,13 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             try:
                 data = json.loads(body_data)
                 target_url = data.get("url", "")
+                incognito = bool(data.get("incognito", False))
                 if target_url:
-                    launch_url_in_brave(target_url)
+                    launch_url_in_brave(target_url, incognito=incognito)
                     self.send_response(200)
                     self.send_header("Content-Type", "application/json")
                     self.end_headers()
-                    self.wfile.write(json.dumps({"status": "ok", "url": target_url}).encode("utf-8"))
+                    self.wfile.write(json.dumps({"status": "ok", "url": target_url, "incognito": incognito}).encode("utf-8"))
                     return
             except Exception as e:
                 log.error("Failed to open URL in Brave: %s", e)
@@ -4697,7 +6274,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 pass
 
             from applypilot.networking.gmail_drafter import draft_for_job
-            res = draft_for_job(rowid, custom_recipient=custom_email or None)
+            pitch_style = payload.get("pitch_style", "quick_pitch") if isinstance(body_data, str) and "pitch_style" in body_data else "quick_pitch"
+            res = draft_for_job(rowid, custom_recipient=custom_email or None, pitch_style=pitch_style)
 
             self.send_response(200)
             self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -4759,6 +6337,113 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                         subject=email_content["subject"],
                         body_markdown=email_content["body_markdown"]
                     )
+            except Exception as e:
+                res = {"status": "error", "message": str(e)}
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(json.dumps(res).encode("utf-8"))
+            return
+
+        # /api/copilot/answer (Gemini Application & Screening Copilot)
+        elif path == "/api/copilot/answer":
+            length = int(self.headers.get("Content-Length", 0))
+            body_data = self.rfile.read(length).decode("utf-8") if length > 0 else "{}"
+            try:
+                data = json.loads(body_data)
+                question = data.get("question", "").strip()
+                company = data.get("company", "").strip()
+                role_title = data.get("role_title", "").strip()
+                job_desc = data.get("job_description", "").strip()
+
+                from applypilot.apply.screening_copilot import answer_screening_question
+                res = answer_screening_question(
+                    question=question,
+                    company=company,
+                    role_title=role_title,
+                    job_description=job_desc
+                )
+            except Exception as e:
+                res = {"status": "error", "message": str(e)}
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(json.dumps(res).encode("utf-8"))
+            return
+
+        # /api/cold_crm/record (Record new cold email outreach)
+        elif path == "/api/cold_crm/record":
+            length = int(self.headers.get("Content-Length", 0))
+            body_data = self.rfile.read(length).decode("utf-8") if length > 0 else "{}"
+            try:
+                data = json.loads(body_data)
+                from applypilot.networking.cold_email_tracker import record_cold_outreach
+                res = record_cold_outreach(
+                    recipient_email=data.get("recipient_email", ""),
+                    company=data.get("company", ""),
+                    role_title=data.get("role_title", "Backend Engineer"),
+                    recipient_name=data.get("recipient_name", ""),
+                    recipient_role=data.get("recipient_role", "recruiter"),
+                    subject=data.get("subject", ""),
+                    body=data.get("body", ""),
+                    template_id=data.get("template_id", "quick_pitch_v1"),
+                    pitch_style=data.get("pitch_style", "quick_pitch"),
+                    open_count=int(data.get("open_count", 0)),
+                    job_rowid=data.get("job_rowid")
+                )
+            except Exception as e:
+                res = {"status": "error", "message": str(e)}
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(json.dumps(res).encode("utf-8"))
+            return
+
+        # /api/cold_crm/update (Update interaction, open count, reply, follow-up, notes)
+        elif path == "/api/cold_crm/update":
+            length = int(self.headers.get("Content-Length", 0))
+            body_data = self.rfile.read(length).decode("utf-8") if length > 0 else "{}"
+            try:
+                data = json.loads(body_data)
+                outreach_id = int(data.get("outreach_id", 0))
+                from applypilot.networking.cold_email_tracker import log_interaction_update
+                res = log_interaction_update(
+                    outreach_id=outreach_id,
+                    open_count=data.get("open_count"),
+                    reply_status=data.get("reply_status"),
+                    reply_snippet=data.get("reply_snippet"),
+                    led_to_call=data.get("led_to_call"),
+                    interest_level=data.get("interest_level"),
+                    notes=data.get("notes"),
+                    increment_followup=bool(data.get("increment_followup", False))
+                )
+            except Exception as e:
+                res = {"status": "error", "message": str(e)}
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(json.dumps(res).encode("utf-8"))
+            return
+
+        # /api/cold_crm/generate_followup (Generate copy for follow-up based on open signals)
+        elif path == "/api/cold_crm/generate_followup":
+            length = int(self.headers.get("Content-Length", 0))
+            body_data = self.rfile.read(length).decode("utf-8") if length > 0 else "{}"
+            try:
+                data = json.loads(body_data)
+                from applypilot.networking.cold_email_tracker import generate_followup_message
+                res = generate_followup_message(
+                    company=data.get("company", ""),
+                    role=data.get("role_title", "Backend Engineer"),
+                    recipient_name=data.get("recipient_name", ""),
+                    original_subject=data.get("subject", "Application"),
+                    followup_number=int(data.get("followup_number", 1)),
+                    open_count=int(data.get("open_count", 0))
+                )
             except Exception as e:
                 res = {"status": "error", "message": str(e)}
 
@@ -4856,8 +6541,42 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         self.end_headers()
 
 
+def _ensure_external_auto_applier_running():
+    """Ensure Auto_job_applier_linkedIn control panel server is running on port 5000."""
+    import sys
+    import urllib.request
+    try:
+        with urllib.request.urlopen("http://127.0.0.1:5000/", timeout=1.0) as resp:
+            if resp.status == 200:
+                return
+    except Exception:
+        pass
+
+    tool_dir = Path("D:/ApplyPilot_Workspace/tools/Auto_job_applier_linkedIn")
+    app_py = tool_dir / "app.py"
+    if not app_py.exists():
+        return
+
+    import subprocess
+    cmd = [sys.executable, str(app_py)]
+    try:
+        subprocess.Popen(
+            cmd,
+            cwd=str(tool_dir),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        )
+        log.info("Started external Auto_job_applier_linkedIn server on http://127.0.0.1:5000")
+    except Exception as e:
+        log.warning("Could not auto-start external applier: %s", e)
+
+
 def start_dashboard_server(port: int = PORT, open_browser: bool = True):
     """Start the interactive dashboard server and open it in Chrome/default browser."""
+    # Auto-start the external LinkedIn applier control panel alongside ApplyPilot
+    _ensure_external_auto_applier_running()
+
     ThreadingHTTPServer.allow_reuse_address = True
     server = None
     for attempt in range(5):

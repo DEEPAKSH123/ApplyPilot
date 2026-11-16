@@ -5,6 +5,12 @@ Foundational architecture conversation: [`1fb6e843-5d62-4307-838d-5292f01ec21d`]
 
 ## Critical Invariants for Developers & AI Agents:
 
+0. **Service Execution & WORKING.md Protocol:**
+   * Any agent working on this workspace MUST check and maintain `WORKING.md`.
+   * Ensure the ApplyPilot dashboard web service is running at http://localhost:8765. If not active, start it immediately with:
+     & "D:\ApplyPilot_Workspace\code\.venv\Scripts\python.exe" -m applypilot dashboard --port 8765 --no-browser`r
+   * Keep the Work Log in `WORKING.md` updated.
+
 1. **Browser Navigation:**
    * NEVER use programmatic `window.open(...)` from JavaScript functions—Brave Shields intercepts and blocks it silently as an unwanted popup.
    * ALWAYS render links as native HTML `<a href="..." target="_blank" rel="noopener noreferrer">` anchor elements (used for Job cards, Open LinkedIn, Assessment links, and Referral filters).

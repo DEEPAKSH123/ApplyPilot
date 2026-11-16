@@ -90,7 +90,6 @@ def generate_outreach_messages(
     phone = "8431433659"
     email = "deepakshkarkala@gmail.com"
     linkedin_url = "https://www.linkedin.com/in/deepak-s-h-82b772254"
-    github_url = "https://github.com/Deepak-S-H"
 
     if candidate_profile:
         personal = candidate_profile.get("personal", {})
@@ -103,60 +102,53 @@ def generate_outreach_messages(
     if apply_url and not str(apply_url).lower().startswith("none") and str(apply_url).startswith("http"):
         job_ref = f" ({apply_url})"
 
-    # Template 1: 1st-Degree Connection / Warm Referral Note (For active connections)
+    # Template 1: 1st-Degree Connection / Colleague (Direct & casual)
     first_deg_msg = (
         f"Hey [Name],\n\n"
-        f"Hope you are doing well! Saw that {comp} is currently expanding its backend engineering team and hiring for {role_title}{job_ref}.\n\n"
-        f"As you might know, I'm currently working as an SDE-I Backend Engineer at Meesho building distributed reconciliation platforms "
-        f"and high-scale microservices using Java, Go, Kafka, Redis, and MySQL (graduated from RVCE '25, CGPA 8.92).\n\n"
-        f"Given my background in high-throughput backend systems, I'd love to explore this role. "
-        f"Would you be open to putting in a quick internal referral for me? Happy to share my tailored resume.\n\n"
-        f"Thanks a lot, [Name]! Really appreciate your help.\n\n"
-        f"Best,\n"
-        f"{full_name}\n"
-        f"Phone: {phone}"
+        f"Saw that {comp} has an opening for {role_title}{job_ref}.\n\n"
+        f"I'm currently working as an SDE-I Backend Engineer at Meesho, mainly with Java, Go, Kafka, and Redis on our financial reconciliation services.\n\n"
+        f"Would you be able to refer me internally for this role? Happy to send my resume over.\n\n"
+        f"Thanks,\n"
+        f"{full_name}"
     )
 
-    # Template 2: 2nd-Degree (Mutual Connection) Referral Request
+    # Template 2: Stranger / Peer who posted asking for resumes
     second_deg_msg = (
         f"Hi [Name],\n\n"
-        f"I noticed we share mutual connections in the Bengaluru tech community. Hope you're having a great week!\n\n"
-        f"I saw that you are working at {comp} and that your team has an opening for {role_title}{job_ref}. "
-        f"I'm an SDE-I Backend Engineer at Meesho (RVCE '25, CGPA 8.92) specializing in Java, Go, Kafka event-streaming, and distributed systems.\n\n"
-        f"I would be deeply grateful if you'd be open to referring me internally. "
-        f"I'd be glad to send across my tailored resume and brief project highlights for your review.\n\n"
-        f"Thanks so much for considering my request!\n\n"
-        f"Best regards,\n"
-        f"{full_name}\n"
-        f"LinkedIn: {linkedin_url}"
+        f"Saw your post about the {role_title} opening at {comp}{job_ref} and that you are helping with referrals / collecting profiles.\n\n"
+        f"I'm an SDE-I Backend Engineer at Meesho (RVCE '25, CGPA 8.92). My background is in backend systems using Java, Go, Kafka, and Redis.\n\n"
+        f"I've attached my resume. Could you please share it with the hiring team or submit a referral?\n\n"
+        f"Quick details:\n"
+        f"• Role: {role_title}\n"
+        f"• Current: SDE-I Backend @ Meesho\n"
+        f"• Experience: 2 years (Full-time Backend @ Meesho + Active Internship Engagements)\n"
+        f"• Notice: Immediate / 0 days\n"
+        f"• Email: {email} | Phone: {phone}\n"
+        f"• LinkedIn: {linkedin_url}\n\n"
+        f"Thanks for your help,\n"
+        f"{full_name}"
     )
 
-    # Template 3: RVCE Alumni Referral Request
+    # Template 3: RVCE Alumni
     alumni_msg = (
         f"Hi [Name],\n\n"
-        f"Hope you are doing well! I noticed you are at {comp} and an RVCE alumnus. "
-        f"I graduated from RVCE (CSE '25, CGPA 8.92) and am currently working as an SDE-I Backend Engineer at Meesho "
-        f"on distributed reconciliation and financial platforms (Java, Go, Kafka, Redis, MySQL, GCP).\n\n"
-        f"I came across the {role_title} opening{job_ref} and would be deeply grateful if you would be open to referring a fellow RVCE alumnus. "
-        f"I would be glad to share my tailored resume and brief project highlights.\n\n"
-        f"Thanks so much for your time and guidance!\n\n"
-        f"Best regards,\n"
+        f"Saw that you're at {comp}. I graduated from RVCE in CSE (2025) and am currently an SDE-I Backend Engineer at Meesho.\n\n"
+        f"I came across the {role_title} opening{job_ref} and wanted to check if you'd be comfortable referring a junior from RVCE. I work primarily with Java, Go, Kafka, and distributed backend services.\n\n"
+        f"Happy to share my resume if you're open to it.\n\n"
+        f"Thanks,\n"
         f"{full_name}\n"
-        f"Phone: {phone}\n"
         f"LinkedIn: {linkedin_url}"
     )
 
-    # Template 4: Recruiter / Talent Acquisition Direct Message
+    # Template 4: HR / Recruiter Direct Message
     recruiter_msg = (
         f"Hi [Name],\n\n"
-        f"I came across the {role_title} opening at {comp}{job_ref}. "
-        f"I am currently an SDE-I Backend Engineer at Meesho with 2 years of professional backend experience (1.3 years full-time at Meesho + 6 months internship) building high-throughput distributed systems "
-        f"using Java, Go, Kafka, Redis, and Spring Boot, and graduated from RVCE (CGPA 8.92).\n\n"
-        f"My background in financial reconciliation, payment pipelines, and high-scale backend services aligns closely with {comp}'s stack. "
-        f"I would love to connect and share my tailored resume if you have a brief moment.\n\n"
-        f"Best regards,\n"
+        f"I noticed the {role_title} role at {comp}{job_ref} and wanted to reach out directly.\n\n"
+        f"I am an SDE-I Backend Engineer at Meesho working on distributed reconciliation pipelines and high-volume services using Java, Go, Kafka, Redis, and Spring Boot (RVCE CSE '25, CGPA 8.92).\n\n"
+        f"My day-to-day work closely matches your backend stack, and I can join immediately. Could I share my resume with you for consideration?\n\n"
+        f"Best,\n"
         f"{full_name}\n"
-        f"Phone: {phone}\n"
+        f"Phone: {phone} | Email: {email}\n"
         f"LinkedIn: {linkedin_url}"
     )
 
@@ -164,19 +156,15 @@ def generate_outreach_messages(
     kadegree_msg = (
         f"ನಮಸ್ಕಾರ [Name],\n\n"
         f"Hope you are doing well!\n\n"
-        f"I noticed the opening for {role_title} at {comp} in our KaDegree community{job_ref}.\n\n"
-        f"I am an SDE-I Backend Engineer at Meesho (RVCE CSE '25, CGPA 8.92) working on distributed reconciliation pipelines and microservices "
-        f"using Java, Go, Kafka, Redis, and Spring Boot.\n\n"
-        f"My resume is already attached and present in my profile. Could you please consider referring my profile for this position?\n\n"
-        f"Requisition & Profile Details:\n"
+        f"I saw the {role_title} opening at {comp} posted on KaDegree{job_ref}.\n\n"
+        f"I'm an SDE-I Backend Engineer at Meesho (RVCE CSE '25). I work on distributed systems and payment pipelines using Java, Go, Kafka, and Redis.\n\n"
+        f"My resume is attached. Could you please refer my profile for this opening?\n\n"
+        f"Details:\n"
         f"• Role: {role_title} @ {comp}\n"
-        f"• Profile: SDE-I Backend Engineer, Meesho (RVCE '25)\n"
-        f"• Resume: Present in profile\n"
-        f"• Email: {email}\n"
-        f"• Phone: {phone}\n"
+        f"• Current: SDE-I Backend @ Meesho\n"
+        f"• Phone: {phone} | Email: {email}\n"
         f"• LinkedIn: {linkedin_url}\n\n"
-        f"ಧನ್ಯವಾದಗಳು! (Thank you!)\n"
-        f"Best regards,\n"
+        f"ಧನ್ಯವಾದಗಳು!\n"
         f"{full_name}"
     )
 

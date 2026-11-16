@@ -11,9 +11,10 @@ import json
 import logging
 import os
 import re
+import sqlite3
 import time
 import urllib.parse
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -228,11 +229,28 @@ def search_linkedin_posts(
                 headline_el = post_el.query_selector("span.update-components-actor__description, .feed-shared-actor__description")
                 headline = headline_el.inner_text().strip() if headline_el else ""
 
-                # Extract post URL
+                # Extract post URL & posted time text if available
                 link_el = post_el.query_selector("a[href*='/feed/update/'], a[href*='urn:li:activity']")
                 post_url = link_el.get_attribute("href") if link_el else ""
                 if post_url and not post_url.startswith("http"):
                     post_url = f"https://www.linkedin.com{post_url}"
+
+                # Calculate estimated posted time if relative time indicator is found (e.g. 1h, 2h, 30m, 1d)
+                post_posted_at = datetime.now(timezone.utc)
+                time_el = post_el.query_selector(".update-components-actor__sub-description, time, span.visually-hidden")
+                time_text = time_el.inner_text().strip().lower() if time_el else ""
+                d_match = re.search(r"(\d+)\s*d(?:ay)?s?", time_text)
+                h_match = re.search(r"(\d+)\s*h(?:our)?s?", time_text)
+                m_match = re.search(r"(\d+)\s*m(?:in)?s?", time_text)
+                w_match = re.search(r"(\d+)\s*w(?:eek)?s?", time_text)
+                if m_match:
+                    post_posted_at -= timedelta(minutes=int(m_match.group(1)))
+                elif h_match:
+                    post_posted_at -= timedelta(hours=int(h_match.group(1)))
+                elif d_match:
+                    post_posted_at -= timedelta(days=int(d_match.group(1)))
+                elif w_match:
+                    post_posted_at -= timedelta(days=int(w_match.group(1)) * 7)
 
                 # Extract emails
                 emails = EMAIL_REGEX.findall(text_content)
@@ -252,7 +270,8 @@ def search_linkedin_posts(
                     "full_text": text_content,
                     "post_url": post_url or search_url,
                     "recruiter_email": recruiter_email,
-                    "discovered_at": datetime.now(timezone.utc).isoformat()
+                    "discovered_at": datetime.now(timezone.utc).isoformat(),
+                    "date_posted": post_posted_at.strftime("%Y-%m-%d")
                 }
                 results.append(item)
 
@@ -432,6 +451,7 @@ def _save_lead_to_db(lead: dict) -> None:
     conn = get_connection()
     c = conn.cursor()
     now = datetime.now(timezone.utc).isoformat()
+    date_posted = lead.get("date_posted") or ""
 
     url = lead.get("post_url") or f"https://www.linkedin.com/feed/update/{int(time.time())}"
     title = f"Backend Engineer (via {lead.get('author', 'Recruiter')})"
@@ -440,8 +460,8 @@ def _save_lead_to_db(lead: dict) -> None:
 
     c.execute("""
         INSERT OR IGNORE INTO jobs
-        (url, title, location, site, strategy, description, full_description, recruiter_email, discovered_at, application_url)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (url, title, location, site, strategy, description, full_description, recruiter_email, discovered_at, application_url, date_posted)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         url,
         title,
@@ -452,7 +472,8 @@ def _save_lead_to_db(lead: dict) -> None:
         lead.get("full_text", ""),
         recruiter_email,
         now,
-        url
+        url,
+        date_posted
     ))
     conn.commit()
 
@@ -491,21 +512,35 @@ def compose_referral_dm(
     elif template_type == "alumni":
         body_msg = (
             f"{first_name_salutation}\n\n"
-            f"Hope you're doing well! I'm a fellow RVCE CSE graduate (Class of '25), currently working as an SDE-I at Meesho.\n\n"
-            f"I saw that you're working at {comp_label} and noticed the {role_title} opening. Given my production experience building and scaling distributed backend systems with Go, Java 17, Apache Kafka, and Redis, I would be grateful for an employee referral.\n\n"
-            f"Would you be open to referring me? Happy to share my tailored resume and requisition details!\n\n"
-            f"Best regards,\nDeepak S H\nhttps://www.linkedin.com/in/deepak-s-h-82b772254"
+            f"Saw that you're at {comp_label}. I graduated from RVCE in CSE ('25) and am currently working as an SDE-I at Meesho.\n\n"
+            f"I came across the {role_title} opening and wanted to check if you'd be comfortable referring a junior from RVCE. I work mainly with Java, Go, Kafka, and Redis on backend services.\n\n"
+            f"Happy to send my resume over if you're open to it.\n\n"
+            f"Thanks,\nDeepak S H\nhttps://www.linkedin.com/in/deepak-s-h-82b772254"
         )
-        short_note = f"Hi {first_name or 'there'}, fellow RVCE CSE '25 alum here! Currently SDE-1 at Meesho (Go/Java/Kafka). Saw the {role_title} opening at {comp_label} and would love to connect for a referral!"[:295]
+        short_note = f"Hi {first_name or 'there'}, RVCE CSE '25 junior here, currently SDE-1 @ Meesho (Java/Go/Kafka). Saw the {role_title} opening at {comp_label} and wanted to check if you could refer me!"[:295]
+    elif template_type == "recruiter":
+        body_msg = (
+            f"{first_name_salutation}\n\n"
+            f"I noticed the {role_title} role at {comp_label} and wanted to reach out directly.\n\n"
+            f"I'm an SDE-I Backend Engineer at Meesho working on distributed reconciliation pipelines and microservices in Java, Go, Kafka, and Redis (RVCE CSE '25, CGPA 8.92).\n\n"
+            f"My day-to-day work closely matches your backend stack, and I can join immediately. Could I share my resume with you for consideration?\n\n"
+            f"Thanks,\nDeepak S H\nhttps://www.linkedin.com/in/deepak-s-h-82b772254"
+        )
+        short_note = f"Hi {first_name or 'there'}, SDE-1 Backend @ Meesho (Java/Go/Kafka). Saw the {role_title} role at {comp_label} and would love to share my resume for consideration!"[:295]
     else:
         body_msg = (
             f"{first_name_salutation}\n\n"
-            f"Hope you're having a great week! I'm an SDE-I Backend Engineer at Meesho (RVCE CSE '25) with production experience scaling high-throughput microservices in Go, Java 17, Apache Kafka, and Redis.\n\n"
-            f"I noticed the {role_title} opening at {comp_label} and feel my background aligns well with the team's requirements. Could you kindly consider referring me for this position?\n\n"
-            f"Happy to share my resume and requisition details. Thank you so much for your time!\n\n"
-            f"Best regards,\nDeepak S H\nhttps://www.linkedin.com/in/deepak-s-h-82b772254"
+            f"Saw your post about the {role_title} opening at {comp_label} and that you're collecting profiles for referrals.\n\n"
+            f"I'm an SDE-I Backend Engineer at Meesho (RVCE '25, CGPA 8.92). I work on backend services using Java, Go, Kafka, and Redis.\n\n"
+            f"I've attached my resume. Could you please share it with the hiring team or submit a referral?\n\n"
+            f"Quick details:\n"
+            f"• Current: SDE-I Backend @ Meesho\n"
+            f"• Experience: 2 years (Full-time Backend @ Meesho + Active Internship Engagements)\n"
+            f"• Notice: Immediate\n"
+            f"• LinkedIn: https://www.linkedin.com/in/deepak-s-h-82b772254\n\n"
+            f"Thanks for your help,\nDeepak S H"
         )
-        short_note = f"Hi {first_name or 'there'}, I'm an SDE-1 Backend Engineer at Meesho (Go/Java/Kafka). Noticed the {role_title} role at {comp_label} and would love to connect to explore a referral!"[:295]
+        short_note = f"Hi {first_name or 'there'}, SDE-1 Backend @ Meesho (Java/Go/Kafka). Saw the {role_title} role at {comp_label} and wanted to share my profile for a referral!"[:295]
 
     # Also copy to clipboard so user has it immediately
     try:
@@ -632,3 +667,255 @@ def compose_referral_dm(
         "message": f"Assisted DM composer active in Brave for {first_name or 'connection'}! Message pre-typed and ready to Send.",
         "copied_to_clipboard": True
     }
+
+
+def scan_linkedin_easy_apply_jobs(
+    search_terms: list[str] | None = None,
+    location: str = "Bengaluru, India",
+    results_wanted: int = 15,
+    hours_old: int = 72
+) -> dict[str, Any]:
+    """Scan LinkedIn for high-relevance Easy Apply openings and store them in SQLite."""
+    import jobspy
+    from jobspy import scrape_jobs
+
+    if not search_terms:
+        search_terms = ["backend engineer", "java backend", "golang engineer"]
+
+    conn = get_connection()
+    c = conn.cursor()
+    now = datetime.now(timezone.utc).isoformat()
+    total_found = 0
+    new_jobs = 0
+
+    for term in search_terms:
+        try:
+            log.info("Scanning LinkedIn Easy Apply for query: '%s' in %s...", term, location)
+            df = scrape_jobs(
+                site_name=["linkedin"],
+                search_term=term,
+                location=location,
+                results_wanted=results_wanted,
+                easy_apply=True,
+                hours_old=hours_old,
+                verbose=0
+            )
+            if df is None or len(df) == 0:
+                continue
+
+            for _, r in df.iterrows():
+                job_url = str(r.get("job_url", "")).strip()
+                if not job_url or job_url == "nan":
+                    continue
+                total_found += 1
+                title = str(r.get("title", "Backend Engineer"))
+                company = str(r.get("company", "LinkedIn Employer"))
+                loc = str(r.get("location", location))
+                desc = str(r.get("description", ""))
+                date_posted = str(r.get("date_posted", ""))
+                apply_direct = str(r.get("job_url_direct", ""))
+
+                try:
+                    c.execute("""
+                        INSERT INTO jobs 
+                        (url, title, location, site, strategy, description, full_description, is_easy_apply, discovered_at, application_url, date_posted)
+                        VALUES (?, ?, ?, ?, 'linkedin_easy_apply', ?, ?, 1, ?, ?, ?)
+                    """, (job_url, title, loc, company, desc, desc, now, apply_direct or job_url, date_posted))
+                    new_jobs += 1
+                except sqlite3.IntegrityError:
+                    c.execute("""
+                        UPDATE jobs 
+                        SET is_easy_apply = 1,
+                            application_url = COALESCE(NULLIF(application_url, ''), ?)
+                        WHERE url = ?
+                    """, (job_url, job_url))
+            conn.commit()
+        except Exception as e:
+            log.warning("LinkedIn Easy Apply scan error for '%s': %s", term, e)
+
+    conn.commit()
+    return {
+        "status": "success",
+        "total_scanned": total_found,
+        "new_jobs_added": new_jobs,
+        "message": f"Scanned {total_found} LinkedIn Easy Apply openings ({new_jobs} new added to database)!"
+    }
+
+
+def scan_linkedin_incognito_recent_jobs(
+    hours_old: int = 8,
+    location_geoid: str = "105126231",  # Bengaluru default
+    keywords_list: list[str] | None = None,
+    max_pages: int = 2
+) -> dict[str, Any]:
+    """Scrape fresh LinkedIn jobs in incognito / guest mode without logging in across multiple search strings.
+
+    Sorted strictly by date descending (DD). Filters for jobs posted recently (e.g. within hours_old).
+    Saves and updates all discovered jobs into the main ApplyPilot tracker database.
+    """
+    from bs4 import BeautifulSoup
+    from playwright.sync_api import sync_playwright
+
+    # Load search strings from searches.yaml if not provided
+    if not keywords_list:
+        try:
+            from applypilot.config import load_search_config
+            cfg = load_search_config()
+            cfg_queries = [q.get("query") for q in cfg.get("queries", []) if q.get("query")]
+            if cfg_queries:
+                keywords_list = cfg_queries
+        except Exception:
+            pass
+
+    if not keywords_list:
+        keywords_list = [
+            '("Software Engineer" OR "Backend Engineer") NOT Senior NOT Lead',
+            '("Java Developer" OR "Golang Developer") NOT Senior NOT Lead',
+            '("SDE-1" OR "SDE 1" OR "Junior Backend")'
+        ]
+
+    conn = get_connection()
+    c = conn.cursor()
+    now = datetime.now(timezone.utc).isoformat()
+    total_found = 0
+    new_jobs = 0
+    seen_urls = set()
+
+    seconds = max(1, hours_old) * 3600
+    log.info("Starting LinkedIn Incognito scan for %d query strings (%d hours, seconds=%d)...", len(keywords_list), hours_old, seconds)
+
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch(
+                headless=True,
+                args=["--disable-blink-features=AutomationControlled", "--incognito"]
+            )
+            context = browser.new_context(
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+                viewport={"width": 1280, "height": 800}
+            )
+            page = context.new_page()
+
+            for kw_idx, raw_query in enumerate(keywords_list):
+                query = raw_query.strip()
+                if not any(rj in query.lower() for rj in ("not senior", "not lead")):
+                    query = f'({query}) NOT Senior NOT Lead NOT Staff NOT Manager NOT Director'
+
+                encoded_kw = urllib.parse.quote(query)
+                base_search_url = (
+                    f"https://www.linkedin.com/jobs/search/?keywords={encoded_kw}"
+                    f"&geoId={location_geoid}&f_TPR=r{seconds}&f_JT=F&sortBy=DD"
+                )
+
+                log.info("[%d/%d] Scanning LinkedIn incognito for query: %s", kw_idx + 1, len(keywords_list), query)
+
+                for page_idx in range(max_pages):
+                    start = page_idx * 25
+                    target_url = f"{base_search_url}&start={start}" if start > 0 else base_search_url
+
+                    try:
+                        page.goto(target_url, wait_until="domcontentloaded", timeout=30000)
+                        page.wait_for_timeout(2000)
+                        for _ in range(2):
+                            page.evaluate("window.scrollBy(0, 1000);")
+                            page.wait_for_timeout(600)
+                    except Exception as ex:
+                        log.warning("Failed loading page %d for '%s': %s", page_idx + 1, query, ex)
+                        break
+
+                    soup = BeautifulSoup(page.content(), "html.parser")
+                    cards = soup.find_all(class_="base-search-card")
+                    if not cards:
+                        cards = soup.find_all("div", {"data-entity-urn": True})
+                    if not cards:
+                        break
+
+                    for card in cards:
+                        try:
+                            title_el = card.find(class_="base-search-card__title")
+                            company_el = card.find(class_="base-search-card__subtitle")
+                            loc_el = card.find(class_="job-search-card__location")
+                            link_el = card.find("a", class_="base-card__full-link")
+                            time_el = card.find("time")
+
+                            if not link_el or not link_el.has_attr("href"):
+                                continue
+
+                            job_url = link_el["href"].split("?")[0].strip()
+                            if not job_url or job_url in seen_urls:
+                                continue
+                            seen_urls.add(job_url)
+
+                            title = title_el.text.strip() if title_el else "Software Engineer"
+                            company = company_el.text.strip() if company_el else "LinkedIn Employer"
+                            loc = loc_el.text.strip() if loc_el else "Bengaluru, India"
+                            time_str = time_el.text.strip() if time_el else (time_el.get("datetime") if time_el else "")
+
+                            # Strict Candidate Experience Guardrail (0-3 YOE Backend)
+                            title_lower = title.lower()
+                            reject_titles = ["senior", "sr.", "sr ", "lead", "tech lead", "staff", "principal", "manager", "mgr", "director", "architect", "head"]
+                            if any(rj in title_lower for rj in reject_titles):
+                                continue
+
+                            total_found += 1
+
+                            # Calculate precise estimated date_posted using relative time_str if available
+                            date_posted = ""
+                            calc_dt = datetime.now(timezone.utc)
+                            t_lower = (time_str or "").lower()
+                            m_match = re.search(r"(\d+)\s*m(?:in)?s?", t_lower)
+                            h_match = re.search(r"(\d+)\s*h(?:our)?s?", t_lower)
+                            d_match = re.search(r"(\d+)\s*d(?:ay)?s?", t_lower)
+                            if m_match:
+                                calc_dt -= timedelta(minutes=int(m_match.group(1)))
+                                date_posted = calc_dt.isoformat()
+                            elif h_match:
+                                calc_dt -= timedelta(hours=int(h_match.group(1)))
+                                date_posted = calc_dt.isoformat()
+                            elif d_match:
+                                calc_dt -= timedelta(days=int(d_match.group(1)))
+                                date_posted = calc_dt.isoformat()
+                            elif time_el and time_el.has_attr("datetime"):
+                                date_posted = str(time_el["datetime"])
+                            else:
+                                date_posted = now
+
+                            desc = f"{title} at {company} in {loc}. Posted recently ({time_str})."
+
+                            try:
+                                c.execute("""
+                                    INSERT INTO jobs 
+                                    (url, title, location, site, strategy, description, full_description, discovered_at, application_url, date_posted)
+                                    VALUES (?, ?, ?, ?, 'linkedin_1h_incognito', ?, ?, ?, ?, ?)
+                                """, (job_url, title, loc, company, desc, desc, now, job_url, date_posted))
+                                new_jobs += 1
+                            except sqlite3.IntegrityError:
+                                c.execute("""
+                                    UPDATE jobs 
+                                    SET strategy = COALESCE(strategy, 'linkedin_1h_incognito'),
+                                        date_posted = COALESCE(date_posted, ?)
+                                    WHERE url = ?
+                                """, (date_posted, job_url))
+                        except Exception as card_err:
+                            log.debug("Error processing card: %s", card_err)
+
+                    conn.commit()
+
+            browser.close()
+    except Exception as e:
+        log.error("LinkedIn Incognito scan failed: %s", e)
+        return {
+            "status": "error",
+            "message": f"Scan error: {e}",
+            "total_scanned": total_found,
+            "new_jobs_added": new_jobs
+        }
+
+    conn.commit()
+    return {
+        "status": "success",
+        "total_scanned": total_found,
+        "new_jobs_added": new_jobs,
+        "message": f"Scanned {total_found} recent LinkedIn incognito jobs across queries ({new_jobs} brand new added to tracker)!"
+    }
+

@@ -80,6 +80,18 @@ def _run_discover(workers: int = 4) -> dict:
         "smartextract": False,
     })
 
+    # 0. LinkedIn Incognito Multi-String Fresh Discovery (Primary First Step)
+    if sources.get("incognito", True) or sources.get("linkedin_incognito", True):
+        console.print("  [cyan]LinkedIn Incognito (Multi-Query Fresh Openings)...[/cyan]")
+        try:
+            from applypilot.networking.linkedin import scan_linkedin_incognito_recent_jobs
+            res = scan_linkedin_incognito_recent_jobs(hours_old=8, max_pages=2)
+            stats["linkedin_incognito"] = f"ok ({res.get('total_scanned', 0)} scanned, {res.get('new_jobs_added', 0)} new)"
+        except Exception as e:
+            log.error("LinkedIn Incognito scan failed: %s", e)
+            console.print(f"  [red]LinkedIn Incognito error:[/red] {e}")
+            stats["linkedin_incognito"] = f"error: {e}"
+
     # 1. Workday corporate scraper (28 employers)
     if sources.get("workday", True):
         console.print("  [cyan]Workday corporate scraper...[/cyan]")
@@ -166,6 +178,16 @@ def _run_discover(workers: int = 4) -> dict:
         except Exception as e:
             log.error("Telegram discovery failed: %s", e)
             stats["telegram"] = f"error: {e}"
+
+    # 8. Fresh 1-Hour Incognito Link Trigger
+    incognito_link = (
+        "https://www.linkedin.com/jobs/search/?keywords=%28%22Software%20Engineer%22%20OR%20%22Backend%20Engineer%22"
+        "%20OR%20%22Java%20Developer%22%20OR%20%22Golang%20Developer%22%29%20NOT%20Senior%20NOT%20Lead%20NOT%20Staff"
+        "%20NOT%20Manager%20NOT%20Director&geoId=105126231&f_TPR=r3600&f_JT=F&sortBy=DD"
+    )
+    console.print("\n  [bold magenta]⚡ Fresh 1-Hour LinkedIn Search Link (Incognito / No-Login):[/bold magenta]")
+    console.print(f"  [cyan]{incognito_link}[/cyan]\n")
+    stats["linkedin_1h_incognito_link"] = incognito_link
 
     return stats
 

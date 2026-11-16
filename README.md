@@ -188,6 +188,18 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, coding standards, 
 
 ---
 
+## Acknowledgments & Appreciation
+
+This customized enhancement builds upon the outstanding open-source work of:
+
+- **[Pickle-Pixel / ApplyPilot](https://github.com/Pickle-Pixel/ApplyPilot)** — The foundational autonomous job application architecture, pipeline design, and core framework.
+- **[GodsScion / Auto_job_applier_linkedIn](https://github.com/GodsScion/Auto_job_applier_linkedIn)** — Inspiring robust LinkedIn automation, selectors, and browser interactions.
+- **[JobSpy](https://github.com/Bunsly/JobSpy)** — Multi-board job scraping infrastructure.
+
+All upstream licenses and copyrights are honored and maintained under AGPL-3.0.
+
+---
+
 ## License
 
 ApplyPilot is licensed under the [GNU Affero General Public License v3.0](LICENSE).
