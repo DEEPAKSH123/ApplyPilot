@@ -1,106 +1,86 @@
-# ApplyPilot search configuration
-# Copy to ~/.applypilot/searches.yaml and customize for your job search.
-# The wizard (applypilot init) generates a basic version automatically.
+# ApplyPilot search configuration for India-based backend roles.
+# Copy to APPLYPILOT_DIR/searches.yaml and customize as needed.
 
-# Search queries -- each has a query string and priority tier.
-# Tier 1: High-priority exact matches (searched first, highest precision)
-# Tier 2: Strong matches, broader scope
-# Tier 3: Wide net, high volume, lower precision
 queries:
-  - query: "software engineer"
-    tier: 1
   - query: "backend engineer"
     tier: 1
-  - query: 'backend engineer AND ("hiring" OR "requirement")'
+  - query: "java backend engineer"
+    tier: 1
+  - query: "golang backend engineer"
+    tier: 1
+  - query: "software engineer backend"
+    tier: 1
+  - query: "SDE 1 backend"
+    tier: 1
+  - query: "SDE 2 backend"
     tier: 1
   - query: "backend developer"
-    tier: 1
-  - query: "full stack developer"
     tier: 2
-  - query: "full stack engineer"
-    tier: 2
-  - query: "python developer"
-    tier: 2
-  - query: "python engineer"
-    tier: 2
-  - query: "DevOps engineer"
-    tier: 2
-  - query: "site reliability engineer"
+  - query: "software engineer"
     tier: 2
   - query: "platform engineer"
     tier: 2
-  - query: "cloud engineer"
-    tier: 2
-  - query: "data engineer"
-    tier: 2
-  - query: "infrastructure engineer"
-    tier: 2
-  - query: "software developer"
-    tier: 3
-  - query: "developer"
-    tier: 3
-  - query: "systems engineer"
-    tier: 3
-  - query: "automation engineer"
-    tier: 3
-  - query: "solutions engineer"
-    tier: 3
-  - query: "integration engineer"
-    tier: 3
-  - query: "ML engineer"
-    tier: 3
-  - query: "machine learning engineer"
-    tier: 3
-  - query: "AI engineer"
-    tier: 3
-  - query: "security engineer"
-    tier: 3
 
-# Locations to search
 locations:
-  - location: "San Francisco, CA"
+  - location: "Bengaluru, Karnataka, India"
     remote: false
-  - location: "Remote"
+  - location: "Pune, Maharashtra, India"
+    remote: false
+  - location: "Hyderabad, Telangana, India"
+    remote: false
+  - location: "India"
     remote: true
 
-# Location filtering -- accept/reject patterns for job location text
 location:
   accept_patterns:
-    - "San Francisco"
-    - "Bay Area"
-    - "SF"
-    - "California"
-    - "CA"
+    - "Bengaluru"
+    - "Bangalore"
+    - "Karnataka"
+    - "Pune"
+    - "Maharashtra"
+    - "Hyderabad"
+    - "Telangana"
+    - "India"
     - "Remote"
     - "Anywhere"
-    - "United States"
-    - "US"
-    - "USA"
+    - "APAC"
   reject_patterns:
-    - "New York only"
-    - "Seattle only"
+    - "United States only"
+    - "US only"
+    - "USA only"
+    - "Canada only"
+    - "UK only"
+    - "Europe only"
+    - "EMEA only"
     - "onsite only"
-    - "London, UK"
-    - "India"
-    - "Philippines"
 
-# Country for Indeed/LinkedIn/Google Jobs searches
-country: "USA"
+country: "India"
 
-# JobSpy source boards (all available options shown)
 boards:
   - indeed
   - linkedin
   - glassdoor
-  - zip_recruiter
   - google
 
-# Search defaults
 defaults:
-  results_per_site: 100  # Max results per board per query
-  hours_old: 72          # Only jobs posted within this many hours
+  results_per_site: 100
+  hours_old: 24
 
-# Negative keywords -- skip jobs with these in the title (case-insensitive)
+max_posted_days: 10
+
+seniority:
+  reject_titles:
+    - "senior"
+    - "sr."
+    - "lead"
+    - "tech lead"
+    - "staff"
+    - "principal"
+    - "manager"
+    - "director"
+    - "architect"
+    - "head"
+
 exclude_titles:
   - "senior director"
   - "VP "
@@ -109,6 +89,4 @@ exclude_titles:
   - "intern"
   - "internship"
   - "co-op"
-  - "clearance required"
-  - "TS/SCI"
   - "principal scientist"
