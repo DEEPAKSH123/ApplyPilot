@@ -102,6 +102,28 @@ def score_job(resume_text: str, job: dict) -> dict:
         return {"score": 0, "keywords": "", "reasoning": f"LLM error: {e}"}
 
 
+def _persist_scores(conn, results: list[dict], scored_at: str) -> int:
+    """Persist valid scores only; leave transient LLM failures pending for retry."""
+    persisted = 0
+    for result in results:
+        score = result.get("score")
+        # score=0 is the sentinel for an LLM/parsing failure, not a genuine fit score.
+        if not isinstance(score, int) or not 1 <= score <= 10:
+            continue
+        conn.execute(
+            "UPDATE jobs SET fit_score = ?, score_reasoning = ?, scored_at = ? WHERE url = ?",
+            (
+                score,
+                f"{result.get('keywords', '')}\\n{result.get('reasoning', '')}",
+                scored_at,
+                result["url"],
+            ),
+        )
+        persisted += 1
+    conn.commit()
+    return persisted
+
+
 def run_scoring(limit: int = 0, rescore: bool = False) -> dict:
     """Score unscored jobs that have full descriptions.
 
@@ -219,14 +241,9 @@ def run_scoring(limit: int = 0, rescore: bool = False) -> dict:
                 completed, len(jobs), res["score"], res["title"][:60],
             )
 
-    # Write scores to DB
+    # Persist valid scores only. Failed LLM calls remain pending for a later retry.
     now = datetime.now(timezone.utc).isoformat()
-    for r in results:
-        conn.execute(
-            "UPDATE jobs SET fit_score = ?, score_reasoning = ?, scored_at = ? WHERE url = ?",
-            (r["score"], f"{r['keywords']}\n{r['reasoning']}", now, r["url"]),
-        )
-    conn.commit()
+    _persist_scores(conn, results, now)
 
     elapsed = time.time() - t0
     log.info("Done: %d scored in %.1fs (%.1f jobs/sec)", len(results), elapsed, len(results) / elapsed if elapsed > 0 else 0)
