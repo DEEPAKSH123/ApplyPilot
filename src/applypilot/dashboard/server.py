@@ -1247,6 +1247,10 @@ HTML_DASHBOARD = """<!DOCTYPE html>
           <span class="tab-badge" id="badge-kadegree">0</span>
         </button>
 
+        <button class="tab-btn" onclick="setTab('daily_tracker')" style="color: #38bdf8; font-weight: 700;" title="Daily Tracker: Minimum 5 asking resume & 5 applied within 100 applicants">
+          <i class="fa-solid fa-bullseye" style="margin-right: 5px; color: #38bdf8;"></i> Daily Tracker (5+5)
+          <span class="tab-badge" id="badge-daily-tracker" style="background: rgba(56, 189, 248, 0.25); color: #7dd3fc; border: 1px solid #38bdf8;">Goal Met</span>
+        </button>
         <button class="tab-btn" onclick="setTab('remote_portals')" style="color: #34d399; font-weight: 600;" title="Top Remote Engineering Platforms & Agencies (Uplers, Arc, DistantJob, Turing, etc.)">
           <i class="fa-solid fa-globe" style="margin-right: 5px; color: #10b981;"></i> Remote Portals & Agencies
           <span class="tab-badge" id="badge-remote-portals" style="background: rgba(16, 185, 129, 0.25); color: #6ee7b7; border: 1px solid #10b981;">18</span>
@@ -1368,6 +1372,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     <div id="analytics-container" style="display: none;"></div>
     <!-- ⚡ 30-Day Conversion Funnel, Everyday Active Time & Gemini Strategy Container -->
     <div id="strategy-container" style="display: none;"></div>
+    <div id="daily-tracker-container" style="display: none;"></div>
     <div id="remote-portals-container" style="display: none;"></div>
     <div id="cold-crm-container" style="display: none;"></div>
   </div>
@@ -2518,6 +2523,72 @@ HTML_DASHBOARD = """<!DOCTYPE html>
 
       // Update Top Urgent / Missed OA Banner
       const urgentBanner = document.getElementById('urgent-oa-alert');
+
+      // Update Daily Tracker (5 asking resume + 5 applied <= 100 applicants)
+      fetchFunnelData().then(() => {
+        if (funnelData && funnelData.daily_tracker) {
+          const dt = funnelData.daily_tracker;
+          const resStatus = document.getElementById('tracker-resume-status');
+          const resBar = document.getElementById('tracker-resume-bar');
+          const resNote = document.getElementById('tracker-resume-note');
+          if (resStatus) {
+            resStatus.innerHTML = `${dt.resume_requested} / 5 ${dt.resume_goal_met ? '<i class="fa-solid fa-circle-check" style="color:#38bdf8;"></i>' : ''}`;
+            resStatus.style.color = dt.resume_goal_met ? '#38bdf8' : '#cbd5e1';
+          }
+          if (resBar) {
+            resBar.style.width = `${dt.resume_progress_pct}%`;
+            if (dt.resume_goal_met) resBar.style.background = 'linear-gradient(90deg, #0284c7, #38bdf8)';
+          }
+          if (resNote) {
+            resNote.textContent = dt.resume_goal_met ? '✓ Daily resume goal achieved!' : `${5 - dt.resume_requested} more needed today`;
+          }
+
+          const appStatus = document.getElementById('tracker-applied-status');
+          const appBar = document.getElementById('tracker-applied-bar');
+          const appNote = document.getElementById('tracker-applied-note');
+          if (appStatus) {
+            appStatus.innerHTML = `${dt.applied_under_100} / 5 ${dt.applied_goal_met ? '<i class="fa-solid fa-circle-check" style="color:#34d399;"></i>' : ''} <span style="font-size:11px; color:#94a3b8;">(${dt.applied_total} total)</span>`;
+            appStatus.style.color = dt.applied_goal_met ? '#34d399' : '#cbd5e1';
+          }
+          if (appBar) {
+            appBar.style.width = `${dt.applied_progress_pct}%`;
+            if (dt.applied_goal_met) appBar.style.background = 'linear-gradient(90deg, #059669, #34d399)';
+          }
+          if (appNote) {
+            appNote.textContent = dt.applied_goal_met ? '✓ Low-competition goal met!' : `${5 - dt.applied_under_100} more low-competition apps needed`;
+          }
+
+          const streakBadge = document.getElementById('daily-streak-badge');
+          if (streakBadge) {
+            if (dt.both_goals_met) {
+              streakBadge.innerHTML = `<i class="fa-solid fa-fire" style="color:#f59e0b;"></i> Today's Quota Complete! (${dt.current_streak_days}d streak)`;
+              streakBadge.style.background = 'rgba(16, 185, 129, 0.25)';
+              streakBadge.style.borderColor = '#10b981';
+              streakBadge.style.color = '#6ee7b7';
+            } else {
+              streakBadge.innerHTML = `<i class="fa-solid fa-hourglass-half" style="color:#38bdf8;"></i> Today in Progress (${dt.current_streak_days}d streak)`;
+              streakBadge.style.background = 'rgba(56, 189, 248, 0.2)';
+              streakBadge.style.borderColor = '#38bdf8';
+              streakBadge.style.color = '#7dd3fc';
+            }
+          }
+
+          const dtBadge = document.getElementById('badge-daily-tracker');
+          if (dtBadge) {
+            if (dt.both_goals_met) {
+              dtBadge.textContent = '100% Met';
+              dtBadge.style.background = 'rgba(16, 185, 129, 0.25)';
+              dtBadge.style.borderColor = '#10b981';
+              dtBadge.style.color = '#6ee7b7';
+            } else {
+              dtBadge.textContent = `${dt.applied_under_100}/5 app • ${dt.resume_requested}/5 res`;
+              dtBadge.style.background = 'rgba(56, 189, 248, 0.2)';
+              dtBadge.style.borderColor = '#38bdf8';
+              dtBadge.style.color = '#7dd3fc';
+            }
+          }
+        }
+      }).catch(() => {});
       if (urgentBanner) {
         if (activeOAs.length > 0) {
           urgentBanner.style.display = 'flex';
@@ -2983,6 +3054,128 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       }
     }
 
+    async function renderDailyTrackerView() {
+      const container = document.getElementById('daily-tracker-container');
+      if (!container) return;
+      container.innerHTML = '<div style="text-align:center; padding: 60px; color:#94a3b8;"><i class="fa-solid fa-spinner fa-spin" style="font-size:24px;"></i><p style="margin-top:10px;">Loading Daily Target & Trajectory Tracker...</p></div>';
+
+      await fetchFunnelData();
+      const dt = (funnelData && funnelData.daily_tracker) ? funnelData.daily_tracker : null;
+      if (!dt) {
+        container.innerHTML = '<div style="color: #ef4444; padding: 40px; text-align: center;">Failed to load daily tracking data.</div>';
+        return;
+      }
+
+      const h14 = dt.history_14d || [];
+      const historyRows = h14.map(d => {
+        const rowBg = d.is_today ? 'rgba(56, 189, 248, 0.08)' : 'transparent';
+        const dateStyle = d.is_today ? 'color: #38bdf8; font-weight: 800;' : 'color: #cbd5e1;';
+        const resMet = d.resume_goal_met ? '<span style="color:#38bdf8; font-weight:700;"><i class="fa-solid fa-check"></i> ' + d.resume_requested + ' / 5</span>' : `<span style="color:#94a3b8;">${d.resume_requested} / 5</span>`;
+        const appMet = d.applied_goal_met ? '<span style="color:#34d399; font-weight:700;"><i class="fa-solid fa-check"></i> ' + d.applied_under_100 + ' / 5</span>' : `<span style="color:#94a3b8;">${d.applied_under_100} / 5</span>`;
+        const bothBadge = d.both_goals_met ? '<span style="background:rgba(16,185,129,0.2); border:1px solid #10b981; color:#34d399; padding:2px 8px; border-radius:6px; font-weight:700; font-size:11px;">🏆 Quota Hit</span>' : (d.is_today ? '<span style="background:rgba(56,189,248,0.2); border:1px solid #38bdf8; color:#7dd3fc; padding:2px 8px; border-radius:6px; font-weight:700; font-size:11px;">⚡ In Progress</span>' : '<span style="background:rgba(100,116,139,0.15); color:#64748b; padding:2px 8px; border-radius:6px; font-size:11px;">Missed</span>');
+
+        return `
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.05); background: ${rowBg};">
+            <td style="padding: 12px 14px; ${dateStyle}">${d.label} ${d.is_today ? '<span style="font-size:10px; background:#0284c7; color:#fff; padding:1px 6px; border-radius:4px; margin-left:4px;">TODAY</span>' : ''}</td>
+            <td style="padding: 12px 14px;">${resMet}</td>
+            <td style="padding: 12px 14px;">${appMet} <span style="font-size:11px; color:#64748b;">(${d.applied_total} tot)</span></td>
+            <td style="padding: 12px 14px;">${bothBadge}</td>
+          </tr>
+        `;
+      }).reverse().join('');
+
+      container.innerHTML = `
+        <div style="display:flex; flex-direction:column; gap:22px; margin-top:12px;">
+          <!-- Header Banner -->
+          <div style="background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.85)); border: 1.5px solid rgba(56, 189, 248, 0.4); border-radius: 14px; padding: 22px 26px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;">
+              <div>
+                <div style="display:flex; align-items:center; gap:10px;">
+                  <span style="font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:0.8px; color:#38bdf8;">Daily Discipline Execution Engine</span>
+                  <span style="background:rgba(16,185,129,0.2); border:1px solid #10b981; color:#34d399; font-size:11px; font-weight:700; padding:2px 10px; border-radius:999px;">
+                    <i class="fa-solid fa-fire"></i> ${dt.current_streak_days}-Day Active Streak
+                  </span>
+                </div>
+                <h2 style="margin:6px 0 2px 0; font-size:22px; font-weight:800; color:#fff;">
+                  Daily Goal: Min 5 Asking Resume & Min 5 Applied (< 100 Applicants)
+                </h2>
+                <span style="font-size:13px; color:#94a3b8;">
+                  High-velocity pipeline strategy: Reaching recruiters directly & applying to low-applicant pool openings before competition builds up.
+                </span>
+              </div>
+              <div style="display:flex; gap:10px;">
+                <button class="btn btn-preview" onclick="setTab('incognito_fresh')" style="background:linear-gradient(135deg, #4f46e5, #4338ca); color:#fff; font-weight:700; padding:8px 16px; font-size:13px;">
+                  <i class="fa-solid fa-bolt"></i> View Fresh Jobs (< 200 Apps)
+                </button>
+                <button class="btn btn-preview" onclick="openCustomDraftModal()" style="background:linear-gradient(135deg, #0284c7, #2563eb); color:#fff; font-weight:700; padding:8px 16px; font-size:13px;">
+                  <i class="fa-solid fa-paper-plane"></i> Send Cold Outreach
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Today's Scorecard Cards -->
+          <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap:16px;">
+            <div class="kpi-card" style="border-color: rgba(56, 189, 248, 0.4); background: linear-gradient(135deg, rgba(14,116,144,0.2), rgba(15,23,42,0.85));">
+              <span class="kpi-label"><i class="fa-solid fa-file-invoice" style="color:#38bdf8;"></i> Today Asking Resume / Outreach</span>
+              <span class="kpi-value" style="color:#38bdf8;">${dt.resume_requested} <span style="font-size:14px; font-weight:600; color:#94a3b8;">/ 5 target</span></span>
+              <div style="background: rgba(51, 65, 85, 0.6); height: 8px; border-radius: 999px; overflow: hidden; margin-top: 10px; margin-bottom: 6px;">
+                <div style="background: linear-gradient(90deg, #0284c7, #38bdf8); height: 100%; width: ${dt.resume_progress_pct}%; border-radius: 999px;"></div>
+              </div>
+              <span style="font-size:11.5px; color:#94a3b8;">${dt.resume_goal_met ? '✓ Goal Hit! Direct agency pitches & referral asks' : `${5 - dt.resume_requested} more pitches needed today`}</span>
+            </div>
+
+            <div class="kpi-card" style="border-color: rgba(16, 185, 129, 0.4); background: linear-gradient(135deg, rgba(6,78,59,0.25), rgba(15,23,42,0.85));">
+              <span class="kpi-label"><i class="fa-solid fa-circle-check" style="color:#10b981;"></i> Today Applied (≤ 100 Applicants)</span>
+              <span class="kpi-value" style="color:#10b981;">${dt.applied_under_100} <span style="font-size:14px; font-weight:600; color:#94a3b8;">/ 5 target</span></span>
+              <div style="background: rgba(51, 65, 85, 0.6); height: 8px; border-radius: 999px; overflow: hidden; margin-top: 10px; margin-bottom: 6px;">
+                <div style="background: linear-gradient(90deg, #059669, #34d399); height: 100%; width: ${dt.applied_progress_pct}%; border-radius: 999px;"></div>
+              </div>
+              <span style="font-size:11.5px; color:#94a3b8;">${dt.applied_goal_met ? `✓ Goal Hit! (${dt.applied_total} total applications submitted)` : `${5 - dt.applied_under_100} more low-competition submissions needed`}</span>
+            </div>
+
+            <div class="kpi-card" style="border-color: rgba(245, 158, 11, 0.4); background: linear-gradient(135deg, rgba(120,53,15,0.25), rgba(15,23,42,0.85));">
+              <span class="kpi-label"><i class="fa-solid fa-trophy" style="color:#fbbf24;"></i> Consistency Streak</span>
+              <span class="kpi-value" style="color:#fbbf24;">${dt.current_streak_days} <span style="font-size:14px; font-weight:600; color:#94a3b8;">days</span></span>
+              <span style="font-size:11.5px; color:#94a3b8; margin-top:10px;">${dt.total_goals_met_days} total days hit 100% quota in history</span>
+            </div>
+
+            <div class="kpi-card" style="border-color: rgba(168, 85, 247, 0.4); background: linear-gradient(135deg, rgba(88,28,135,0.2), rgba(15,23,42,0.85));">
+              <span class="kpi-label"><i class="fa-solid fa-chart-line" style="color:#c084fc;"></i> 30-Day Outlook</span>
+              <span class="kpi-value" style="color:#c084fc;">150+ <span style="font-size:14px; font-weight:600; color:#94a3b8;">low-applicant roles</span></span>
+              <span style="font-size:11.5px; color:#94a3b8; margin-top:10px;">Expected yield: <strong>12-18 recruiter phone screens</strong></span>
+            </div>
+          </div>
+
+          <!-- 14-Day Trajectory Table -->
+          <div style="background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 22px 24px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+              <div>
+                <h3 style="margin:0; font-size:16px; font-weight:700; color:#f8fafc; display:flex; align-items:center; gap:8px;">
+                  <i class="fa-solid fa-calendar-check" style="color:#38bdf8;"></i> 14-Day Trajectory Ledger
+                </h3>
+                <span style="font-size:12px; color:#94a3b8;">History of daily resume outreach and low-competition applications.</span>
+              </div>
+            </div>
+
+            <table style="width:100%; border-collapse: collapse; font-size:13px; text-align:left;">
+              <thead>
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.1); color: #94a3b8; font-size: 11.5px; text-transform: uppercase;">
+                  <th style="padding: 10px 14px;">Date</th>
+                  <th style="padding: 10px 14px;">Asking Resume (Target 5)</th>
+                  <th style="padding: 10px 14px;">Applied <= 100 Apps (Target 5)</th>
+                  <th style="padding: 10px 14px;">Status / Result</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${historyRows}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }
+
     async function updateLeadOpens(id, val) {
       const opens = parseInt(val, 10);
       if (isNaN(opens)) return;
@@ -3119,13 +3312,30 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       const coldCrmContainer = document.getElementById('cold-crm-container');
 
       if (sourceFilterBar) {
-        sourceFilterBar.style.display = (tab === 'responses' || tab === 'analytics' || tab === 'strategy' || tab === 'cold_crm' || tab === 'remote_portals') ? 'none' : 'flex';
+        sourceFilterBar.style.display = (tab === 'responses' || tab === 'analytics' || tab === 'strategy' || tab === 'cold_crm' || tab === 'remote_portals' || tab === 'daily_tracker') ? 'none' : 'flex';
       }
 
+      const dailyTrackerContainer = document.getElementById('daily-tracker-container');
+      if (dailyTrackerContainer) dailyTrackerContainer.style.display = (tab === 'daily_tracker') ? 'block' : 'none';
       if (strategyContainer) strategyContainer.style.display = (tab === 'strategy') ? 'block' : 'none';
       if (coldCrmContainer) coldCrmContainer.style.display = (tab === 'cold_crm') ? 'block' : 'none';
       const remotePortalsContainer = document.getElementById('remote-portals-container');
       if (remotePortalsContainer) remotePortalsContainer.style.display = (tab === 'remote_portals') ? 'block' : 'none';
+
+      if (tab === 'daily_tracker') {
+        if (yetBanner) yetBanner.style.display = 'none';
+        if (freshBanner) freshBanner.style.display = 'none';
+        if (appBanner) appBanner.style.display = 'none';
+        qBanner.style.display = 'none';
+        rBanner.style.display = 'none';
+        if (respFilterBar) respFilterBar.style.display = 'none';
+        if (jobsContainer) jobsContainer.style.display = 'none';
+        if (analyticsContainer) analyticsContainer.style.display = 'none';
+        if (strategyContainer) strategyContainer.style.display = 'none';
+        if (coldCrmContainer) coldCrmContainer.style.display = 'none';
+        renderDailyTrackerView();
+        return;
+      }
 
       if (tab === 'remote_portals') {
         if (yetBanner) yetBanner.style.display = 'none';
