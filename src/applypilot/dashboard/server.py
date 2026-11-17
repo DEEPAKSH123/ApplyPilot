@@ -988,7 +988,8 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       <div class="quick-pill" onclick="copyText('Immediate', 'Notice Period')"><i class="fa-solid fa-bolt"></i> Immediate</div>
       <a href="https://www.linkedin.com/feed/" target="_blank" rel="noopener noreferrer" class="quick-pill"><i class="fa-brands fa-linkedin"></i> Feed</a>
       <a href="https://www.linkedin.com/search/results/content/?keywords=backend%20engineer%20AND%20(%22hiring%22%20OR%20%22requirement%22)&sortBy=%22date_posted%22" target="_blank" rel="noopener noreferrer" class="quick-pill" title="Open live LinkedIn hiring & requirement posts feed"><i class="fa-solid fa-magnifying-glass"></i> Hiring Posts</a>
-      <div class="quick-pill" onclick="triggerLinkedInIncognitoScan()" style="background: linear-gradient(135deg, #4f46e5, #3730a3); color: #fff; font-weight: 800; border: 1px solid #a5b4fc; box-shadow: 0 0 10px rgba(99,102,241,0.35); cursor: pointer;" title="Primary Action: Search LinkedIn incognito for multiple strings across fresh openings posted in the last 8 hours, scrape them, and switch view to show them immediately"><i class="fa-solid fa-bolt"></i> Incognito Multi-Search (Fresh 8h) ⚡</div>
+      <div class="quick-pill" onclick="triggerLinkedInIncognitoScan()" style="background: linear-gradient(135deg, #4f46e5, #3730a3); color: #fff; font-weight: 800; border: 1px solid #a5b4fc; box-shadow: 0 0 10px rgba(99,102,241,0.35); cursor: pointer;" title="Primary Action: Run Multi-Source Fresh Scan across LinkedIn Incognito, Indeed India Incognito & Direct ATS (38+ tech companies)"><i class="fa-solid fa-bolt"></i> Incognito Multi-Search (Fresh ⚡)</div>
+      <a href="https://www.google.com/search?q=site%3Aboards.greenhouse.io+OR+site%3Ajobs.lever.co+OR+site%3Ajobs.smartrecruiters.com+(%22Backend+Engineer%22+OR+%22Java%22+OR+%22Golang%22)+%22Bengaluru%22&tbs=qdr:d" target="_blank" rel="noopener noreferrer" class="quick-pill" style="background: linear-gradient(135deg, #ea4335, #c5221f); color: #fff; font-weight: 700; border: 1px solid #f87171;" title="Search Google for freshly indexed ATS jobs in last 24h (Greenhouse, Lever, SmartRecruiters) in Bengaluru"><i class="fa-brands fa-google"></i> Google ATS (24h)</a>
       <a href="https://www.linkedin.com/jobs/search/?keywords=%28%22Software%20Engineer%22%20OR%20%22Backend%20Engineer%22%20OR%20%22Java%20Developer%22%20OR%20%22Golang%20Developer%22%29%20NOT%20Senior%20NOT%20Lead%20NOT%20Staff%20NOT%20Manager%20NOT%20Director&geoId=105126231&f_TPR=r14400&f_JT=F&sortBy=DD" target="_blank" rel="noopener noreferrer" class="quick-pill" style="background: linear-gradient(135deg, #0284c7, #0369a1); color: #fff; font-weight: 700; border: 1px solid #38bdf8;" title="Fresh SDE-1 Backend Jobs posted in last 4 hours in Bangalore (Sorted by Date Descending)"><i class="fa-solid fa-bolt"></i> 4h Fresh (DD)</a>
       <a href="https://www.linkedin.com/jobs/search/?keywords=%28%22Software%20Engineer%22%20OR%20%22Backend%20Engineer%22%29%20NOT%20Senior%20NOT%20Lead&geoId=105126231&f_TPR=r86400&f_EA=true&f_AL=true&f_JT=F&sortBy=DD" target="_blank" rel="noopener noreferrer" class="quick-pill" style="background: linear-gradient(135deg, #15803d, #166534); color: #fff; font-weight: 700; border: 1px solid #4ade80;" title="Easy Apply Jobs with <10 Applicants posted in last 24h"><i class="fa-solid fa-user-group"></i> &lt;10 Applicants</a>
       <a href="https://referral-community.kadegree.in/get" target="_blank" rel="noopener noreferrer" class="quick-pill"><i class="fa-solid fa-users"></i> KaDegree</a>
@@ -1004,6 +1005,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       <div id="naukri-quick-pill" class="quick-pill" onclick="triggerNaukriRefresh()" title="Naukri Daily Refresh Active (Click to refresh now)"><i class="fa-solid fa-arrows-rotate"></i> <span id="naukri-pill-label">Naukri: 8:55 AM Active</span></div>
       <div class="quick-pill" onclick="openScreeningCopilotModal()" style="background: linear-gradient(135deg, #4f46e5, #7c3aed); color: #fff; font-weight: 700; border: 1px solid #818cf8; cursor: pointer;" title="Gemini Application & Screening Copilot: Paste any question asked in forms for human, grounded answers"><i class="fa-solid fa-robot"></i> Screening Copilot 🤖</div>
       <div class="quick-pill" onclick="openJobLinkTailorModal()" style="background: linear-gradient(135deg, #0284c7, #2563eb); color: #fff; font-weight: 700; border: 1px solid #38bdf8; cursor: pointer;" title="Input any job link: auto-reads JD, tailors resume & generates referral messages"><i class="fa-solid fa-wand-magic-sparkles"></i> Tailor from Job Link ⚡</div>
+      <div class="quick-pill" onclick="openLinkedInPostModal()" style="background: linear-gradient(135deg, #0a66c2, #0284c7); color: #fff; font-weight: 700; border: 1px solid #38bdf8; cursor: pointer;" title="Analyze any LinkedIn Hiring Post link: extracts recruiter mail or form link and generates tailored resume PDF"><i class="fa-brands fa-linkedin"></i> LinkedIn Post Intake 🚀</div>
       <div class="quick-pill" onclick="openLogCallModal()"><i class="fa-solid fa-phone"></i> Log Recruiter Call</div>
       <div class="quick-pill" onclick="openCheatsheetModal('PhonePe', 'SDE-1 Backend')" title="Technical & HR Interview Cheat-Sheet"><i class="fa-solid fa-file-code"></i> Tech Cheat-Sheet</div>
       <div class="quick-pill" onclick="testAlertsFromUI()" title="Test instant alerts to Telegram, WhatsApp & Desktop"><i class="fa-solid fa-bell"></i> Mobile Alerts</div>
@@ -1016,6 +1018,74 @@ HTML_DASHBOARD = """<!DOCTYPE html>
   </header>
 
   <div class="container">
+    <!-- Daily Target Discipline Tracker (Min 5 Resume Requests & Min 5 Applied <= 100 Applicants) -->
+    <div id="daily-target-tracker" style="background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.85)); border: 1.5px solid rgba(56, 189, 248, 0.35); border-radius: 14px; padding: 18px 22px; margin-bottom: 20px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);">
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; margin-bottom: 14px;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div style="background: linear-gradient(135deg, #0284c7, #2563eb); color: #fff; width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; box-shadow: 0 0 12px rgba(56, 189, 248, 0.4);">
+            <i class="fa-solid fa-bullseye"></i>
+          </div>
+          <div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span style="font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.8px; color: #38bdf8;">Daily Target & Consistency Tracker</span>
+              <span id="daily-streak-badge" style="background: rgba(16, 185, 129, 0.2); border: 1px solid #10b981; color: #34d399; font-size: 11px; font-weight: 700; padding: 2px 10px; border-radius: 999px;">
+                <i class="fa-solid fa-fire"></i> Day 1 Streak
+              </span>
+            </div>
+            <div style="font-size: 14px; font-weight: 700; color: #f8fafc; margin-top: 2px;">
+              Daily Disciplined Quota: <span style="color: #38bdf8;">Min 5 Asking Resume / Pitched</span> + <span style="color: #34d399;">Min 5 Applied within 100 Applicants</span>
+            </div>
+          </div>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <button class="btn btn-sm" onclick="setTab('daily_tracker')" style="background: rgba(56, 189, 248, 0.15); border: 1px solid #38bdf8; color: #38bdf8; font-weight: 700; padding: 6px 14px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+            <i class="fa-solid fa-calendar-days"></i> 14-Day Trajectory
+          </button>
+          <button class="btn btn-sm" onclick="setTab('incognito_fresh')" style="background: linear-gradient(135deg, #0284c7, #2563eb); color: #fff; font-weight: 700; padding: 6px 14px; border-radius: 8px; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+            <i class="fa-solid fa-bolt"></i> Apply Fresh (< 100 Apps)
+          </button>
+        </div>
+      </div>
+
+      <!-- Live Dual Progress Cards -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px;">
+        <!-- Card 1: Asking Resume Target -->
+        <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(148, 163, 184, 0.15); border-radius: 10px; padding: 14px 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <span style="font-size: 12px; font-weight: 700; color: #cbd5e1; display: flex; align-items: center; gap: 6px;">
+              <i class="fa-solid fa-file-invoice" style="color: #38bdf8;"></i> 1. Companies Asking Resume / Pitched
+            </span>
+            <span id="tracker-resume-status" style="font-size: 12px; font-weight: 800; color: #38bdf8;">0 / 5</span>
+          </div>
+          <div style="background: rgba(51, 65, 85, 0.6); height: 8px; border-radius: 999px; overflow: hidden; margin-bottom: 6px;">
+            <div id="tracker-resume-bar" style="background: linear-gradient(90deg, #0284c7, #38bdf8); height: 100%; width: 0%; border-radius: 999px; transition: width 0.4s ease;"></div>
+          </div>
+          <div style="display: flex; justify-content: space-between; font-size: 11px; color: #94a3b8;">
+            <span>Target: min 5 daily</span>
+            <span id="tracker-resume-note" style="color: #64748b;">Cold pitches & referrals sent</span>
+          </div>
+        </div>
+
+        <!-- Card 2: Applied <= 100 Applicants Target -->
+        <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(148, 163, 184, 0.15); border-radius: 10px; padding: 14px 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <span style="font-size: 12px; font-weight: 700; color: #cbd5e1; display: flex; align-items: center; gap: 6px;">
+              <i class="fa-solid fa-circle-check" style="color: #34d399;"></i> 2. Applied within 100 Applicants
+            </span>
+            <span id="tracker-applied-status" style="font-size: 12px; font-weight: 800; color: #34d399;">0 / 5</span>
+          </div>
+          <div style="background: rgba(51, 65, 85, 0.6); height: 8px; border-radius: 999px; overflow: hidden; margin-bottom: 6px;">
+            <div id="tracker-applied-bar" style="background: linear-gradient(90deg, #059669, #34d399); height: 100%; width: 0%; border-radius: 999px; transition: width 0.4s ease;"></div>
+          </div>
+          <div style="display: flex; justify-content: space-between; font-size: 11px; color: #94a3b8;">
+            <span>Target: min 5 low-competition</span>
+            <span id="tracker-applied-note" style="color: #64748b;">High ATS visibility</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Clean KPI Stats Grid -->
     <div class="stats-grid">
       <div class="stat-card">
@@ -1079,7 +1149,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     <div id="incognito-banner" class="queue-banner" style="display: flex; background: rgba(99, 102, 241, 0.12); border-left: 4px solid #818cf8; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
       <div class="queue-banner-title" style="color: #e0e7ff;">
         <i class="fa-solid fa-bolt" style="color: #818cf8; font-size: 16px;"></i>
-        <span><strong>Incognito Fresh Pipeline (Multi-Query < 8h):</strong> Live LinkedIn openings scraped without login across configured backend search strings strictly posted in the last 8 hours. Ready to review and apply!</span>
+        <span><strong>Multi-Source Fresh Incognito Pipeline:</strong> Live openings from LinkedIn (< 4h & < 200 applicants), Indeed India (past 24h), and Direct ATS Fast Sweeps (PhonePe, Razorpay, Zeta, Slice, Datadog, etc.). Zero login required, strict 0-3 YOE Backend & Bengaluru filters!</span>
       </div>
       <button onclick="triggerLinkedInIncognitoScan()" style="background: linear-gradient(135deg, #4f46e5, #4338ca); color: #fff; border: 1px solid #818cf8; border-radius: 9999px; padding: 5px 14px; font-size: 12px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px;">
         <i class="fa-solid fa-arrows-rotate"></i> Trigger Incognito Scan Now
@@ -1132,8 +1202,8 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     <!-- Tabs & Search -->
     <div class="controls">
       <div class="tabs">
-        <button class="tab-btn active" onclick="setTab('incognito_fresh')" style="color: #c7d2fe; font-weight: 700;" title="Primary Tab: Openings discovered via fresh LinkedIn Incognito multi-query search (< 8h)">
-          <i class="fa-solid fa-bolt" style="margin-right: 5px; color: #818cf8;"></i> Incognito Fresh ⚡
+        <button class="tab-btn active" onclick="setTab('incognito_fresh')" style="color: #c7d2fe; font-weight: 700;" title="Primary Tab: Openings strictly posted in the last 4 hours with < 200 applicants (Backend, Spring Boot, Java, Go, Full Stack)">
+          <i class="fa-solid fa-bolt" style="margin-right: 5px; color: #818cf8;"></i> Fresh < 4h (< 200 Apps) ⚡
           <span class="tab-badge" id="badge-incognito-fresh" style="background: rgba(99, 102, 241, 0.3); color: #c7d2fe; border: 1px solid #818cf8;">0</span>
         </button>
         <button class="tab-btn" onclick="setTab('yet_to_apply')">
@@ -1541,6 +1611,50 @@ HTML_DASHBOARD = """<!DOCTYPE html>
 
         <!-- Result Box -->
         <div id="jlink-result" style="display: none; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 20px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dedicated LinkedIn Post Intake Modal -->
+  <div id="linkedin-post-modal" class="modal-backdrop" onclick="if(event.target===this) closeLinkedInPostModal()">
+    <div class="modal-content" style="max-width: 880px; max-height: 92vh; overflow-y: auto;">
+      <div class="modal-header" style="background: linear-gradient(90deg, #0a66c2, #1e3a8a);">
+        <h3 style="color:#ffffff;"><i class="fa-brands fa-linkedin"></i> LinkedIn Hiring Post Intake & Action Engine</h3>
+        <button class="modal-close" onclick="closeLinkedInPostModal()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div style="padding: 24px; color: #cbd5e1; font-size: 13.5px; line-height: 1.6;">
+        <p style="margin-top:0; color: #94a3b8; font-size: 13px;">
+          Give any LinkedIn post link (or paste recruiter post text). ApplyPilot inspects the post, extracts recruiter emails or Google Forms / apply links, compiles a tailored resume PDF, and prepares a ready-to-send cold email draft in Gmail.
+        </p>
+
+        <div style="display: flex; flex-direction: column; gap: 14px; margin-bottom: 18px;">
+          <div>
+            <label style="display:block; font-size: 12px; font-weight:700; color: #38bdf8; margin-bottom: 5px;">
+              LinkedIn Post Link (URL) *
+            </label>
+            <div style="display: flex; gap: 8px;">
+              <input type="url" id="lpost-url" placeholder="https://www.linkedin.com/feed/update/urn:li:activity:... or /posts/..." style="flex: 1; background: #0f172a; border: 1px solid #0a66c2; color: #fff; padding: 10px 14px; border-radius: 8px; font-size: 13px;">
+              <button class="btn" id="btn-lpost-process" onclick="submitLinkedInPostIntake()" style="background: linear-gradient(135deg, #0a66c2, #2563eb); color: white; font-weight: 700; padding: 10px 20px; font-size: 13px; border-radius: 8px; border: none; cursor: pointer; white-space: nowrap;">
+                <i class="fa-solid fa-bolt"></i> Inspect Post & Tailor
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label style="display:block; font-size: 12px; font-weight:700; color: #94a3b8; margin-bottom: 5px;">
+              Or Paste Post Text (Optional fallback if post is private or login-restricted)
+            </label>
+            <textarea id="lpost-text" placeholder="e.g. 'We are hiring for SDE-1 Backend at Swiggy! Fill this form: https://forms.gle/... or email resume to careers@swiggy.com'..." style="width: 100%; height: 80px; background: #0f172a; border: 1px solid #334155; color: #fff; padding: 10px; border-radius: 8px; font-size: 12px; resize: vertical;"></textarea>
+          </div>
+        </div>
+
+        <div id="lpost-loading" style="display: none; text-align: center; padding: 30px 0;">
+          <i class="fa-solid fa-spinner fa-spin fa-2x" style="color: #38bdf8;"></i>
+          <p id="lpost-loading-text" style="margin-top: 12px; color: #94a3b8; font-size: 13.5px;">Navigating to LinkedIn post, extracting recruiter contacts & compiling tailored resume...</p>
+        </div>
+
+        <!-- Result Box -->
+        <div id="lpost-result" style="display: none; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 20px;"></div>
       </div>
     </div>
   </div>
@@ -2316,8 +2430,8 @@ HTML_DASHBOARD = """<!DOCTYPE html>
 
       const yetBadge = document.getElementById('badge-yet-to-apply');
       if (yetBadge) yetBadge.textContent = yetToApplyCount;
-      document.getElementById('badge-high').textContent = allJobs.filter(j => j.fit_score >= 7 && j.apply_status !== 'ignored').length;
-      document.getElementById('badge-top').textContent = allJobs.filter(j => j.fit_score >= 8 && j.apply_status !== 'ignored').length;
+      document.getElementById('badge-high').textContent = allJobs.filter(j => j.fit_score >= 7 && j.apply_status !== 'ignored' && j.apply_status !== 'applied').length;
+      document.getElementById('badge-top').textContent = allJobs.filter(j => j.fit_score >= 8 && j.apply_status !== 'ignored' && j.apply_status !== 'applied').length;
       document.getElementById('badge-approved').textContent = allJobs.filter(j => j.apply_status === 'approved').length;
       document.getElementById('badge-applied').textContent = appliedCount;
       const refBadge = document.getElementById('badge-asked-referral');
@@ -2335,23 +2449,25 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         }
       }).catch(() => {});
 
-      const easyApplyJobsCount = allJobs.filter(j => (j.is_easy_apply === 1 || (j.source_category === 'linkedin' && j.strategy === 'linkedin_easy_apply')) && j.apply_status !== 'ignored').length;
+      const easyApplyJobsCount = allJobs.filter(j => (j.is_easy_apply === 1 || (j.source_category === 'linkedin' && j.strategy === 'linkedin_easy_apply')) && j.apply_status !== 'ignored' && j.apply_status !== 'applied').length;
       const easyBadge = document.getElementById('badge-easy-apply');
       if (easyBadge) easyBadge.textContent = easyApplyJobsCount;
 
       const incognitoJobsCount = allJobs.filter(j => {
-        if (j.strategy !== 'linkedin_1h_incognito' || j.apply_status === 'ignored') return false;
+        const isIncognitoJob = (j.strategy === 'linkedin_1h_incognito' || j.strategy === 'indeed_incognito' || j.strategy === 'ats');
+        if (!isIncognitoJob || j.apply_status === 'ignored' || j.apply_status === 'applied') return false;
+        if (j.num_applicants !== null && j.num_applicants !== undefined && j.num_applicants >= 200) return false;
         const d = getJobEffectiveDate(j);
         if (d) {
           const diff = Date.now() - d.getTime();
-          if (!isNaN(diff) && diff > 8 * 60 * 60 * 1000) return false;
+          if (!isNaN(diff) && diff > 24 * 60 * 60 * 1000) return false;
         }
         return true;
       }).length;
       const incognitoBadge = document.getElementById('badge-incognito-fresh');
       if (incognitoBadge) incognitoBadge.textContent = incognitoJobsCount;
 
-      const kaJobsCount = allJobs.filter(j => j.source_category === 'kadegree' || j.is_kadegree).length;
+      const kaJobsCount = allJobs.filter(j => (j.source_category === 'kadegree' || j.is_kadegree) && j.apply_status !== 'ignored' && j.apply_status !== 'applied').length;
       const kaBadge = document.getElementById('badge-kadegree');
       if (kaBadge) kaBadge.textContent = kaJobsCount;
       const statKa = document.getElementById('stat-kadegree');
@@ -3641,30 +3757,33 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         }
         if (currentTab === 'fresh') {
           if (job.apply_status === 'applied' || job.apply_status === 'ignored' || job.apply_status === 'rejected') return false;
+          if (job.num_applicants !== null && job.num_applicants !== undefined && job.num_applicants >= 200) return false;
           const d = getJobEffectiveDate(job);
           if (!d) return false;
           const diff = Date.now() - d.getTime();
           if (isNaN(diff) || diff > 4 * 60 * 60 * 1000 || diff < 0) return false;
         }
-        if (currentTab === 'high' && (job.fit_score === null || job.fit_score < 7 || job.apply_status === 'ignored')) return false;
-        if (currentTab === 'top' && (job.fit_score === null || job.fit_score < 8 || job.apply_status === 'ignored')) return false;
-        if (currentTab === 'approved' && job.apply_status !== 'approved') return false;
+        if (currentTab === 'high' && (job.fit_score === null || job.fit_score < 7 || job.apply_status === 'ignored' || job.apply_status === 'applied')) return false;
+        if (currentTab === 'top' && (job.fit_score === null || job.fit_score < 8 || job.apply_status === 'ignored' || job.apply_status === 'applied')) return false;
+        if (currentTab === 'approved' && (job.apply_status !== 'approved' || job.apply_status === 'applied')) return false;
         if (currentTab === 'applied' && job.apply_status !== 'applied') return false;
         if (currentTab === 'asked_referral' && job.apply_status !== 'asked_referral') return false;
         if (currentTab === 'ignored' && job.apply_status !== 'ignored') return false;
-        if (currentTab === 'kadegree' && (!job.is_kadegree && job.source_category !== 'kadegree' || job.apply_status === 'ignored')) return false;
+        if (currentTab === 'kadegree' && ((!job.is_kadegree && job.source_category !== 'kadegree') || job.apply_status === 'ignored' || job.apply_status === 'applied')) return false;
         if (currentTab === 'incognito_fresh' || currentTab === 'incognito_1h') {
-          if (job.strategy !== 'linkedin_1h_incognito' || job.apply_status === 'ignored') return false;
+          const isIncognitoJob = (job.strategy === 'linkedin_1h_incognito' || job.strategy === 'indeed_incognito' || job.strategy === 'ats');
+          if (!isIncognitoJob || job.apply_status === 'ignored' || job.apply_status === 'applied') return false;
+          if (job.num_applicants !== null && job.num_applicants !== undefined && job.num_applicants >= 200) return false;
           const d = getJobEffectiveDate(job);
           if (d) {
             const diff = Date.now() - d.getTime();
-            // Strict 8-hour filter
-            if (!isNaN(diff) && diff > 8 * 60 * 60 * 1000) return false;
+            // Up to 24 hours fresh for multi-source incognito
+            if (!isNaN(diff) && diff > 24 * 60 * 60 * 1000) return false;
           }
         }
         if (currentTab === 'easy_apply') {
           const isLinkedInEasy = (job.is_easy_apply === 1) || (job.source_category === 'linkedin' && job.strategy === 'linkedin_easy_apply');
-          if (!isLinkedInEasy || job.apply_status === 'ignored') return false;
+          if (!isLinkedInEasy || job.apply_status === 'ignored' || job.apply_status === 'applied') return false;
         }
 
         if (currentSourceFilter !== 'all') {
@@ -3789,6 +3908,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
                 <span class="tag tag-ats"><i class="fa-solid fa-building-circle-check"></i> ${job.source || 'Direct ATS'}</span>
               `}
               ${job.recruiter_email ? `<span class="tag tag-email"><i class="fa-solid fa-envelope"></i> ${job.recruiter_email}</span>` : ''}
+              ${job.num_applicants !== null && job.num_applicants !== undefined ? `<span class="tag" style="background:rgba(16,185,129,0.18);color:#6ee7b7;border:1px solid #10b981;"><i class="fa-solid fa-users"></i> ${job.num_applicants < 20 ? '< 20 Applicants' : job.num_applicants + ' Applicants'}</span>` : ''}
               ${hasResume ? `<span class="tag tag-resume"><i class="fa-solid fa-file-pdf"></i> Tailored Resume Ready</span>` : '<span class="tag" style="background:#334155;color:#94a3b8;"><i class="fa-solid fa-clock"></i> Base Resume</span>'}
               ${hasCover ? `<span class="tag tag-cover"><i class="fa-solid fa-envelope-open-text"></i> Cover Letter Ready</span>` : ''}
               ${isApplied ? `<span class="tag tag-applied"><i class="fa-solid fa-check-double"></i> Applied</span>` : job.apply_status === 'asked_referral' ? `<span class="tag" style="background:rgba(168,85,247,0.25);color:#d8b4fe;border:1px solid #a855f7;"><i class="fa-solid fa-people-arrows"></i> Asked Referral${job.referral_contact_name ? ' (' + job.referral_contact_name + ')' : ''}</span>` : isApproved ? `<span class="tag tag-approved"><i class="fa-solid fa-thumbs-up"></i> Approved Shortlist</span>` : isIgnored ? `<span class="tag tag-ignored"><i class="fa-solid fa-ban"></i> Ignored</span>` : ''}
@@ -3964,8 +4084,18 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         const res = await fetch(`/api/jobs/${rowid}/tailor`, { method: 'POST' });
         const data = await res.json();
         if (data.status === 'ok') {
-          showToast('✓ Resume tailored & PDF compiled successfully!');
+          showToast('✓ Resume tailored & PDF compiled! Copying path...');
           triggerConfetti();
+          if (data.tailored_resume_path) {
+            const raw = data.tailored_resume_path;
+            const absPath = raw.includes(':') ? raw : `D:\\ApplyPilot_Workspace\\data\\${raw.replace(/^\//, '').replace(/\//g, '\\')}`;
+            try {
+              await navigator.clipboard.writeText(absPath);
+              showToast('📋 Resume path copied to clipboard! Paste directly into upload dialog.');
+            } catch (clipErr) {
+              console.warn('Clipboard write failed:', clipErr);
+            }
+          }
           await fetchJobs();
           if (data.tailored_resume_path) {
             previewResume(rowid);
@@ -3997,12 +4127,18 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     }
 
     async function markApplied(rowid) {
-      const res = await fetch(`/api/jobs/${rowid}/applied`, { method: 'POST' });
-      const data = await res.json();
-      if (data.status === 'ok') {
-        showToast('🎉 BOOM! Job recorded as APPLIED! Keep up the momentum, Deepak!');
-        triggerConfetti();
-        fetchJobs();
+      try {
+        const res = await fetch(`/api/jobs/${rowid}/applied`, { method: 'POST' });
+        const data = await res.json();
+        if (data.status === 'ok' || data.status === 'applied') {
+          showToast('🎉 BOOM! Job recorded as APPLIED! Keep up the momentum, Deepak!');
+          triggerConfetti();
+          fetchJobs();
+        } else {
+          showToast('⚠️ Could not mark job as applied: ' + (data.message || 'Unknown error'));
+        }
+      } catch (err) {
+        showToast('⚠️ Error recording application status.');
       }
     }
 
@@ -4999,6 +5135,232 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       }
     }
 
+    /* LinkedIn Post Intake Functions */
+    function openLinkedInPostModal() {
+      document.getElementById('lpost-url').value = '';
+      document.getElementById('lpost-text').value = '';
+      document.getElementById('lpost-loading').style.display = 'none';
+      document.getElementById('lpost-result').style.display = 'none';
+      document.getElementById('btn-lpost-process').disabled = false;
+      document.getElementById('btn-lpost-process').innerHTML = '<i class="fa-solid fa-bolt"></i> Inspect Post & Tailor';
+      document.getElementById('linkedin-post-modal').style.display = 'flex';
+    }
+
+    function closeLinkedInPostModal() {
+      document.getElementById('linkedin-post-modal').style.display = 'none';
+    }
+
+    async function submitLinkedInPostIntake() {
+      const url = document.getElementById('lpost-url').value.trim();
+      const text = document.getElementById('lpost-text').value.trim();
+      if (!url && !text) {
+        alert('Please enter a LinkedIn post link (URL) or paste post text.');
+        return;
+      }
+
+      const btn = document.getElementById('btn-lpost-process');
+      const loader = document.getElementById('lpost-loading');
+      const resultBox = document.getElementById('lpost-result');
+
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Inspecting & Tailoring...';
+      loader.style.display = 'block';
+      resultBox.style.display = 'none';
+
+      try {
+        const res = await fetch('/api/linkedin/process_post', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: url, text: text })
+        });
+        const data = await res.json();
+
+        loader.style.display = 'none';
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-bolt"></i> Inspect Post & Tailor';
+
+        if (data.status !== 'ok') {
+          alert(data.message || 'Error processing LinkedIn post');
+          return;
+        }
+
+        const o = data.outreach || {};
+        const comp = data.company || 'Company';
+        const role = data.title || 'Software Engineer';
+        const pdfPath = data.pdf_resume_path || '';
+        const rowid = data.rowid;
+        const email = data.recruiter_email || '';
+        const formUrl = data.form_url || '';
+        const careersUrl = data.careers_url || '';
+        const targetUrl = data.target_app_url || data.post_url || '';
+
+        resultBox.innerHTML = `
+          <!-- Header Banner -->
+          <div style="background: rgba(10, 102, 194, 0.12); border: 1.5px solid #0a66c2; border-radius: 12px; padding: 18px; margin-bottom: 20px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+              <div>
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 4px;">
+                  <span style="background: #0a66c2; color: #fff; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px;"><i class="fa-brands fa-linkedin"></i> LinkedIn Hiring Post</span>
+                  ${data.author_name ? `<span style="color: #94a3b8; font-size: 12px;">by <strong style="color: #cbd5e1;">${data.author_name}</strong></span>` : ''}
+                </div>
+                <h3 style="margin: 0; color: #fff; font-size: 19px;">${role} @ <span style="color: #38bdf8;">${comp}</span></h3>
+                <div style="font-size: 12px; color: #94a3b8; margin-top: 4px;">
+                  <i class="fa-solid fa-location-dot"></i> ${data.location || 'Bengaluru'} &bull; 
+                  <span style="color: #34d399;"><i class="fa-solid fa-check-circle"></i> Tailored Resume Compiled</span>
+                  ${data.tech_stack && data.tech_stack.length ? ` &bull; Stack: <code style="color: #f59e0b;">${data.tech_stack.join(', ')}</code>` : ''}
+                </div>
+              </div>
+              <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                ${rowid ? `
+                  <button class="btn" onclick="previewPDF('${pdfPath}', 'Tailored Resume - ${comp}')" style="background: #2563eb; color: #fff; font-weight: 700; padding: 7px 14px; border-radius: 6px;">
+                    <i class="fa-solid fa-file-pdf"></i> Preview Resume PDF
+                  </button>
+                  <a href="/api/jobs/${rowid}/resume?download=1" download class="btn" style="background: #059669; color: #fff; font-weight: 700; padding: 7px 14px; border-radius: 6px; text-decoration: none;">
+                    <i class="fa-solid fa-download"></i> Download PDF
+                  </a>
+                ` : ''}
+                <button class="btn" onclick="copyText(decodeURIComponent('${encodeURIComponent(data.tailored_resume_text || '')}'), 'Tailored Resume Text')" style="background: #475569; color: #fff; padding: 7px 12px; border-radius: 6px;">
+                  <i class="fa-regular fa-copy"></i> Copy Resume Text
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Key Action Cards (Form Link / Email Drafter) -->
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin-bottom: 20px;">
+            <!-- Recruiter Mail Card -->
+            <div style="background: #0f172a; border: 1.5px solid ${email ? '#059669' : '#334155'}; border-radius: 10px; padding: 14px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <span style="font-weight: 700; color: #f8fafc; font-size: 13px;"><i class="fa-solid fa-envelope" style="color: #34d399;"></i> Recruiter Email Intake</span>
+                ${email ? `<span style="background: rgba(16, 185, 129, 0.2); color: #34d399; font-size: 11px; padding: 2px 6px; border-radius: 4px; font-weight: 600;">Found in Post</span>` : `<span style="color: #94a3b8; font-size: 11px;">Not mentioned in post</span>`}
+              </div>
+              ${email ? `
+                <div style="font-size: 13px; color: #38bdf8; font-family: monospace; margin-bottom: 10px; word-break: break-all;">
+                  <strong>${email}</strong>
+                </div>
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                  <button class="btn" onclick="openCustomDraftModal('${comp}', '${role}', '${targetUrl}', '${email}')" style="background: linear-gradient(135deg, #ea4335, #dc2626); color: #fff; font-weight: 700; font-size: 11.5px; padding: 6px 12px; border-radius: 6px;">
+                    <i class="fa-solid fa-file-pen"></i> Draft in Gmail (w/ PDF)
+                  </button>
+                  <a href="${data.web_compose_url || '#'}" target="_blank" rel="noopener noreferrer" class="btn" style="background: #334155; color: #cbd5e1; text-decoration: none; font-size: 11.5px; padding: 6px 12px; border-radius: 6px;">
+                    <i class="fa-solid fa-arrow-up-right-from-square"></i> Open Brave Compose
+                  </a>
+                </div>
+              ` : `
+                <p style="margin: 0 0 10px 0; font-size: 12px; color: #94a3b8;">No email found directly in the post text. You can still reach out via LinkedIn InMail or find recruiters below.</p>
+                <button class="btn" onclick="openCustomDraftModal('${comp}', '${role}', '${targetUrl}', '')" style="background: #334155; color: #cbd5e1; font-size: 11.5px; padding: 6px 12px; border-radius: 6px;">
+                  <i class="fa-solid fa-pen-nib"></i> Compose Custom Email
+                </button>
+              `}
+            </div>
+
+            <!-- Form / Application Link Card -->
+            <div style="background: #0f172a; border: 1.5px solid ${formUrl || careersUrl ? '#0284c7' : '#334155'}; border-radius: 10px; padding: 14px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <span style="font-weight: 700; color: #f8fafc; font-size: 13px;"><i class="fa-solid fa-link" style="color: #38bdf8;"></i> Application Form / Portal</span>
+                ${formUrl ? `<span style="background: rgba(14, 165, 233, 0.2); color: #38bdf8; font-size: 11px; padding: 2px 6px; border-radius: 4px; font-weight: 600;">Google Form Detected</span>` : (careersUrl ? `<span style="background: rgba(99, 102, 241, 0.2); color: #a5b4fc; font-size: 11px; padding: 2px 6px; border-radius: 4px; font-weight: 600;">Careers Portal</span>` : `<span style="color: #94a3b8; font-size: 11px;">Direct DM Post</span>`)}
+              </div>
+              ${formUrl ? `
+                <div style="font-size: 12px; color: #94a3b8; margin-bottom: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                  Google Form: <a href="${formUrl}" target="_blank" rel="noopener noreferrer" style="color: #38bdf8;">${formUrl}</a>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                  <a href="${formUrl}" target="_blank" rel="noopener noreferrer" class="btn" style="background: linear-gradient(135deg, #0284c7, #2563eb); color: #fff; text-decoration: none; font-weight: 700; font-size: 11.5px; padding: 6px 12px; border-radius: 6px;">
+                    <i class="fa-solid fa-arrow-up-right-from-square"></i> Open Google Form in Brave
+                  </a>
+                  <button class="btn" onclick="openScreeningCopilotModal('${comp}', '${role}')" style="background: #4f46e5; color: #fff; font-size: 11.5px; padding: 6px 12px; border-radius: 6px;" title="Answers form questions in Deepak's voice">
+                    <i class="fa-solid fa-robot"></i> Form Copilot 🤖
+                  </button>
+                </div>
+              ` : (careersUrl ? `
+                <div style="font-size: 12px; color: #94a3b8; margin-bottom: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                  Careers URL: <a href="${careersUrl}" target="_blank" rel="noopener noreferrer" style="color: #38bdf8;">${careersUrl}</a>
+                </div>
+                <a href="${careersUrl}" target="_blank" rel="noopener noreferrer" class="btn" style="background: #2563eb; color: #fff; text-decoration: none; font-weight: 700; font-size: 11.5px; padding: 6px 12px; border-radius: 6px; display: inline-block;">
+                  <i class="fa-solid fa-arrow-up-right-from-square"></i> Open Application Portal in Brave
+                </a>
+              ` : `
+                <p style="margin: 0 0 10px 0; font-size: 12px; color: #94a3b8;">No external form link found. Candidate is instructed to email or DM directly on LinkedIn.</p>
+                <a href="${data.post_url || '#'}" target="_blank" rel="noopener noreferrer" class="btn" style="background: #334155; color: #cbd5e1; text-decoration: none; font-size: 11.5px; padding: 6px 12px; border-radius: 6px; display: inline-block;">
+                  <i class="fa-brands fa-linkedin"></i> View Original LinkedIn Post
+                </a>
+              `)}
+            </div>
+          </div>
+
+          <!-- Referral 1-Click Search Links -->
+          <div style="background: #0f172a; border: 1px solid #1e293b; border-radius: 10px; padding: 14px; margin-bottom: 18px;">
+            <div style="font-weight: 700; color: #f8fafc; font-size: 13.5px; margin-bottom: 10px;">
+              <i class="fa-brands fa-linkedin" style="color: #38bdf8;"></i> 1-Click Targeted LinkedIn Searches for ${comp}:
+            </div>
+            <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+              <a href="${o.first_degree_url || '#'}" target="_blank" rel="noopener noreferrer" class="btn" style="background: #065f46; color: #6ee7b7; text-decoration: none; font-size: 11.5px; font-weight: 600;">
+                <i class="fa-solid fa-user-group"></i> 1st-Degree Friends @ ${comp}
+              </a>
+              <a href="${o.second_degree_url || '#'}" target="_blank" rel="noopener noreferrer" class="btn" style="background: #1e3a8a; color: #93c5fd; text-decoration: none; font-size: 11.5px; font-weight: 600;">
+                <i class="fa-solid fa-users"></i> 2nd-Degree Mutuals @ ${comp}
+              </a>
+              <a href="${o.alumni_search_url || '#'}" target="_blank" rel="noopener noreferrer" class="btn" style="background: #0369a1; color: #7dd3fc; text-decoration: none; font-size: 11.5px; font-weight: 600;">
+                <i class="fa-solid fa-graduation-cap"></i> RVCE Alumni @ ${comp}
+              </a>
+              <a href="${o.recruiter_search_url || '#'}" target="_blank" rel="noopener noreferrer" class="btn" style="background: #581c87; color: #d8b4fe; text-decoration: none; font-size: 11.5px; font-weight: 600;">
+                <i class="fa-solid fa-briefcase"></i> Recruiters @ ${comp}
+              </a>
+              <a href="${o.hiring_posts_url || '#'}" target="_blank" rel="noopener noreferrer" class="btn" style="background: #9a3412; color: #fdba74; text-decoration: none; font-size: 11.5px; font-weight: 600;">
+                <i class="fa-solid fa-bullhorn"></i> Other Hiring Posts @ ${comp}
+              </a>
+            </div>
+          </div>
+
+          <!-- Personalized Outreach & Cold Email Messages -->
+          <div style="display: flex; flex-direction: column; gap: 14px;">
+            <!-- Cold Email Draft Preview -->
+            <div style="background: #111827; border: 1px solid #1f2937; border-radius: 8px; padding: 12px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <h4 style="margin: 0; color: #f87171; font-size: 13px;"><i class="fa-solid fa-envelope"></i> Cold Email Draft (Ready for Recruiter)</h4>
+                <button class="btn" style="background: #dc2626; color: white; padding: 4px 10px; font-size: 11px;" onclick="copyOutreachText('lpost-email-body')">
+                  <i class="fa-regular fa-copy"></i> Copy Email
+                </button>
+              </div>
+              <div style="font-size: 11.5px; color: #94a3b8; margin-bottom: 4px;">Subject: <strong>${data.email_subject || ''}</strong></div>
+              <textarea id="lpost-email-body" style="width: 100%; height: 110px; background: #0f172a; color: #f1f5f9; border: 1px solid #334155; border-radius: 6px; padding: 10px; font-family: monospace; font-size: 12px; resize: vertical;" readonly>${data.email_body || ''}</textarea>
+            </div>
+
+            <!-- Template 1: Post Referrer / Author DM -->
+            <div style="background: #111827; border: 1px solid #1f2937; border-radius: 8px; padding: 12px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <h4 style="margin: 0; color: #38bdf8; font-size: 13px;"><i class="fa-brands fa-linkedin"></i> LinkedIn DM to Post Author / Referrer</h4>
+                <button class="btn" style="background: #0284c7; color: white; padding: 4px 10px; font-size: 11px;" onclick="copyOutreachText('lpost-msg-2nd')">
+                  <i class="fa-regular fa-copy"></i> Copy DM
+                </button>
+              </div>
+              <textarea id="lpost-msg-2nd" style="width: 100%; height: 105px; background: #0f172a; color: #f1f5f9; border: 1px solid #334155; border-radius: 6px; padding: 10px; font-family: monospace; font-size: 12px; resize: vertical;" readonly>${o.second_degree_message || ''}</textarea>
+            </div>
+
+            <!-- Template 2: RVCE Alumni -->
+            <div style="background: #111827; border: 1px solid #1f2937; border-radius: 8px; padding: 12px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <h4 style="margin: 0; color: #4ade80; font-size: 13px;"><i class="fa-solid fa-graduation-cap"></i> RVCE Alumni Referral Request</h4>
+                <button class="btn" style="background: #10b981; color: white; padding: 4px 10px; font-size: 11px;" onclick="copyOutreachText('lpost-msg-alumni')">
+                  <i class="fa-regular fa-copy"></i> Copy
+                </button>
+              </div>
+              <textarea id="lpost-msg-alumni" style="width: 100%; height: 95px; background: #0f172a; color: #f1f5f9; border: 1px solid #334155; border-radius: 6px; padding: 10px; font-family: monospace; font-size: 12px; resize: vertical;" readonly>${o.alumni_message || ''}</textarea>
+            </div>
+          </div>
+        `;
+        resultBox.style.display = 'block';
+
+        // Refresh dashboard list
+        fetchJobs();
+      } catch (err) {
+        loader.style.display = 'none';
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-bolt"></i> Inspect Post & Tailor';
+        alert('Request failed: ' + err.message);
+      }
+    }
+
     /* Technical Interview Cheat-Sheet Modal */
     async function openCheatsheetModal(company, roleTitle) {
       const comp = decodeURIComponent(company || 'PhonePe');
@@ -5229,15 +5591,16 @@ HTML_DASHBOARD = """<!DOCTYPE html>
 
     async function triggerLinkedInIncognitoScan() {
       setTab('incognito_fresh');
-      showToast('⚡ Scanning LinkedIn in Incognito across multiple search strings (< 8h)...');
+      showToast('⚡ Running Multi-Source Incognito scan across LinkedIn, Indeed & Direct ATS...');
       try {
         const res = await fetch('/api/linkedin/incognito_scan', { method: 'POST' });
         const data = await res.json();
-        showToast('🚀 ' + (data.message || 'Scanning LinkedIn incognito for multiple strings...'));
+        showToast('🚀 ' + (data.message || 'Scanning LinkedIn, Indeed & Direct ATS in guest/incognito mode...'));
         setTimeout(fetchJobs, 4000);
         setTimeout(fetchJobs, 8000);
         setTimeout(fetchJobs, 15000);
         setTimeout(fetchJobs, 25000);
+        setTimeout(fetchJobs, 40000);
       } catch (e) {
         showToast('⚠️ Could not start Incognito multi-search: ' + e);
       }
@@ -5353,7 +5716,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     COALESCE(referral_contact_name, '') AS referral_contact_name,
                     COALESCE(referral_contact_platform, '') AS referral_contact_platform,
                     COALESCE(is_easy_apply, 0) AS is_easy_apply,
-                    COALESCE(date_posted, '') AS date_posted
+                    COALESCE(date_posted, '') AS date_posted,
+                    num_applicants
                 FROM jobs
                 ORDER BY fit_score DESC NULLS LAST, discovered_at DESC
             """
@@ -5384,6 +5748,35 @@ class DashboardHandler(SimpleHTTPRequestHandler):
 
                 # 2. Senior / Lead / Staff / Manager title rejection (Deepak has ~1.3 yrs experience)
                 if any(st in tit for st in reject_titles):
+                    continue
+
+                # 2b. Domain rejection: No Frontend, UI/UX, Android, iOS, Mobile, Flutter, QA, DevOps, Data Eng
+                domain_rejects = [
+                    r'\bfront[- ]?end\b', r'\bui\b', r'\bux\b', r'\bweb designer\b',
+                    r'\bandroid\b', r'\bios\b', r'\bmobile\b', r'\bflutter\b', r'\breact native\b',
+                    r'\bdata engineer\b', r'\bdata scientist\b', r'\bmachine learning\b', r'\bml engineer\b',
+                    r'\bai engineer\b', r'\bai/ml\b', r'\baiml\b', r'\bqa\b', r'\bquality\b', r'\bsdet\b',
+                    r'\btest\b', r'\btesting\b', r'\bdevops\b', r'\bsre\b', r'\binfrastructure\b', r'\bsupport\b',
+                    r'\bsalesforce\b', r'\bsap\b', r'\bservicenow\b', r'\bcyber\b', r'\bsecurity\b',
+                    r'\bintern\b', r'\binternship\b', r'\btrainee\b', r'\bembedded\b', r'\bfirmware\b',
+                    r'\bhardware\b'
+                ]
+                if any(re.search(dr, tit) for dr in domain_rejects):
+                    continue
+
+                # 2c. Target Role / Stack requirement: must be Backend, Spring Boot, Java, Golang/Go, Full Stack, SDE
+                target_roles = [
+                    r'\bbackend\b', r'\bback[- ]end\b',
+                    r'\bspring\b', r'\bspring\s*boot\b',
+                    r'\bjava\b',
+                    r'\bgolang\b', r'\bgo\s*(?:developer|engineer|backend)\b', r'\bgo\b',
+                    r'\bfull[- ]?stack\b',
+                    r'\bsde\b', r'\bsde[- ]?[12iI]+\b',
+                    r'\bsoftware engineer\b', r'\bsoftware development engineer\b', r'\bsoftware developer\b',
+                    r'\bapi\b', r'\bmicroservices\b', r'\bdistributed systems\b', r'\bcloud backend\b',
+                    r'\bserver side\b'
+                ]
+                if not any(re.search(tr, tit) for tr in target_roles):
                     continue
 
                 # 3. Explicit >4 years experience rejection
@@ -5458,6 +5851,11 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     j["source"] = "SmartRecruiters"
                     j["source_category"] = "ats"
                     j["source_icon"] = "fa-solid fa-briefcase"
+                    j["is_kadegree"] = False
+                elif "indeed" in strat or "indeed.com" in u_str:
+                    j["source"] = "Indeed (Incognito)"
+                    j["source_category"] = "indeed"
+                    j["source_icon"] = "fa-solid fa-info"
                     j["is_kadegree"] = False
                 elif "jobspy" in strat:
                     if "indeed" in c_str or "indeed" in u_str:
@@ -5732,6 +6130,27 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 self.wfile.write(json.dumps({"status": "error", "message": str(e)}).encode("utf-8"))
             return
 
+        # /api/linkedin/process_post (Dedicated LinkedIn Post Intake -> Recruiter Mail / Form Link + Tailored Resume)
+        if path == "/api/linkedin/process_post":
+            length = int(self.headers.get("Content-Length", 0))
+            body_data = self.rfile.read(length).decode("utf-8") if length > 0 else "{}"
+            try:
+                payload = json.loads(body_data)
+                url = payload.get("url", "").strip()
+                text = payload.get("text", "").strip()
+                from applypilot.networking.linkedin_post_intake import process_linkedin_post
+                result = process_linkedin_post(url, manual_text=text)
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps(result).encode("utf-8"))
+            except Exception as e:
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"status": "error", "message": str(e)}).encode("utf-8"))
+            return
+
         # /api/activity/heartbeat (Track active search time)
         if path == "/api/activity/heartbeat":
             length = int(self.headers.get("Content-Length", 0))
@@ -5819,19 +6238,19 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps({"status": "ok", "message": "Scanning LinkedIn specifically for Easy Apply openings..."}).encode("utf-8"))
             return
 
-        # /api/linkedin/incognito_scan (Scrape 24-hour fresh jobs in incognito mode across multiple strings)
+        # /api/linkedin/incognito_scan (Scrape multi-source fresh jobs in incognito mode: LinkedIn, Indeed, and Direct ATS)
         elif path == "/api/linkedin/incognito_scan":
             def _bg_incognito_scan():
                 try:
-                    from applypilot.networking.linkedin import scan_linkedin_incognito_recent_jobs
-                    scan_linkedin_incognito_recent_jobs(hours_old=8, max_pages=2)
+                    from applypilot.discovery.multi_incognito import run_fresh_incognito_multisource_scan
+                    run_fresh_incognito_multisource_scan(linkedin_hours=4, indeed_days=1, run_ats=True)
                 except Exception as ex:
-                    print(f"LinkedIn incognito scan error: {ex}")
+                    print(f"Multi-source incognito scan error: {ex}")
             threading.Thread(target=_bg_incognito_scan, daemon=True).start()
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
-            self.wfile.write(json.dumps({"status": "ok", "message": "Scanning LinkedIn Incognito across multiple search queries for fresh openings (< 8h)..."}).encode("utf-8"))
+            self.wfile.write(json.dumps({"status": "ok", "message": "Multi-Source Incognito Scan running across LinkedIn, Indeed & Direct ATS (Greenhouse, Lever, SmartRecruiters)..."}).encode("utf-8"))
             return
 
         # /api/linkedin/posts_poll (Scan LinkedIn for fresh hiring posts in real-time)
@@ -6055,6 +6474,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             rowid = int(parts[3])
             from applypilot.apply.assistant import mark_job_applied
             res = mark_job_applied(rowid)
+            if isinstance(res, dict) and res.get("status") == "applied":
+                res["status"] = "ok"
 
             self.send_response(200)
             self.send_header("Content-Type", "application/json")

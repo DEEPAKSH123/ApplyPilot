@@ -147,3 +147,58 @@ employers:
     ats: greenhouse
     slug: okta
     api_url: https://boards-api.greenhouse.io/v1/boards/okta/jobs
+  phonepe:
+    name: PhonePe
+    ats: smartrecruiters
+    slug: PhonePeLimited
+    api_url: https://api.smartrecruiters.com/v1/companies/PhonePeLimited/postings
+  payu:
+    name: PayU
+    ats: smartrecruiters
+    slug: payu
+    api_url: https://api.smartrecruiters.com/v1/companies/payu/postings
+  zeta:
+    name: Zeta
+    ats: lever
+    slug: zeta
+    api_url: https://api.lever.co/v0/postings/zeta?mode=json
+  slice:
+    name: Slice
+    ats: greenhouse
+    slug: slice
+    api_url: https://boards-api.greenhouse.io/v1/boards/slice/jobs
+  gitlab:
+    name: GitLab
+    ats: greenhouse
+    slug: gitlab
+    api_url: https://boards-api.greenhouse.io/v1/boards/gitlab/jobs
+  figma:
+    name: Figma
+    ats: greenhouse
+    slug: figma
+    api_url: https://boards-api.greenhouse.io/v1/boards/figma/jobs
+  datadog:
+    name: Datadog
+    ats: greenhouse
+    slug: datadog
+    api_url: https://boards-api.greenhouse.io/v1/boards/datadog/jobs
+  reddit:
+    name: Reddit
+    ats: greenhouse
+    slug: reddit
+    api_url: https://boards-api.greenhouse.io/v1/boards/reddit/jobs
+  palantir:
+    name: Palantir
+    ats: lever
+    slug: palantir
+    api_url: https://api.lever.co/v0/postings/palantir?mode=json
+  pinterest:
+    name: Pinterest
+    ats: greenhouse
+    slug: pinterest
+    api_url: https://boards-api.greenhouse.io/v1/boards/pinterest/jobs
+  airbnb:
+    name: Airbnb
+    ats: greenhouse
+    slug: airbnb
+    api_url: https://boards-api.greenhouse.io/v1/boards/airbnb/jobs

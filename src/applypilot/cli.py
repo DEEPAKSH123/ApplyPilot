@@ -1085,7 +1085,57 @@ def tailor_link_cmd(
     console.print("")
 
 
+@app.command("linkedin-post")
+def linkedin_post_cmd(
+    url: str = typer.Argument(..., help="LinkedIn post link/URL to read and process"),
+    text: Optional[str] = typer.Option("", "--text", "-t", help="Optional manual post text if page is behind login"),
+) -> None:
+    """Analyze a LinkedIn hiring post, extract recruiter email & Google form, tailor resume & draft cold email."""
+    _bootstrap()
+    from applypilot.networking.linkedin_post_intake import process_linkedin_post
+
+    console.print(f"[bold cyan]🔍 Fetching and analyzing LinkedIn post:[/bold cyan] {url}")
+    res = process_linkedin_post(url, manual_text=text)
+
+    if res.get("status") != "ok":
+        console.print(f"[bold red]✗ Error:[/bold red] {res.get('message', 'Failed to process LinkedIn post')}")
+        raise typer.Exit(1)
+
+    comp = res.get("company", "Company")
+    title = res.get("title", "Role")
+    loc = res.get("location", "Location")
+    email = res.get("recruiter_email")
+    form_url = res.get("form_url")
+    careers_url = res.get("careers_url")
+    outreach = res.get("outreach", {})
+
+    console.print(f"\n[bold green]✓ Successfully Extracted & Processed LinkedIn Post for {comp}![/bold green]")
+    console.print(f"  • [bold white]Role:[/bold white] {title}")
+    console.print(f"  • [bold white]Location:[/bold white] {loc}")
+    if email:
+        console.print(f"  • [bold green]Recruiter Email:[/bold green] [bold yellow]{email}[/bold yellow]")
+    if form_url:
+        console.print(f"  • [bold magenta]Google Form Link:[/bold magenta] [cyan]{form_url}[/cyan]")
+    if careers_url:
+        console.print(f"  • [bold blue]Application Portal:[/bold blue] [cyan]{careers_url}[/cyan]")
+
+    if res.get("pdf_resume_path"):
+        console.print(f"  • [bold white]Tailored Resume PDF:[/bold white] [cyan]{res['pdf_resume_path']}[/cyan]")
+    if res.get("pdf_cover_path"):
+        console.print(f"  • [bold white]Cover Letter PDF:[/bold white] [cyan]{res['pdf_cover_path']}[/cyan]")
+
+    if email:
+        console.print(f"\n[bold yellow]Drafted Cold Email Subject:[/bold yellow] {res.get('email_subject')}")
+        console.print("[bold yellow]Email Preview:[/bold yellow]")
+        console.print(f"[dim]{res.get('email_body')}[/dim]")
+
+    console.print("\n[bold yellow]Targeted LinkedIn Network Searches:[/bold yellow]")
+    console.print(f"  • 1st-Degree Friends: {outreach.get('first_degree_url')}")
+    console.print(f"  • 2nd-Degree Mutuals: {outreach.get('second_degree_url')}")
+    console.print(f"  • RVCE Alumni:        {outreach.get('alumni_search_url')}")
+    console.print(f"  • Recruiters:         {outreach.get('recruiter_search_url')}")
+    console.print("")
+
+
 if __name__ == "__main__":
-
-
     app()

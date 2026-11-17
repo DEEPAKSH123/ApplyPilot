@@ -27,6 +27,31 @@ log = logging.getLogger(__name__)
 SESSION_FILE = APP_DIR / "linkedin_session.json"
 EMAIL_REGEX = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,7}\b")
 
+# Regex patterns to detect years of experience required
+EXP_PATTERNS = [
+    re.compile(r'(\d+)\+?\s*(?:to|-)\s*(\d+)\s*(?:years?|yrs?)(?:\s*of)?\s*(?:relevant|hands-on|industry|software|backend|work)?\s*experience', re.IGNORECASE),
+    re.compile(r'(\d+)\+?\s*(?:to|-)\s*(\d+)\s*(?:years?|yrs?)', re.IGNORECASE),
+    re.compile(r'(\d+)\+?\s*(?:years?|yrs?)(?:\s*of)?\s*(?:relevant|hands-on|industry|software|backend|work)?\s*experience', re.IGNORECASE),
+    re.compile(r'experience(?:\s*of)?\s*:?\s*(\d+)\+?\s*(?:to|-)?\s*(\d+)?\s*(?:years?|yrs?)', re.IGNORECASE),
+    re.compile(r'(?:minimum|min|at least)\s*(\d+)\+?\s*(?:years?|yrs?)', re.IGNORECASE),
+    re.compile(r'(\d+)\+?\s*yoe\b', re.IGNORECASE),
+    re.compile(r'yoe\s*:?\s*(\d+)\+?', re.IGNORECASE),
+]
+
+
+def check_experience_exceeds(text: str, max_years: int = 4) -> tuple[bool, str]:
+    """Check if the post text or description specifies experience > max_years."""
+    if not text:
+        return False, ""
+    for pat in EXP_PATTERNS:
+        for m in pat.finditer(text):
+            groups = [int(g) for g in m.groups() if g and g.isdigit()]
+            if groups:
+                min_exp = min(groups)
+                if min_exp > max_years:
+                    return True, f"{m.group(0)} (> {max_years} years)"
+    return False, ""
+
 
 def is_linkedin_authenticated() -> bool:
     """Check if LinkedIn session cookies or profile exists."""
@@ -261,6 +286,12 @@ def search_linkedin_posts(
                 comp_match = re.search(r"(?:at|@|join|hiring\s+for)\s+([A-Z][A-Za-z0-9]{2,20})\b", text_content)
                 if comp_match:
                     company = comp_match.group(1)
+
+                # Check experience requirement: must be <= 4 years (Deepak has ~2 yrs experience)
+                is_over_exp, exp_reason = check_experience_exceeds(text_content, max_years=4)
+                if is_over_exp:
+                    log.info("Skipping post requiring > 4 years experience (%s): %s", exp_reason, text_content[:120].replace('\n', ' '))
+                    continue
 
                 item = {
                     "author": author_name,
@@ -742,15 +773,86 @@ def scan_linkedin_easy_apply_jobs(
     }
 
 
+def is_role_relevant_for_backend(title: str) -> tuple[bool, str]:
+    """Strictly filter roles for 0-3 YOE Backend / Spring Boot / Java / Golang / Full Stack.
+    
+    Rejects:
+      - Senior / Lead / Staff / Architect / EM / Director / VP / Principal / LMTS / PMTS / III / IV / V
+      - Non-target disciplines: Frontend, UI/UX, Web Designer, Mobile (Android, iOS, Flutter, React Native),
+        QA, SDET, Testing, DevOps, SRE, Data Engineer, Data Science, AI/ML, Salesforce, SAP, ServiceNow,
+        Cyber/Security, Embedded, Firmware, Hardware, Intern, Trainee.
+    Accepts:
+      - Backend, Spring Boot, Java, Golang/Go, Full Stack, SDE, SDE-1, SDE-2, Software Engineer/Developer.
+    """
+    if not title or not title.strip():
+        return False, "Empty title"
+    
+    t = title.lower().strip()
+    
+    # 1. Seniority exclusions (Deepak is 0-3 YOE, Meesho SDE-1)
+    seniority_rejects = [
+        r'\bsenior\b', r'\bsr\.?\b', r'\blead\b', r'\btech lead\b', r'\bteam lead\b',
+        r'\bstaff\b', r'\bprincipal\b', r'\bmanager\b', r'\bmgr\b', r'\bdirector\b',
+        r'\barchitect\b', r'\bhead\b', r'\bvp\b', r'\bvice president\b', r'\bdistinguished\b',
+        r'\biii\b', r'\biv\b', r'\bv\b', r'\bl3\b', r'\bl4\b', r'\bl5\b', r'\bl6\b',
+        r'\blmts\b', r'\bpmts\b', r'\bexpert\b', r'\bengineering manager\b', r'\bem\b',
+        r'\b5-7\s*yrs\b', r'\b5\+\s*years\b', r'\b6\+\s*years\b', r'\b7\+\s*years\b', r'\bphd\b'
+    ]
+    for sr in seniority_rejects:
+        if re.search(sr, t):
+            return False, f"Seniority ({sr})"
+
+    # 2. Domain / non-target exclusions (Frontend, Android, iOS, mobile, QA, devops, data, etc.)
+    domain_rejects = [
+        r'\bfront[- ]?end\b', r'\bui\b', r'\bux\b', r'\bweb designer\b',
+        r'\bandroid\b', r'\bios\b', r'\bmobile\b', r'\bflutter\b', r'\breact native\b',
+        r'\bdata engineer\b', r'\bdata scientist\b', r'\bmachine learning\b', r'\bml engineer\b',
+        r'\bai engineer\b', r'\bai/ml\b', r'\baiml\b', r'\bcomputer vision\b', r'\bnlp\b',
+        r'\balgorithm developer\b', r'\bqa\b', r'\bquality\b', r'\bsdet\b', r'\btest automation\b',
+        r'\btest\b', r'\btesting\b', r'\bdevops\b', r'\bsre\b', r'\binfrastructure\b', r'\bsupport\b',
+        r'\bit engineer\b', r'\bit technical\b', r'\bsalesforce\b', r'\bsap\b', r'\bservicenow\b',
+        r'\bcyber\b', r'\bsecurity\b', r'\bcrm\b', r'\bintern\b', r'\binternship\b', r'\btrainee\b',
+        r'\bgraduate\b', r'\bcollege\b', r'\bapprentice\b', r'\bembedded\b', r'\bfirmware\b',
+        r'\bhardware\b', r'\bdevice driver\b', r'\bbluetooth\b', r'\baudio engineer\b',
+        r'\bcamera\b', r'\bautomotive\b', r'\bflight dynamics\b', r'\btelecom\b', r'\b5g\b',
+        r'\bblockchain\b', r'\bcontrol system\b', r'\bplc\b'
+    ]
+    for dr in domain_rejects:
+        if re.search(dr, t):
+            return False, f"Non-target domain ({dr})"
+
+    # 3. Core target roles check (Backend, Spring Boot, Java, Golang, Full Stack, SDE)
+    target_roles = [
+        r'\bbackend\b', r'\bback[- ]end\b',
+        r'\bspring\b', r'\bspring\s*boot\b',
+        r'\bjava\b',
+        r'\bgolang\b', r'\bgo\s*(?:developer|engineer|backend)\b', r'\bgo\b',
+        r'\bfull[- ]?stack\b',
+        r'\bsde\b', r'\bsde[- ]?[12iI]+\b',
+        r'\bsoftware engineer\b', r'\bsoftware development engineer\b', r'\bsoftware developer\b',
+        r'\bapi\b', r'\bmicroservices\b', r'\bdistributed systems\b', r'\bcloud backend\b',
+        r'\bserver side\b'
+    ]
+    if not any(re.search(tr, t) for tr in target_roles):
+        return False, "Not in target stack (Backend, Spring Boot, Java, Go, Full Stack, SDE)"
+
+    return True, "OK"
+
+
 def scan_linkedin_incognito_recent_jobs(
-    hours_old: int = 8,
+    hours_old: int = 4,
     location_geoid: str = "105126231",  # Bengaluru default
     keywords_list: list[str] | None = None,
-    max_pages: int = 2
+    max_pages: int = 2,
+    max_applicants: int = 200
 ) -> dict[str, Any]:
     """Scrape fresh LinkedIn jobs in incognito / guest mode without logging in across multiple search strings.
 
-    Sorted strictly by date descending (DD). Filters for jobs posted recently (e.g. within hours_old).
+    Filters strictly for:
+    - Posted in the last 4 hours (hours_old <= 4).
+    - Under 200 applicants (< 200 applicants).
+    - Targeted tech stacks: Backend, Spring Boot, Java, Golang, or Full Stack.
+    - Excludes Frontend, Android, iOS, Mobile, QA, DevOps, Data Eng, etc.
     Saves and updates all discovered jobs into the main ApplyPilot tracker database.
     """
     from bs4 import BeautifulSoup
@@ -770,7 +872,8 @@ def scan_linkedin_incognito_recent_jobs(
     if not keywords_list:
         keywords_list = [
             '("Software Engineer" OR "Backend Engineer") NOT Senior NOT Lead',
-            '("Java Developer" OR "Golang Developer") NOT Senior NOT Lead',
+            '("Java Developer" OR "Spring Boot" OR "Golang Developer") NOT Senior NOT Lead',
+            '("Full Stack Engineer" OR "Full Stack Developer") NOT Senior NOT Lead',
             '("SDE-1" OR "SDE 1" OR "Junior Backend")'
         ]
 
@@ -851,10 +954,33 @@ def scan_linkedin_incognito_recent_jobs(
                             loc = loc_el.text.strip() if loc_el else "Bengaluru, India"
                             time_str = time_el.text.strip() if time_el else (time_el.get("datetime") if time_el else "")
 
-                            # Strict Candidate Experience Guardrail (0-3 YOE Backend)
-                            title_lower = title.lower()
-                            reject_titles = ["senior", "sr.", "sr ", "lead", "tech lead", "staff", "principal", "manager", "mgr", "director", "architect", "head"]
-                            if any(rj in title_lower for rj in reject_titles):
+                            # Strict Candidate Experience & Tech Stack Guardrails (Backend, Spring Boot, Java, Go, Full Stack)
+                            role_ok, role_reason = is_role_relevant_for_backend(title)
+                            if not role_ok:
+                                log.debug("Skipping non-matching incognito job '%s': %s", title, role_reason)
+                                continue
+
+                            # Inspect applicant count or benefits badges on the card
+                            card_text = card.get_text(separator=" ", strip=True).lower()
+                            num_apps = None
+                            if "over 200 applicants" in card_text or ">200 applicants" in card_text:
+                                num_apps = 201
+                            elif "be an early applicant" in card_text:
+                                num_apps = 10
+                            else:
+                                app_match = re.search(r'(\d+)\s+applicants?', card_text)
+                                if app_match:
+                                    num_apps = int(app_match.group(1))
+
+                            # Filter out jobs with >= 200 applicants
+                            if num_apps is not None and num_apps >= max_applicants:
+                                log.debug("Skipping high applicant job '%s' (%d applicants >= %d)", title, num_apps, max_applicants)
+                                continue
+
+                            # Check experience requirement on card text if stated (must be <= 4 years)
+                            is_over_exp, exp_reason = check_experience_exceeds(card_text, max_years=4)
+                            if is_over_exp:
+                                log.debug("Skipping job requiring > 4 years experience (%s): '%s'", exp_reason, title)
                                 continue
 
                             total_found += 1
@@ -885,17 +1011,18 @@ def scan_linkedin_incognito_recent_jobs(
                             try:
                                 c.execute("""
                                     INSERT INTO jobs 
-                                    (url, title, location, site, strategy, description, full_description, discovered_at, application_url, date_posted)
-                                    VALUES (?, ?, ?, ?, 'linkedin_1h_incognito', ?, ?, ?, ?, ?)
-                                """, (job_url, title, loc, company, desc, desc, now, job_url, date_posted))
+                                    (url, title, location, site, strategy, description, full_description, discovered_at, application_url, date_posted, num_applicants)
+                                    VALUES (?, ?, ?, ?, 'linkedin_1h_incognito', ?, ?, ?, ?, ?, ?)
+                                """, (job_url, title, loc, company, desc, desc, now, job_url, date_posted, num_apps))
                                 new_jobs += 1
                             except sqlite3.IntegrityError:
                                 c.execute("""
                                     UPDATE jobs 
                                     SET strategy = COALESCE(strategy, 'linkedin_1h_incognito'),
-                                        date_posted = COALESCE(date_posted, ?)
+                                        date_posted = COALESCE(date_posted, ?),
+                                        num_applicants = COALESCE(?, num_applicants)
                                     WHERE url = ?
-                                """, (date_posted, job_url))
+                                """, (date_posted, num_apps, job_url))
                         except Exception as card_err:
                             log.debug("Error processing card: %s", card_err)
 

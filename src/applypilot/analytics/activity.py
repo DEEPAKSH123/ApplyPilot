@@ -156,6 +156,81 @@ def get_funnel_and_activity_metrics() -> dict[str, Any]:
     mins_saved = total_30d_applied * (25 - 3.5)
     hours_saved = round(mins_saved / 60, 1)
 
+    # 4. Daily Target Tracker: Minimum 5 asking resume & Minimum 5 applied within 100 applicants
+    daily_history = []
+    current_streak = 0
+    total_goals_met_days = 0
+
+    for i in range(13, -1, -1):
+        day_date = now - timedelta(days=i)
+        day_str = day_date.strftime("%Y-%m-%d")
+        day_label = day_date.strftime("%b %d")
+
+        # Applied jobs count: total & <= 100 applicants
+        r_app = conn.execute("""
+            SELECT 
+                COUNT(*) as total_applied,
+                SUM(CASE WHEN num_applicants IS NOT NULL AND num_applicants <= 100 THEN 1 ELSE 0 END) as low_applicant_applied
+            FROM jobs
+            WHERE (apply_status = 'applied' OR applied_at IS NOT NULL)
+              AND substr(COALESCE(applied_at, detail_scraped_at, discovered_at), 1, 10) = ?
+        """, (day_str,)).fetchone()
+        day_applied_total = r_app[0] if r_app else 0
+        day_applied_low = (r_app[1] or 0) if r_app else 0
+
+        # Resume requested / outreach count (Cold email pitches + Referral outreach + Inbound resume requests)
+        r_cold = conn.execute("SELECT COUNT(*) FROM cold_email_outreach WHERE substr(sent_at, 1, 10) = ?", (day_str,)).fetchone()[0]
+        r_ref = conn.execute("""
+            SELECT COUNT(*) FROM jobs 
+            WHERE (apply_status = 'asked_referral' OR referral_contacted_at IS NOT NULL)
+              AND substr(COALESCE(referral_contacted_at, applied_at), 1, 10) = ?
+        """, (day_str,)).fetchone()[0]
+        r_resp = conn.execute("""
+            SELECT COUNT(*) FROM application_responses 
+            WHERE category IN ('referral_asked', 'resume_requested', 'oa', 'interview_selected')
+              AND substr(received_date, 1, 10) = ?
+        """, (day_str,)).fetchone()[0]
+        day_resume_requested = r_cold + r_ref + r_resp
+
+        applied_goal_met = day_applied_low >= 5
+        resume_goal_met = day_resume_requested >= 5
+        both_goals_met = applied_goal_met and resume_goal_met
+
+        if both_goals_met:
+            total_goals_met_days += 1
+
+        daily_history.append({
+            "date": day_str,
+            "label": day_label,
+            "is_today": (day_str == today_str),
+            "applied_under_100": day_applied_low,
+            "applied_total": day_applied_total,
+            "applied_target": 5,
+            "applied_goal_met": applied_goal_met,
+            "resume_requested": day_resume_requested,
+            "resume_target": 5,
+            "resume_goal_met": resume_goal_met,
+            "both_goals_met": both_goals_met,
+        })
+
+    # Calculate current streak ending today / yesterday
+    for item in reversed(daily_history):
+        if item["both_goals_met"]:
+            current_streak += 1
+        elif item["is_today"]:
+            continue  # Today might still be in progress
+        else:
+            break
+
+    today_item = daily_history[-1] if daily_history else {
+        "applied_under_100": 0,
+        "applied_total": 0,
+        "resume_requested": 0,
+        "applied_goal_met": False,
+        "resume_goal_met": False,
+        "both_goals_met": False,
+    }
+
     return {
         "activity": {
             "today_active_minutes": round(today_seconds / 60),
@@ -163,6 +238,22 @@ def get_funnel_and_activity_metrics() -> dict[str, Any]:
             "avg_mins_per_app": 3.4,
             "manual_mins_per_app": 25.0,
             "hours_saved_30d": hours_saved,
+        },
+        "daily_tracker": {
+            "today_date": today_str,
+            "applied_under_100": today_item["applied_under_100"],
+            "applied_total": today_item["applied_total"],
+            "applied_target": 5,
+            "applied_progress_pct": min(100, round((today_item["applied_under_100"] / 5) * 100)),
+            "applied_goal_met": today_item["applied_goal_met"],
+            "resume_requested": today_item["resume_requested"],
+            "resume_target": 5,
+            "resume_progress_pct": min(100, round((today_item["resume_requested"] / 5) * 100)),
+            "resume_goal_met": today_item["resume_goal_met"],
+            "both_goals_met": today_item["both_goals_met"],
+            "current_streak_days": current_streak,
+            "total_goals_met_days": total_goals_met_days,
+            "history_14d": daily_history,
         },
         "funnel": {
             "total_discovered": conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0],

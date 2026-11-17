@@ -80,17 +80,17 @@ def _run_discover(workers: int = 4) -> dict:
         "smartextract": False,
     })
 
-    # 0. LinkedIn Incognito Multi-String Fresh Discovery (Primary First Step)
+    # 0. Multi-Source Incognito & Fresh Discovery (LinkedIn + Indeed India + Direct ATS)
     if sources.get("incognito", True) or sources.get("linkedin_incognito", True):
-        console.print("  [cyan]LinkedIn Incognito (Multi-Query Fresh Openings)...[/cyan]")
+        console.print("  [cyan]Multi-Source Fresh Incognito (LinkedIn + Indeed India + Direct ATS)...[/cyan]")
         try:
-            from applypilot.networking.linkedin import scan_linkedin_incognito_recent_jobs
-            res = scan_linkedin_incognito_recent_jobs(hours_old=8, max_pages=2)
-            stats["linkedin_incognito"] = f"ok ({res.get('total_scanned', 0)} scanned, {res.get('new_jobs_added', 0)} new)"
+            from applypilot.discovery.multi_incognito import run_fresh_incognito_multisource_scan
+            res = run_fresh_incognito_multisource_scan(linkedin_hours=4, indeed_days=1, run_ats=True, workers=workers)
+            stats["multi_incognito"] = f"ok ({res.get('total_found', 0)} found, {res.get('total_new_jobs', 0)} new)"
         except Exception as e:
-            log.error("LinkedIn Incognito scan failed: %s", e)
-            console.print(f"  [red]LinkedIn Incognito error:[/red] {e}")
-            stats["linkedin_incognito"] = f"error: {e}"
+            log.error("Multi-Source Incognito scan failed: %s", e)
+            console.print(f"  [red]Multi-Source Incognito error:[/red] {e}")
+            stats["multi_incognito"] = f"error: {e}"
 
     # 1. Workday corporate scraper (28 employers)
     if sources.get("workday", True):
