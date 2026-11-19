@@ -621,14 +621,50 @@ def compose_referral_dm(
             page.goto(clean_url, wait_until="domcontentloaded")
             time.sleep(3)
 
-            # Check if name is detectable on page
-            nonlocal first_name
-            if not first_name:
-                h1 = page.query_selector("h1")
-                if h1:
-                    raw_title = h1.inner_text().strip()
-                    if raw_title:
-                        first_name = raw_title.split()[0]
+            # Check if name and company are detectable on page
+            nonlocal first_name, name, company
+            full_detected_name = name
+            headline_text = ""
+            h1 = page.query_selector("h1")
+            if h1:
+                raw_title = h1.inner_text().strip()
+                if raw_title:
+                    full_detected_name = raw_title
+                    first_name = raw_title.split()[0]
+
+            # Try detecting current headline or company if not passed
+            head_el = page.query_selector("div.text-body-medium, h2")
+            if head_el:
+                headline_text = head_el.inner_text().strip()
+
+            if not company:
+                # Check for company in experience or top section
+                exp_comp_el = page.query_selector("div[data-view-name='profile-card'] :has-text('· Full-time'), button[aria-label*='Current company']")
+                if exp_comp_el:
+                    company = exp_comp_el.inner_text().split("\n")[0].strip()
+                elif headline_text and (" at " in headline_text or " @ " in headline_text):
+                    part = headline_text.split(" at ")[-1] if " at " in headline_text else headline_text.split(" @ ")[-1]
+                    company = part.split("|")[0].split("·")[0].strip()
+                if not company:
+                    company = "Target Company"
+
+            # Auto-log to Referral Network CRM immediately so user doesn't have to type anything manually!
+            try:
+                from applypilot.networking.referral_tracker import record_connection_request
+                is_alumni_detected = "rvce" in headline_text.lower() or "rv college" in headline_text.lower() or template_type == "alumni"
+                record_connection_request(
+                    company=company,
+                    person_name=full_detected_name or first_name or "LinkedIn Connection",
+                    profile_url=clean_url,
+                    headline=headline_text or role_title,
+                    is_alumni=is_alumni_detected,
+                    degree="2nd",
+                    role_type="Engineer",
+                    notes=f"Auto-logged via 1-Click {action_type} for {role_title}"
+                )
+                log.info("Auto-recorded connection request in Referral Network CRM for: %s @ %s", full_detected_name or first_name, company)
+            except Exception as re_err:
+                log.warning("Could not auto-log to Referral Network CRM: %s", re_err)
 
             typed = False
 

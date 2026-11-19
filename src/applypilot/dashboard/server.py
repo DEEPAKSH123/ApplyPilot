@@ -5201,9 +5201,10 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         const data = await res.json();
         if (data.status === 'ok') {
           showToast(`🛡️ ${data.message}`);
-          if (isConnect && company && name) {
+          if (company && name) {
             logConnectionFromModal(company, name, profileUrl, 'Contacted via 1-Click Connect', template === 'alumni');
           }
+          setTimeout(() => { updateStats(); }, 2000);
         } else {
           showToast(`⚠️ Compose: ${data.message || 'Error'}`);
         }
