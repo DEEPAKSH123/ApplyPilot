@@ -668,8 +668,8 @@ def compose_referral_dm(
 
             typed = False
 
-            # If action_type is explicitly 'connect', prioritize clicking Connect
-            if action_type == "connect":
+            # If action_type is explicitly 'connect' or 'connect_only', prioritize clicking Connect
+            if action_type in ("connect", "connect_only"):
                 try:
                     connect_btn = page.query_selector("button:has-text('Connect'), a:has-text('Connect')")
                     if not connect_btn:
@@ -683,31 +683,49 @@ def compose_referral_dm(
                         connect_btn.click()
                         time.sleep(1.5)
 
-                        # Look for "Add a note"
-                        add_note_btn = page.query_selector("button:has-text('Add a note'), button[aria-label*='Add a note']")
-                        if add_note_btn:
-                            add_note_btn.click()
-                            time.sleep(1)
+                        if action_type == "connect_only":
+                            # For pure Connect (no note), look for "Send without a note" or "Send now"
+                            send_without_note_btn = page.query_selector(
+                                "button[aria-label*='Send without a note'], button:has-text('Send without a note'), button:has-text('Send now')"
+                            )
+                            if send_without_note_btn:
+                                page.evaluate("""() => {
+                                    const btn = document.querySelector('button[aria-label*="Send without a note"], button:has-text("Send without a note"), button:has-text("Send now")');
+                                    if (btn) {
+                                        btn.style.outline = '3px solid #10b981';
+                                        btn.style.boxShadow = '0 0 16px #10b981';
+                                    }
+                                }""")
+                                typed = True
+                                log.info("Opened Connect modal in 'Just Connect' mode (without note).")
+                            else:
+                                typed = True
+                        else:
+                            # Look for "Add a note"
+                            add_note_btn = page.query_selector("button:has-text('Add a note'), button[aria-label*='Add a note']")
+                            if add_note_btn:
+                                add_note_btn.click()
+                                time.sleep(1)
 
-                        textarea = page.query_selector("textarea#custom-message, textarea[name='message']")
-                        if textarea:
-                            textarea.fill(short_note)
-                            typed = True
-                            log.info("Filled personalized note into connection request modal!")
+                            textarea = page.query_selector("textarea#custom-message, textarea[name='message']")
+                            if textarea:
+                                textarea.fill(short_note)
+                                typed = True
+                                log.info("Filled personalized note into connection request modal!")
 
-                            # Highlight the Send invitation button in green
-                            page.evaluate("""() => {
-                                const btn = document.querySelector('button[aria-label*="Send invitation"], button:has-text("Send"), button[aria-label*="Send now"]');
-                                if (btn) {
-                                    btn.style.outline = '3px solid #10b981';
-                                    btn.style.boxShadow = '0 0 16px #10b981';
-                                }
-                            }""")
+                                # Highlight the Send invitation button in green
+                                page.evaluate("""() => {
+                                    const btn = document.querySelector('button[aria-label*="Send invitation"], button:has-text("Send"), button[aria-label*="Send now"]');
+                                    if (btn) {
+                                        btn.style.outline = '3px solid #10b981';
+                                        btn.style.boxShadow = '0 0 16px #10b981';
+                                    }
+                                }""")
                 except Exception as ce:
                     log.warning("Could not fill connection note: %s", ce)
 
             # Otherwise, try clicking Message button (for 1st-degree connections)
-            if not typed and action_type != "connect":
+            if not typed and action_type not in ("connect", "connect_only"):
                 msg_btn = page.query_selector("button:has-text('Message'), a:has-text('Message'), button[aria-label*='Message']")
                 if msg_btn:
                     try:

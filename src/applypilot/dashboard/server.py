@@ -4906,9 +4906,12 @@ HTML_DASHBOARD = """<!DOCTYPE html>
 
           <!-- Direct Custom LinkedIn Search / Chat Box -->
           <div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.08); display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-            <input type="text" id="direct-conn-input" placeholder="Paste specific connection's LinkedIn profile URL (e.g. https://www.linkedin.com/in/...)..." style="flex:1; min-width: 260px; background: #0f172a; border: 1px solid #334155; color: #fff; padding: 8px 12px; border-radius: 8px; font-size: 12px;">
-            <button class="btn" style="background: linear-gradient(135deg, #a855f7, #6366f1); color: white; font-weight: 700; white-space: nowrap;" onclick="sendDirectConnectionInvite()" title="1-Click Connect: Clicks Connect, adds tailored referral note in Brave, and logs to CRM">
-              <i class="fa-solid fa-user-plus"></i> 1-Click Connect + Note
+            <input type="text" id="direct-conn-input" placeholder="Paste specific connection's LinkedIn profile URL (e.g. https://www.linkedin.com/in/...)..." style="flex:1; min-width: 240px; background: #0f172a; border: 1px solid #334155; color: #fff; padding: 8px 12px; border-radius: 8px; font-size: 12px;">
+            <button class="btn" style="background: linear-gradient(135deg, #a855f7, #6366f1); color: white; font-weight: 700; white-space: nowrap;" onclick="sendDirectConnectionInvite(true)" title="1-Click Connect + Note: Clicks Connect, adds tailored referral note in Brave, and logs to CRM">
+              <i class="fa-solid fa-user-plus"></i> Connect + Note
+            </button>
+            <button class="btn" style="background: linear-gradient(135deg, #4f46e5, #3b82f6); color: white; font-weight: 700; white-space: nowrap;" onclick="sendDirectConnectionInvite(false)" title="Just Connect: Clicks Connect without a note and logs to CRM">
+              <i class="fa-solid fa-user-check"></i> Just Connect
             </button>
             <button class="btn" style="background: linear-gradient(135deg, #0284c7, #10b981); color: white; font-weight: 700; white-space: nowrap;" onclick="autoTypeDirectConnectionDM()" title="Auto-types full referral DM into chat in Brave">
               <i class="fa-solid fa-paper-plane"></i> Auto-Type DM
@@ -5078,14 +5081,17 @@ HTML_DASHBOARD = """<!DOCTYPE html>
                   ${c.past_role && !c.current_role ? `<div style="color: #94a3b8; font-size: 11px; margin-top: 2px;"><i class="fa-solid fa-clock-rotate-left"></i> Past: ${c.past_role}</div>` : ''}
                   <div style="color: #64748b; font-size: 11px;"><i class="fa-solid fa-location-dot"></i> ${c.location || 'India'}</div>
                 </div>
-                <div style="display: flex; gap: 6px; align-items: center; flex-shrink: 0;">
+                <div style="display: flex; gap: 6px; align-items: center; flex-shrink: 0; flex-wrap: wrap;">
                   ${c.degree === '1st' ? `
                     <button class="btn" style="background: linear-gradient(135deg, #0284c7, #10b981); color: #fff; padding: 7px 12px; font-size: 11.5px; font-weight: 700; white-space: nowrap; border: none; border-radius: 6px; cursor: pointer;" onclick="composeLinkedInDM('${c.profile_url}', '${c.name.replace(/'/g, "\\'")}', '${company.replace(/'/g, "\\'")}', 'Backend Engineer', '${c.is_alumni ? 'alumni' : 'referral'}', 'message')" title="Auto-types referral DM with resume link in Brave chat">
                       <i class="fa-solid fa-paper-plane"></i> Auto-Type DM
                     </button>
                   ` : `
-                    <button class="btn" style="background: linear-gradient(135deg, #a855f7, #6366f1); color: #fff; padding: 7px 12px; font-size: 11.5px; font-weight: 700; white-space: nowrap; border: none; border-radius: 6px; cursor: pointer;" onclick="composeLinkedInDM('${c.profile_url}', '${c.name.replace(/'/g, "\\'")}', '${company.replace(/'/g, "\\'")}', 'Backend Engineer', '${c.is_alumni ? 'alumni' : 'referral'}', 'connect')" title="1-Click Connect: Clicks Connect, adds tailored referral note in Brave, and logs to CRM">
+                    <button class="btn" style="background: linear-gradient(135deg, #a855f7, #6366f1); color: #fff; padding: 7px 11px; font-size: 11.5px; font-weight: 700; white-space: nowrap; border: none; border-radius: 6px; cursor: pointer;" onclick="composeLinkedInDM('${c.profile_url}', '${c.name.replace(/'/g, "\\'")}', '${company.replace(/'/g, "\\'")}', 'Backend Engineer', '${c.is_alumni ? 'alumni' : 'referral'}', 'connect')" title="1-Click Connect + Note: Clicks Connect, adds tailored referral note in Brave, and logs to CRM">
                       <i class="fa-solid fa-user-plus"></i> Connect + Note
+                    </button>
+                    <button class="btn" style="background: linear-gradient(135deg, #4f46e5, #3b82f6); color: #fff; padding: 7px 11px; font-size: 11.5px; font-weight: 700; white-space: nowrap; border: none; border-radius: 6px; cursor: pointer;" onclick="composeLinkedInDM('${c.profile_url}', '${c.name.replace(/'/g, "\\'")}', '${company.replace(/'/g, "\\'")}', 'Backend Engineer', '${c.is_alumni ? 'alumni' : 'referral'}', 'connect_only')" title="Just Connect: Sends connection invite without a note and logs to CRM">
+                      <i class="fa-solid fa-user-check"></i> Just Connect
                     </button>
                   `}
                   <button class="btn" style="background: #0a66c2; color: #fff; padding: 7px 10px; font-size: 11.5px; white-space: nowrap; border: none; border-radius: 6px; cursor: pointer;" onclick="openDirectUrl('${c.profile_url}')" title="Open profile in Brave">
@@ -5193,8 +5199,11 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         return;
       }
       const isConnect = (actionType === 'connect');
+      const isConnectOnly = (actionType === 'connect_only');
       showToast(isConnect 
         ? `⚡ Sending connection request to ${name || 'contact'} with custom note in Brave...`
+        : isConnectOnly
+        ? `⚡ Sending connection request to ${name || 'contact'} (without note) in Brave...`
         : `⚡ Launching Brave & auto-typing referral message for ${name || 'connection'}...`
       );
 
@@ -5215,7 +5224,8 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         if (data.status === 'ok') {
           showToast(`🛡️ ${data.message}`);
           if (company && name) {
-            logConnectionFromModal(company, name, profileUrl, 'Contacted via 1-Click Connect', template === 'alumni');
+            const noteText = isConnectOnly ? 'Connection sent (no note)' : 'Contacted via 1-Click Connect';
+            logConnectionFromModal(company, name, profileUrl, noteText, template === 'alumni');
           }
           setTimeout(() => { updateStats(); }, 2000);
         } else {
@@ -5238,7 +5248,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       composeLinkedInDM(val, '', comp, 'Backend Engineer', 'referral', 'auto');
     }
 
-    function sendDirectConnectionInvite() {
+    function sendDirectConnectionInvite(withNote = true) {
       const val = document.getElementById('direct-conn-input').value.trim();
       if (!val) {
         showToast('Please enter a connection LinkedIn URL first.');
@@ -5247,7 +5257,8 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       const titleEl = document.getElementById('referral-modal-title');
       const compMatch = titleEl ? titleEl.innerText.match(/Outreach:\s*([^(\\n]+)/) : null;
       const comp = compMatch ? compMatch[1].trim() : '';
-      composeLinkedInDM(val, '', comp, 'Backend Engineer', 'referral', 'connect');
+      const action = withNote ? 'connect' : 'connect_only';
+      composeLinkedInDM(val, '', comp, 'Backend Engineer', 'referral', action);
     }
 
     function copyText(val, label) {
