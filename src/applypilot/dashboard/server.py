@@ -3965,9 +3965,40 @@ HTML_DASHBOARD = """<!DOCTYPE html>
           const isEligible = (job.fit_score !== null && job.fit_score >= 7) || !!job.tailored_resume_path;
           if (!isEligible || job.apply_status === 'applied' || job.apply_status === 'interview' || job.apply_status === 'rejected' || job.apply_status === 'ignored') return false;
         }
+        // Experience guardrail check helper (reject roles requiring >= 4 YOE or ranges like 6-10, 4-8 yrs)
+        const checkIsOverExperienced = (j) => {
+          const tit = (j.title || '').toLowerCase();
+          const desc = (j.desc || j.description || j.full_desc || j.full_description || '').toLowerCase();
+          const combined = `${tit} ${desc}`;
+          
+          // Senior/Lead title check
+          const seniorWords = ['senior', 'sr.', 'sr ', 'lead', 'tech lead', 'staff', 'principal', 'manager', 'mgr', 'architect', 'director'];
+          if (seniorWords.some(w => tit.includes(w))) return true;
+
+          // Range pattern: e.g. "6-10 years", "4 to 8 yrs", "3-6 years"
+          const rangePat = /(\d+)\+?\s*(?:to|-)\s*(\d+)\s*(?:years?|yrs?)/gi;
+          let m;
+          while ((m = rangePat.exec(combined)) !== null) {
+            const low = parseInt(m[1], 10);
+            const high = parseInt(m[2], 10);
+            if (!isNaN(low) && low >= 4) return true;
+            if (!isNaN(high) && high >= 5) return true;
+          }
+
+          // Single/min experience pattern: e.g. "5+ years", "6+ yrs", "min 4 years", "6 yoe"
+          const singlePat = /(?:(?:minimum|min|at least)\s*)?(\d+)\+?\s*(?:years?|yrs?)(?:\s*of)?\s*(?:relevant|hands-on|industry|software|backend|work)?\s*experience|\b(\d+)\+?\s*yoe\b/gi;
+          while ((m = singlePat.exec(combined)) !== null) {
+            const exp = parseInt(m[1] || m[2], 10);
+            if (!isNaN(exp) && exp >= 4) return true;
+          }
+
+          return false;
+        };
+
         if (currentTab === 'fresh') {
           if (job.apply_status === 'applied' || job.apply_status === 'ignored' || job.apply_status === 'rejected') return false;
           if (job.num_applicants !== null && job.num_applicants !== undefined && job.num_applicants >= 200) return false;
+          if (checkIsOverExperienced(job)) return false;
           const d = getJobEffectiveDate(job);
           if (!d) return false;
           const diff = Date.now() - d.getTime();
@@ -3984,6 +4015,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
           const isIncognitoJob = (job.strategy === 'linkedin_1h_incognito' || job.strategy === 'indeed_incognito' || job.strategy === 'ats');
           if (!isIncognitoJob || job.apply_status === 'ignored' || job.apply_status === 'applied') return false;
           if (job.num_applicants !== null && job.num_applicants !== undefined && job.num_applicants >= 200) return false;
+          if (checkIsOverExperienced(job)) return false;
           const d = getJobEffectiveDate(job);
           if (d) {
             const diff = Date.now() - d.getTime();
@@ -5941,10 +5973,13 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 "senior", "sr.", "sr ", "lead", "tech lead", "staff", "principal", "manager", "mgr", "director", "architect", "head"
             ])]
             exp_patterns = [
+                re.compile(r'(\d+)\+?\s*(?:to|-)\s*(\d+)\s*(?:years?|yrs?)(?:\s*of)?\s*(?:relevant|hands-on|industry|software|backend|work)?\s*experience', re.IGNORECASE),
                 re.compile(r'(\d+)\+?\s*(?:to|-)\s*(\d+)\s*(?:years?|yrs?)', re.IGNORECASE),
                 re.compile(r'(\d+)\+?\s*(?:years?|yrs?)(?:\s*of)?\s*(?:relevant|hands-on|industry|software|backend|work)?\s*experience', re.IGNORECASE),
                 re.compile(r'experience(?:\s*of)?\s*:?\s*(\d+)\+?\s*(?:to|-)?\s*(\d+)?\s*(?:years?|yrs?)', re.IGNORECASE),
                 re.compile(r'(?:minimum|min|at least)\s*(\d+)\+?\s*(?:years?|yrs?)', re.IGNORECASE),
+                re.compile(r'(\d+)\+?\s*yoe\b', re.IGNORECASE),
+                re.compile(r'yoe\s*:?\s*(\d+)\+?', re.IGNORECASE),
             ]
 
             jobs = []
@@ -5956,7 +5991,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 if any(rp in loc for rp in reject_patterns):
                     continue
 
-                # 2. Senior / Lead / Staff / Manager title rejection (Deepak has ~1.3 yrs experience)
+                # 2. Senior / Lead / Staff / Manager title rejection (Deepak has ~1.3-2 yrs experience)
                 if any(st in tit for st in reject_titles):
                     continue
 
@@ -5989,15 +6024,21 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 if not any(re.search(tr, tit) for tr in target_roles):
                     continue
 
-                # 3. Explicit >4 years experience rejection
+                # 3. Explicit experience rejection: Deepak is 0-3 YOE.
+                # Strictly reject:
+                # - Minimum required experience >= 4 years (e.g. 4+ yrs, 5+ yrs, 6-10 yrs)
+                # - Upper bound of range >= 5 years (e.g. 3-5, 4-7, 4-8, 6-10 years)
                 text = f"{tit} {j.get('full_desc', '')} {j.get('desc', '')}"
                 is_over_exp = False
                 for pat in exp_patterns:
                     for m in pat.finditer(text):
                         groups = [int(g) for g in m.groups() if g and g.isdigit()]
-                        if groups and min(groups) > 4:
-                            is_over_exp = True
-                            break
+                        if groups:
+                            min_exp = groups[0]
+                            max_exp = groups[1] if len(groups) > 1 else min_exp
+                            if min_exp >= 4 or max_exp >= 5:
+                                is_over_exp = True
+                                break
                     if is_over_exp:
                         break
                 if is_over_exp:

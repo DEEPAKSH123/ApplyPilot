@@ -39,17 +39,24 @@ EXP_PATTERNS = [
 ]
 
 
-def check_experience_exceeds(text: str, max_years: int = 4) -> tuple[bool, str]:
-    """Check if the post text or description specifies experience > max_years."""
+def check_experience_exceeds(text: str, max_years: int = 3) -> tuple[bool, str]:
+    """Check if the post text or description specifies experience exceeding candidate level.
+    For Deepak (0-3 YOE target):
+    - Any minimum experience >= 4 years is rejected.
+    - Any range with upper bound >= 5 years (e.g. 3-5, 4-8, 6-10) is rejected.
+    - Explicit senior patterns (e.g. 5+ years, 6-10 years) are rejected.
+    """
     if not text:
         return False, ""
     for pat in EXP_PATTERNS:
         for m in pat.finditer(text):
             groups = [int(g) for g in m.groups() if g and g.isdigit()]
             if groups:
-                min_exp = min(groups)
-                if min_exp > max_years:
-                    return True, f"{m.group(0)} (> {max_years} years)"
+                min_exp = groups[0]
+                max_exp = groups[1] if len(groups) > 1 else min_exp
+                # Reject if min required is >= 4, or if upper bound >= 5, or min > max_years
+                if min_exp >= 4 or max_exp >= 5 or min_exp > max_years:
+                    return True, f"{m.group(0)} (exceeds {max_years} years target)"
     return False, ""
 
 
