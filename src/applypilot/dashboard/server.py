@@ -1251,6 +1251,10 @@ HTML_DASHBOARD = """<!DOCTYPE html>
           <i class="fa-solid fa-bullseye" style="margin-right: 5px; color: #38bdf8;"></i> Daily Tracker (5+5)
           <span class="tab-badge" id="badge-daily-tracker" style="background: rgba(56, 189, 248, 0.25); color: #7dd3fc; border: 1px solid #38bdf8;">Goal Met</span>
         </button>
+        <button class="tab-btn" onclick="setTab('referral_crm')" style="color: #a855f7; font-weight: 700;" title="Company-wise Referral Connection Request Tracker (Sent vs Accepted)">
+          <i class="fa-solid fa-user-plus" style="margin-right: 5px; color: #c084fc;"></i> Referral Network CRM
+          <span class="tab-badge" id="badge-referral-crm" style="background: rgba(168, 85, 247, 0.25); color: #d8b4fe; border: 1px solid #a855f7;">0</span>
+        </button>
         <button class="tab-btn" onclick="setTab('remote_portals')" style="color: #34d399; font-weight: 600;" title="Top Remote Engineering Platforms & Agencies (Uplers, Arc, DistantJob, Turing, etc.)">
           <i class="fa-solid fa-globe" style="margin-right: 5px; color: #10b981;"></i> Remote Portals & Agencies
           <span class="tab-badge" id="badge-remote-portals" style="background: rgba(16, 185, 129, 0.25); color: #6ee7b7; border: 1px solid #10b981;">18</span>
@@ -1373,6 +1377,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     <!-- ⚡ 30-Day Conversion Funnel, Everyday Active Time & Gemini Strategy Container -->
     <div id="strategy-container" style="display: none;"></div>
     <div id="daily-tracker-container" style="display: none;"></div>
+    <div id="referral-crm-container" style="display: none;"></div>
     <div id="remote-portals-container" style="display: none;"></div>
     <div id="cold-crm-container" style="display: none;"></div>
   </div>
@@ -2454,6 +2459,14 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         }
       }).catch(() => {});
 
+      // Sync Referral Network CRM badge
+      fetch('/api/referral_crm/summary').then(res => res.json()).then(data => {
+        const refBadge = document.getElementById('badge-referral-crm');
+        if (refBadge && data && data.metrics) {
+          refBadge.textContent = `${data.metrics.total_accepted}/${data.metrics.total_requested}`;
+        }
+      }).catch(() => {});
+
       const easyApplyJobsCount = allJobs.filter(j => (j.is_easy_apply === 1 || (j.source_category === 'linkedin' && j.strategy === 'linkedin_easy_apply')) && j.apply_status !== 'ignored' && j.apply_status !== 'applied').length;
       const easyBadge = document.getElementById('badge-easy-apply');
       if (easyBadge) easyBadge.textContent = easyApplyJobsCount;
@@ -3191,6 +3204,263 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       openCustomDraftModal();
     }
 
+    // --- Referral Network CRM Engine (Company-wise Connection Requests & Acceptance) ---
+    async function renderReferralCrmView() {
+      const container = document.getElementById('referral-crm-container');
+      if (!container) return;
+
+      container.innerHTML = `
+        <div style="text-align:center; padding: 40px; color: #a855f7;">
+          <i class="fa-solid fa-circle-notch fa-spin fa-2x"></i>
+          <p style="margin-top: 10px; font-weight: 600;">Loading Referral Network CRM & Acceptance Rates...</p>
+        </div>
+      `;
+
+      try {
+        const res = await fetch('/api/referral_crm/summary');
+        const data = await res.json();
+        const m = data.metrics || { total_requested: 0, total_accepted: 0, acceptance_rate: 0, total_referrals: 0, pending_acceptance: 0, companies_count: 0 };
+        const companies = data.companies || [];
+
+        let companyCardsHtml = '';
+        if (companies.length === 0) {
+          companyCardsHtml = `
+            <div style="text-align: center; padding: 40px 20px; background: rgba(15, 23, 42, 0.6); border: 1.5px dashed #475569; border-radius: 12px; color: #94a3b8;">
+              <i class="fa-solid fa-user-group fa-3x" style="color: #64748b; margin-bottom: 12px;"></i>
+              <h4 style="color: #f8fafc; margin: 0 0 8px 0;">No Referral Connection Requests Tracked Yet</h4>
+              <p style="font-size: 13px; max-width: 500px; margin: 0 auto 16px auto;">
+                When you reach out to 4-5 people at a target company on LinkedIn, log them here or directly from the <strong>"LinkedIn Outreach"</strong> modal. You'll never lose track of who accepted!
+              </p>
+              <button onclick="openAddConnectionModal()" class="btn" style="background: linear-gradient(135deg, #a855f7, #7c3aed); color: white; font-weight: 700; padding: 10px 18px;">
+                <i class="fa-solid fa-plus"></i> Track First Connection Request
+              </button>
+            </div>
+          `;
+        } else {
+          companyCardsHtml = `
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 16px;">
+              ${companies.map(c => {
+                const acceptPct = c.requested_count > 0 ? Math.round((c.accepted_count / c.requested_count) * 100) : 0;
+                return `
+                  <div style="background: rgba(15, 23, 42, 0.85); border: 1.5px solid ${c.accepted_count > 0 ? 'rgba(16, 185, 129, 0.4)' : 'rgba(148, 163, 184, 0.15)'}; border-radius: 12px; padding: 18px; box-shadow: 0 8px 24px rgba(0,0,0,0.3); display: flex; flex-direction: column; justify-content: space-between;">
+                    <div>
+                      <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+                        <div>
+                          <h3 style="margin: 0; font-size: 17px; font-weight: 800; color: #f8fafc; display: flex; align-items: center; gap: 8px;">
+                            <i class="fa-solid fa-building" style="color: #38bdf8;"></i> ${escapeHtml(c.company)}
+                          </h3>
+                          <div style="font-size: 11.5px; color: #94a3b8; margin-top: 3px;">
+                            ${c.people.length} employees contacted for referral
+                          </div>
+                        </div>
+                        <div style="text-align: right;">
+                          <span style="background: ${c.accepted_count > 0 ? 'rgba(16, 185, 129, 0.2)' : 'rgba(148, 163, 184, 0.15)'}; color: ${c.accepted_count > 0 ? '#34d399' : '#cbd5e1'}; font-size: 12px; font-weight: 700; padding: 4px 8px; border-radius: 6px; border: 1px solid ${c.accepted_count > 0 ? '#059669' : '#334155'};">
+                            ${c.accepted_count} / ${c.requested_count} Accepted (${acceptPct}%)
+                          </span>
+                        </div>
+                      </div>
+
+                      <!-- Progress bar of acceptance -->
+                      <div style="background: #1e293b; border-radius: 4px; height: 6px; overflow: hidden; margin-bottom: 14px;">
+                        <div style="background: linear-gradient(90deg, #10b981, #059669); height: 100%; width: ${acceptPct}%;"></div>
+                      </div>
+
+                      <!-- People List -->
+                      <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 14px;">
+                        ${c.people.map(p => {
+                          const isAcc = p.status === 'accepted' || p.status === 'replied_referral';
+                          const isRef = p.referral_status === 'referred' || p.referral_status === 'pitched';
+                          return `
+                            <div style="background: rgba(30, 41, 59, 0.6); border: 1px solid ${isAcc ? 'rgba(16, 185, 129, 0.3)' : 'rgba(255,255,255,0.06)'}; border-radius: 8px; padding: 9px 12px; display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+                              <div style="min-width: 0; flex: 1;">
+                                <div style="font-size: 13px; font-weight: 700; color: #f1f5f9; display: flex; align-items: center; gap: 6px;">
+                                  <span>${escapeHtml(p.person_name)}</span>
+                                  ${p.is_alumni ? '<span style="background:#1e3a8a; color:#93c5fd; font-size:9.5px; padding:1px 5px; border-radius:3px;">🎓 RVCE</span>' : ''}
+                                </div>
+                                <div style="font-size: 11px; color: #94a3b8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                  ${escapeHtml(p.headline || 'Employee / Engineer')}
+                                </div>
+                                <div style="font-size: 10.5px; color: #64748b; margin-top: 2px;">
+                                  Sent: ${p.requested_at ? p.requested_at.substring(0, 10) : 'Recently'}
+                                </div>
+                              </div>
+                              <div style="display: flex; gap: 6px; align-items: center; flex-shrink: 0;">
+                                ${isAcc ? `
+                                  <span style="background: #064e3b; color: #34d399; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 4px; border: 1px solid #059669;">
+                                    <i class="fa-solid fa-check"></i> Accepted
+                                  </span>
+                                  <button onclick="promptPitchReferral(${p.id}, '${escapeHtml(p.person_name)}', '${escapeHtml(c.company)}')" class="btn" style="background: linear-gradient(135deg, #0284c7, #10b981); color: white; padding: 4px 8px; font-size: 10.5px; font-weight: 700;" title="Send tailored pitch note + resume">
+                                    <i class="fa-solid fa-paper-plane"></i> Pitch
+                                  </button>
+                                ` : `
+                                  <button onclick="markConnectionAccepted(${p.id}, '${escapeHtml(p.person_name)}')" class="btn" style="background: rgba(16, 185, 129, 0.15); border: 1px solid #10b981; color: #34d399; padding: 4px 8px; font-size: 10.5px; font-weight: 700;" title="Mark as accepted in LinkedIn">
+                                    Mark Accepted
+                                  </button>
+                                `}
+                                ${p.profile_url ? `
+                                  <a href="${p.profile_url}" target="_blank" rel="noopener noreferrer" style="color: #38bdf8; font-size: 12px; padding: 4px;" title="Open LinkedIn Profile">
+                                    <i class="fa-brands fa-linkedin"></i>
+                                  </a>
+                                ` : ''}
+                              </div>
+                            </div>
+                          `;
+                        }).join('')}
+                      </div>
+                    </div>
+
+                    <div style="display: flex; justify-content: space-between; align-items: center; pt-2; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 10px;">
+                      <span style="font-size: 11px; color: #a855f7; font-weight: 600;">
+                        ${c.referral_count} Referral Pitch${c.referral_count === 1 ? '' : 'es'} Sent
+                      </span>
+                      <button onclick="openAddConnectionModal('${escapeHtml(c.company)}')" class="btn" style="background: rgba(168, 85, 247, 0.15); border: 1px solid #a855f7; color: #d8b4fe; font-size: 11px; padding: 4px 10px; font-weight: 700;">
+                        <i class="fa-solid fa-plus"></i> Add Person
+                      </button>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          `;
+        }
+
+        container.innerHTML = `
+          <div style="margin-bottom: 24px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 10px;">
+              <div>
+                <h2 style="font-size: 22px; font-weight: 800; color: #f8fafc; margin: 0; display: flex; align-items: center; gap: 8px;">
+                  <i class="fa-solid fa-user-plus" style="color: #a855f7;"></i> Referral Connection Request CRM
+                </h2>
+                <p style="color: #94a3b8; font-size: 13px; margin: 4px 0 0 0;">
+                  Company-wise tracking of connection requests sent to engineers and RVCE alumni: see exact acceptance ratios and follow up without forgetting!
+                </p>
+              </div>
+              <div style="display: flex; gap: 10px;">
+                <button onclick="openAddConnectionModal()" style="background: linear-gradient(135deg, #a855f7, #7c3aed); color: white; border: none; padding: 9px 16px; border-radius: 8px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 14px rgba(168, 85, 247, 0.35);">
+                  <i class="fa-solid fa-plus"></i> Log Connection Request
+                </button>
+              </div>
+            </div>
+
+            <!-- KPI Cards -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 24px;">
+              <div class="stat-card" style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(168, 85, 247, 0.2); border-radius: 10px; padding: 16px;">
+                <div style="color: #94a3b8; font-size: 12px; text-transform: uppercase;">Total Sent</div>
+                <div style="font-size: 28px; font-weight: 800; color: #f8fafc; margin-top: 4px;">${m.total_requested}</div>
+                <div style="color: #64748b; font-size: 11px;">Across ${m.companies_count} Target Companies</div>
+              </div>
+              <div class="stat-card" style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(16, 185, 129, 0.2); border-radius: 10px; padding: 16px;">
+                <div style="color: #94a3b8; font-size: 12px; text-transform: uppercase;">Accepted</div>
+                <div style="font-size: 28px; font-weight: 800; color: #34d399; margin-top: 4px;">${m.total_accepted}</div>
+                <div style="color: #059669; font-size: 11px;">${m.acceptance_rate}% Acceptance Rate</div>
+              </div>
+              <div class="stat-card" style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(245, 158, 11, 0.2); border-radius: 10px; padding: 16px;">
+                <div style="color: #94a3b8; font-size: 12px; text-transform: uppercase;">Awaiting Acceptance</div>
+                <div style="font-size: 28px; font-weight: 800; color: #fbbf24; margin-top: 4px;">${m.pending_acceptance}</div>
+                <div style="color: #b45309; font-size: 11px;">Sent within 24-48 hrs</div>
+              </div>
+              <div class="stat-card" style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 10px; padding: 16px;">
+                <div style="color: #94a3b8; font-size: 12px; text-transform: uppercase;">Referral Pitches</div>
+                <div style="font-size: 28px; font-weight: 800; color: #38bdf8; margin-top: 4px;">${m.total_referrals}</div>
+                <div style="color: #0284c7; font-size: 11px;">Pitched after acceptance</div>
+              </div>
+            </div>
+
+            <!-- Company Cards Breakdown -->
+            <div style="margin-bottom: 12px;">
+              <h3 style="font-size: 16px; font-weight: 700; color: #f8fafc; margin-bottom: 14px; display: flex; align-items: center; gap: 8px;">
+                <i class="fa-solid fa-network-wired" style="color: #a855f7;"></i> Company-wise Breakdown & Acceptance
+              </h3>
+              ${companyCardsHtml}
+            </div>
+          </div>
+        `;
+      } catch (err) {
+        container.innerHTML = `<div style="color: #f87171; padding: 20px;">Failed to load Referral CRM: ${err}</div>`;
+      }
+    }
+
+    async function markConnectionAccepted(id, name) {
+      try {
+        const res = await fetch('/api/referral_crm/update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ request_id: id, status: 'accepted' })
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          showToast(`🎉 ${name} marked as ACCEPTED! Time to pitch referral!`);
+          triggerConfetti();
+          renderReferralCrmView();
+          updateStats();
+        }
+      } catch (err) {
+        showToast('Error updating status: ' + err);
+      }
+    }
+
+    function promptPitchReferral(id, name, company) {
+      const template = `Hi ${name},\n\nThanks for connecting! I noticed you are working at ${company}.\n\nI'm an SDE-1 (Backend) at Meesho with 2 years of experience in Java, Go, Spring Boot, Kafka, and distributed systems (RVCE CSE '25, CGPA 8.92).\n\nI saw an active opening for Backend Engineer at ${company} and would be really grateful if you could refer my profile or connect me with the hiring team. Can join immediately / 0 days notice.\n\nI've attached my tailored resume for your review.\n\nBest regards,\nDeepak S H | +91 8431433659\nhttps://github.com/Deepak-S-H`;
+      navigator.clipboard.writeText(template);
+      showToast(`📋 Copied referral pitch for ${name}! Paste into LinkedIn chat.`);
+      
+      fetch('/api/referral_crm/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ request_id: id, status: 'replied_referral', referral_status: 'pitched' })
+      }).then(() => renderReferralCrmView());
+    }
+
+    function openAddConnectionModal(defaultCompany = '') {
+      const comp = prompt('Company Name:', defaultCompany || '');
+      if (!comp) return;
+      const personName = prompt(`Person Name at ${comp}:`, '');
+      if (!personName) return;
+      const profileUrl = prompt(`LinkedIn Profile URL (optional):`, '');
+      const headline = prompt(`Role / Headline (e.g. SDE-2 @ ${comp}):`, 'Software Engineer');
+      const isAlumni = confirm(`Is ${personName} an RVCE alumnus?`);
+
+      fetch('/api/referral_crm/record', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          company: comp.trim(),
+          person_name: personName.trim(),
+          profile_url: (profileUrl || '').trim(),
+          headline: (headline || '').trim(),
+          is_alumni: isAlumni
+        })
+      }).then(res => res.json()).then(data => {
+        if (data.status === 'ok') {
+          showToast(`✓ Tracked connection request to ${personName} @ ${comp}!`);
+          renderReferralCrmView();
+          updateStats();
+        } else {
+          showToast('Error: ' + (data.message || 'Failed'));
+        }
+      });
+    }
+
+    // Helper to log connection request right from the LinkedIn Outreach Modal
+    function logConnectionFromModal(company, personName, profileUrl, headline, isAlumni) {
+      fetch('/api/referral_crm/record', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          company: company,
+          person_name: personName,
+          profile_url: profileUrl || '',
+          headline: headline || '',
+          is_alumni: isAlumni
+        })
+      }).then(res => res.json()).then(data => {
+        if (data.status === 'ok') {
+          showToast(`⚡ Logged request to ${personName} @ ${company} in Referral CRM!`);
+          updateStats();
+        }
+      });
+    }
+
     async function prepareFollowupAction(id, company, role, name, email, subject, fNum, opens) {
       try {
         const res = await fetch('/api/cold_crm/generate_followup', {
@@ -3310,17 +3580,34 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       const analyticsContainer = document.getElementById('analytics-container');
       const strategyContainer = document.getElementById('strategy-container');
       const coldCrmContainer = document.getElementById('cold-crm-container');
+      const referralCrmContainer = document.getElementById('referral-crm-container');
 
       if (sourceFilterBar) {
-        sourceFilterBar.style.display = (tab === 'responses' || tab === 'analytics' || tab === 'strategy' || tab === 'cold_crm' || tab === 'remote_portals' || tab === 'daily_tracker') ? 'none' : 'flex';
+        sourceFilterBar.style.display = (tab === 'responses' || tab === 'analytics' || tab === 'strategy' || tab === 'cold_crm' || tab === 'remote_portals' || tab === 'daily_tracker' || tab === 'referral_crm') ? 'none' : 'flex';
       }
 
       const dailyTrackerContainer = document.getElementById('daily-tracker-container');
       if (dailyTrackerContainer) dailyTrackerContainer.style.display = (tab === 'daily_tracker') ? 'block' : 'none';
+      if (referralCrmContainer) referralCrmContainer.style.display = (tab === 'referral_crm') ? 'block' : 'none';
       if (strategyContainer) strategyContainer.style.display = (tab === 'strategy') ? 'block' : 'none';
       if (coldCrmContainer) coldCrmContainer.style.display = (tab === 'cold_crm') ? 'block' : 'none';
       const remotePortalsContainer = document.getElementById('remote-portals-container');
       if (remotePortalsContainer) remotePortalsContainer.style.display = (tab === 'remote_portals') ? 'block' : 'none';
+
+      if (tab === 'referral_crm') {
+        if (yetBanner) yetBanner.style.display = 'none';
+        if (freshBanner) freshBanner.style.display = 'none';
+        if (appBanner) appBanner.style.display = 'none';
+        qBanner.style.display = 'none';
+        rBanner.style.display = 'none';
+        if (respFilterBar) respFilterBar.style.display = 'none';
+        if (jobsContainer) jobsContainer.style.display = 'none';
+        if (analyticsContainer) analyticsContainer.style.display = 'none';
+        if (strategyContainer) strategyContainer.style.display = 'none';
+        if (coldCrmContainer) coldCrmContainer.style.display = 'none';
+        renderReferralCrmView();
+        return;
+      }
 
       if (tab === 'daily_tracker') {
         if (yetBanner) yetBanner.style.display = 'none';
@@ -4754,6 +5041,9 @@ HTML_DASHBOARD = """<!DOCTYPE html>
                   <button class="btn" style="background: #0a66c2; color: #fff; padding: 7px 10px; font-size: 11.5px; white-space: nowrap; border: none; border-radius: 6px; cursor: pointer;" onclick="openDirectUrl('${c.profile_url}')" title="Open profile in Brave">
                     <i class="fa-brands fa-linkedin"></i> Profile
                   </button>
+                  <button class="btn" style="background: #a855f7; color: #fff; border: none; padding: 7px 10px; font-size: 11.5px; white-space: nowrap; border-radius: 6px; cursor: pointer;" onclick="logConnectionFromModal('${company.replace(/'/g, "\\'")}', '${c.name.replace(/'/g, "\\'")}', '${c.profile_url}', '${(c.headline || '').replace(/'/g, "\\'")}', ${c.is_alumni ? 'true' : 'false'})" title="Track in Referral Network CRM">
+                    <i class="fa-solid fa-user-plus"></i> Track
+                  </button>
                   <button class="btn" style="background: #1e293b; color: #e2e8f0; border: 1px solid #475569; padding: 7px 10px; font-size: 11.5px; white-space: nowrap; border-radius: 6px; cursor: pointer;" onclick="copyCustomReferral('${c.name.replace(/'/g, "\\'")}')" title="Copy personalized note to clipboard">
                     <i class="fa-regular fa-copy"></i> Copy Note
                   </button>
@@ -6175,6 +6465,16 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps(summary).encode("utf-8"))
             return
 
+        # /api/referral_crm/summary (Referral connection requests, company breakdown, acceptance metrics)
+        elif path == "/api/referral_crm/summary":
+            from applypilot.networking.referral_tracker import get_referral_network_summary
+            summary = get_referral_network_summary()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(json.dumps(summary).encode("utf-8"))
+            return
+
         # /api/funnel (Everyday time spent, full vs half applied, 30-day conversion stats)
         elif path == "/api/funnel":
             from applypilot.analytics.activity import get_funnel_and_activity_metrics
@@ -7064,6 +7364,56 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     pitch_style=data.get("pitch_style", "quick_pitch"),
                     open_count=int(data.get("open_count", 0)),
                     job_rowid=data.get("job_rowid")
+                )
+            except Exception as e:
+                res = {"status": "error", "message": str(e)}
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(json.dumps(res).encode("utf-8"))
+            return
+
+        # /api/referral_crm/record (Record new connection request sent for referral)
+        elif path == "/api/referral_crm/record":
+            length = int(self.headers.get("Content-Length", 0))
+            body_data = self.rfile.read(length).decode("utf-8") if length > 0 else "{}"
+            try:
+                data = json.loads(body_data)
+                from applypilot.networking.referral_tracker import record_connection_request
+                res = record_connection_request(
+                    company=data.get("company", ""),
+                    person_name=data.get("person_name", ""),
+                    profile_url=data.get("profile_url", ""),
+                    headline=data.get("headline", ""),
+                    is_alumni=bool(data.get("is_alumni", False)),
+                    degree=data.get("degree", "2nd"),
+                    role_type=data.get("role_type", "Engineer"),
+                    notes=data.get("notes", ""),
+                    job_rowid=data.get("job_rowid")
+                )
+            except Exception as e:
+                res = {"status": "error", "message": str(e)}
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(json.dumps(res).encode("utf-8"))
+            return
+
+        # /api/referral_crm/update (Update connection acceptance, referral pitch status, notes)
+        elif path == "/api/referral_crm/update":
+            length = int(self.headers.get("Content-Length", 0))
+            body_data = self.rfile.read(length).decode("utf-8") if length > 0 else "{}"
+            try:
+                data = json.loads(body_data)
+                req_id = int(data.get("request_id", 0))
+                from applypilot.networking.referral_tracker import update_connection_status
+                res = update_connection_status(
+                    request_id=req_id,
+                    status=data.get("status", "accepted"),
+                    referral_status=data.get("referral_status"),
+                    notes=data.get("notes")
                 )
             except Exception as e:
                 res = {"status": "error", "message": str(e)}
