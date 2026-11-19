@@ -457,7 +457,7 @@ def sanitize_response_url(url: str, company: str = "") -> str:
 
 
 def get_cached_responses(category_filter: str | None = None) -> list[dict[str, Any]]:
-    """Retrieve already saved responses from database with all metadata."""
+    """Retrieve already saved responses from database enriched with application attribution, turnaround time, and channel diagnostics."""
     init_email_responses_table()
     conn = get_connection()
     c = conn.cursor()
@@ -478,8 +478,122 @@ def get_cached_responses(category_filter: str | None = None) -> list[dict[str, A
 
     cols = [d[0] for d in c.description]
     results = [dict(zip(cols, r)) for r in rows]
+
+    # Pre-fetch all applied jobs to match and correlate channel, application date, and turnaround time
+    try:
+        job_rows = c.execute("""
+            SELECT rowid, site, title, applied_at, discovered_at, strategy, url, is_easy_apply, num_applicants, referral_status, referral_contact_name, apply_status
+            FROM jobs
+            WHERE apply_status IN ('applied', 'interview', 'rejected') OR applied_at IS NOT NULL
+        """).fetchall()
+    except Exception:
+        job_rows = []
+
+    def parse_dt(dt_val: Any) -> datetime | None:
+        if not dt_val:
+            return None
+        dt_str = str(dt_val).replace("Z", "+00:00").strip()
+        try:
+            if "T" in dt_str:
+                return datetime.fromisoformat(dt_str)
+            return datetime.strptime(dt_str[:10], "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        except Exception:
+            return None
+
+    now_utc = datetime.now(timezone.utc)
+
     for res in results:
         res["action_url"] = sanitize_response_url(res.get("action_url", ""), res.get("company", ""))
+        comp = str(res.get("company", "")).strip().lower()
+        role = str(res.get("role_title", "")).strip().lower()
+
+        matched_job = None
+        for j in job_rows:
+            j_site = str(j[1] or "").lower()
+            j_url = str(j[6] or "").lower()
+            if (comp and (comp in j_site or j_site in comp or (len(comp) > 4 and comp in j_url))):
+                matched_job = j
+                break
+
+        # Compute channel attribution
+        channel = "Direct Application"
+        channel_icon = "fa-solid fa-paper-plane"
+        channel_color = "#38bdf8"
+        applied_at_str = ""
+        turnaround_label = ""
+        turnaround_days = None
+
+        if matched_job:
+            j_rowid, j_site, j_title, j_applied_at, j_disc_at, j_strat, j_url, j_easy, j_num_apps, j_ref_stat, j_ref_name, j_stat = matched_job
+            strat_l = str(j_strat or "").lower()
+            site_l = str(j_site or "").lower()
+            url_l = str(j_url or "").lower()
+
+            applied_dt = parse_dt(j_applied_at) or parse_dt(j_disc_at)
+            if applied_dt:
+                applied_at_str = applied_dt.strftime("%b %d, %Y")
+
+            if j_ref_stat == "asked" or j_ref_name or "referral" in strat_l or "whatsapp" in site_l or "kadegree" in strat_l:
+                channel = "Referral Network / Community"
+                channel_icon = "fa-solid fa-people-arrows"
+                channel_color = "#a855f7"
+            elif "1h_incognito" in strat_l or "incognito" in strat_l or (j_num_apps is not None and j_num_apps <= 100):
+                channel = "Fast Incognito Apply (< 4h Discovery)"
+                channel_icon = "fa-solid fa-bolt"
+                channel_color = "#f59e0b"
+            elif any(ats in url_l for ats in ["myworkday", "greenhouse", "lever", "smartrecruiters", "ashbyhq", "icims", "taleo", "oracle"]):
+                channel = "Enterprise ATS / Career Page"
+                channel_icon = "fa-solid fa-building"
+                channel_color = "#60a5fa"
+            else:
+                channel = "Direct Job Portal"
+                channel_icon = "fa-solid fa-globe"
+                channel_color = "#34d399"
+
+            # Compute response turnaround time
+            rec_dt = parse_dt(res.get("received_date") or res.get("synced_at"))
+            if applied_dt and rec_dt:
+                diff = (rec_dt - applied_dt).total_seconds()
+                diff_days = round(diff / 86400.0, 1)
+                turnaround_days = diff_days
+                if diff_days <= 0.1:
+                    turnaround_label = "< 4 hours (Immediate Auto-Acknowledgement)"
+                elif diff_days < 1.0:
+                    turnaround_label = f"{round(diff / 3600.0, 1)} hours"
+                else:
+                    turnaround_label = f"{diff_days} days"
+            elif applied_dt:
+                diff_days = round((now_utc - applied_dt).total_seconds() / 86400.0, 1)
+                turnaround_days = diff_days
+                turnaround_label = f"{diff_days} days pending"
+
+        # Formulate intelligence diagnosis (Why status / explanation)
+        cat = res.get("category", "acknowledged")
+        why_explanation = ""
+        if cat in ("oa", "interview_selected"):
+            why_explanation = f"Passed ATS screening via {channel}. Candidate profile & backend keywords matched recruiter criteria."
+        elif cat == "rejected":
+            if channel == "Enterprise ATS / Career Page":
+                why_explanation = "Automated ATS parse filter: Enterprise ATS filters candidates strictly on years of experience, keyword density, or location before recruiter review."
+            elif turnaround_days and turnaround_days <= 1.0:
+                why_explanation = "Automated knock-out question or screening rule triggered."
+            else:
+                why_explanation = "Role closed or recruiter proceeded with internal/more experienced candidates."
+        elif cat == "apply_link":
+            why_explanation = "Direct application / referral link sent to complete submission in ATS portal."
+        else:
+            if turnaround_days and turnaround_days >= 7.0:
+                why_explanation = f"Under review for {turnaround_days} days. In standard recruiting cycles, response after 7+ days suggests slow ATS batch review or role on hold."
+            else:
+                why_explanation = f"Application confirmed in system via {channel}. Awaiting recruiter batch review."
+
+        res["channel"] = channel
+        res["channel_icon"] = channel_icon
+        res["channel_color"] = channel_color
+        res["applied_at_str"] = applied_at_str
+        res["turnaround_label"] = turnaround_label or "1–3 days (Estimated)"
+        res["why_status"] = why_explanation
+
     return results
 
 

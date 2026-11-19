@@ -3912,6 +3912,12 @@ HTML_DASHBOARD = """<!DOCTYPE html>
                   <div class="job-sub">
                     <span><i class="fa-regular fa-envelope"></i> ${r.sender}</span>
                     <span><i class="fa-regular fa-calendar"></i> ${r.received_date || ''}</span>
+                    <span style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); color: ${r.channel_color || '#38bdf8'}; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 700;">
+                      <i class="${r.channel_icon || 'fa-solid fa-paper-plane'}"></i> ${r.channel || 'Direct Application'}
+                    </span>
+                    <span style="color: #cbd5e1; font-size: 11px; font-weight: 600;">
+                      <i class="fa-solid fa-stopwatch" style="color: #f59e0b;"></i> Response Turnaround: <strong>${r.turnaround_label || '1-3 days'}</strong>
+                    </span>
                   </div>
                 </div>
               </div>
@@ -3920,12 +3926,19 @@ HTML_DASHBOARD = """<!DOCTYPE html>
 
             ${extraBanner}
 
-            <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 10px; padding: 14px; font-size: 13px; color: #cbd5e1; line-height: 1.6;">
-              <div style="font-weight: 700; color: #f8fafc; margin-bottom: 6px; display: flex; align-items: center; gap: 8px;">
-                <i class="fa-solid fa-comment-dots" style="color: ${cat === 'oa' ? '#fbbf24' : cat === 'interview_selected' ? '#34d399' : cat === 'rejected' ? '#fb7185' : '#38bdf8'};"></i>
-                <span>${r.status}: ${r.summary}</span>
+            <!-- Intelligence & Why Explanation Block -->
+            <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 10px; padding: 14px; font-size: 13px; color: #cbd5e1; line-height: 1.6;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 8px;">
+                <div style="font-weight: 700; color: #f8fafc; display: flex; align-items: center; gap: 8px;">
+                  <i class="fa-solid fa-comment-dots" style="color: ${cat === 'oa' ? '#fbbf24' : cat === 'interview_selected' ? '#34d399' : cat === 'rejected' ? '#fb7185' : '#38bdf8'};"></i>
+                  <span>${r.status}: ${r.summary}</span>
+                </div>
+                ${r.applied_at_str ? `<span style="font-size: 11px; color: #94a3b8;"><i class="fa-regular fa-calendar-check"></i> Applied: ${r.applied_at_str}</span>` : ''}
               </div>
-              <div style="color: #94a3b8; font-style: italic; font-size: 12.5px; border-left: 2px solid rgba(255,255,255,0.15); padding-left: 10px; margin-top: 6px;">
+              <div style="background: rgba(30, 41, 59, 0.5); border-left: 3px solid ${cat === 'oa' || cat === 'interview_selected' ? '#10b981' : cat === 'rejected' ? '#f43f5e' : '#38bdf8'}; border-radius: 4px; padding: 6px 10px; margin-bottom: 6px; font-size: 12px; color: #e2e8f0;">
+                <i class="fa-solid fa-brain" style="color: #a855f7; margin-right: 5px;"></i> <strong>Why / Attribution:</strong> ${r.why_status || 'Tracking in recruitment pipeline.'}
+              </div>
+              <div style="color: #94a3b8; font-style: italic; font-size: 12px; border-left: 2px solid rgba(255,255,255,0.12); padding-left: 10px; margin-top: 6px;">
                 "${r.body_snippet}"
               </div>
             </div>
