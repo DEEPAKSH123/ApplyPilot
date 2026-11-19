@@ -1206,6 +1206,10 @@ HTML_DASHBOARD = """<!DOCTYPE html>
           <i class="fa-solid fa-bolt" style="margin-right: 5px; color: #818cf8;"></i> Fresh < 4h (< 200 Apps) ⚡
           <span class="tab-badge" id="badge-incognito-fresh" style="background: rgba(99, 102, 241, 0.3); color: #c7d2fe; border: 1px solid #818cf8;">0</span>
         </button>
+        <button class="tab-btn" onclick="setTab('fresh_24h')" style="color: #38bdf8; font-weight: 700;" title="Fresh openings discovered or posted within the last 24 hours with < 200 applicants">
+          <i class="fa-solid fa-fire-flame-curved" style="margin-right: 5px; color: #38bdf8;"></i> Fresh < 24 Hours 🔥
+          <span class="tab-badge" id="badge-fresh-24h" style="background: rgba(56, 189, 248, 0.25); color: #7dd3fc; border: 1px solid #38bdf8;">0</span>
+        </button>
         <button class="tab-btn" onclick="setTab('yet_to_apply')">
           <i class="fa-solid fa-clock-rotate-left" style="margin-right: 5px; color: #38bdf8;"></i> Yet to Apply
           <span class="tab-badge" id="badge-yet-to-apply">0</span>
@@ -2484,6 +2488,17 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       }).length;
       const incognitoBadge = document.getElementById('badge-incognito-fresh');
       if (incognitoBadge) incognitoBadge.textContent = incognitoJobsCount;
+
+      const fresh24hCount = allJobs.filter(j => {
+        if (j.apply_status === 'ignored' || j.apply_status === 'applied') return false;
+        if (j.num_applicants !== null && j.num_applicants !== undefined && j.num_applicants >= 200) return false;
+        const d = getJobEffectiveDate(j);
+        if (!d) return false;
+        const diff = Date.now() - d.getTime();
+        return (!isNaN(diff) && diff <= 24 * 60 * 60 * 1000 && diff >= 0);
+      }).length;
+      const fresh24hBadge = document.getElementById('badge-fresh-24h');
+      if (fresh24hBadge) fresh24hBadge.textContent = fresh24hCount;
 
       const kaJobsCount = allJobs.filter(j => (j.source_category === 'kadegree' || j.is_kadegree) && j.apply_status !== 'ignored' && j.apply_status !== 'applied').length;
       const kaBadge = document.getElementById('badge-kadegree');
@@ -4291,6 +4306,15 @@ HTML_DASHBOARD = """<!DOCTYPE html>
           const diff = Date.now() - d.getTime();
           if (isNaN(diff) || diff > 4 * 60 * 60 * 1000 || diff < 0) return false;
         }
+        if (currentTab === 'fresh_24h') {
+          if (job.apply_status === 'applied' || job.apply_status === 'ignored' || job.apply_status === 'rejected') return false;
+          if (job.num_applicants !== null && job.num_applicants !== undefined && job.num_applicants >= 200) return false;
+          if (checkIsOverExperienced(job)) return false;
+          const d = getJobEffectiveDate(job);
+          if (!d) return false;
+          const diff = Date.now() - d.getTime();
+          if (isNaN(diff) || diff > 24 * 60 * 60 * 1000 || diff < 0) return false;
+        }
         if (currentTab === 'high' && (job.fit_score === null || job.fit_score < 7 || job.apply_status === 'ignored' || job.apply_status === 'applied')) return false;
         if (currentTab === 'top' && (job.fit_score === null || job.fit_score < 8 || job.apply_status === 'ignored' || job.apply_status === 'applied')) return false;
         if (currentTab === 'approved' && (job.apply_status !== 'approved' || job.apply_status === 'applied')) return false;
@@ -4868,10 +4892,17 @@ HTML_DASHBOARD = """<!DOCTYPE html>
           </div>
 
           <!-- Direct Custom LinkedIn Search / Chat Box -->
-          <div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.08); display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-            <input type="text" id="direct-conn-input" placeholder="Paste specific connection's LinkedIn profile URL (e.g. https://www.linkedin.com/in/...)..." style="flex:1; min-width: 280px; background: #0f172a; border: 1px solid #334155; color: #fff; padding: 8px 12px; border-radius: 8px; font-size: 12px;">
-            <button class="btn" style="background: linear-gradient(135deg, #0284c7, #10b981); color: white; font-weight: 700; white-space: nowrap;" onclick="autoTypeDirectConnectionDM()"><i class="fa-solid fa-wand-magic-sparkles"></i> ⚡ Auto-Type Referral DM in Brave</button>
-            <button class="btn" style="background:#0a66c2; color:white; white-space: nowrap;" onclick="openDirectConnectionChat()"><i class="fa-solid fa-paper-plane"></i> Open Chat in Brave</button>
+          <div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.08); display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+            <input type="text" id="direct-conn-input" placeholder="Paste specific connection's LinkedIn profile URL (e.g. https://www.linkedin.com/in/...)..." style="flex:1; min-width: 260px; background: #0f172a; border: 1px solid #334155; color: #fff; padding: 8px 12px; border-radius: 8px; font-size: 12px;">
+            <button class="btn" style="background: linear-gradient(135deg, #a855f7, #6366f1); color: white; font-weight: 700; white-space: nowrap;" onclick="sendDirectConnectionInvite()" title="1-Click Connect: Clicks Connect, adds tailored referral note in Brave, and logs to CRM">
+              <i class="fa-solid fa-user-plus"></i> 1-Click Connect + Note
+            </button>
+            <button class="btn" style="background: linear-gradient(135deg, #0284c7, #10b981); color: white; font-weight: 700; white-space: nowrap;" onclick="autoTypeDirectConnectionDM()" title="Auto-types full referral DM into chat in Brave">
+              <i class="fa-solid fa-paper-plane"></i> Auto-Type DM
+            </button>
+            <button class="btn" style="background:#0a66c2; color:white; white-space: nowrap;" onclick="openDirectConnectionChat()" title="Open profile in Brave">
+              <i class="fa-brands fa-linkedin"></i> Profile
+            </button>
           </div>
         </div>
 
@@ -5035,14 +5066,20 @@ HTML_DASHBOARD = """<!DOCTYPE html>
                   <div style="color: #64748b; font-size: 11px;"><i class="fa-solid fa-location-dot"></i> ${c.location || 'India'}</div>
                 </div>
                 <div style="display: flex; gap: 6px; align-items: center; flex-shrink: 0;">
-                  <button class="btn" style="background: linear-gradient(135deg, #0284c7, #10b981); color: #fff; padding: 7px 12px; font-size: 11.5px; font-weight: 700; white-space: nowrap; border: none; border-radius: 6px; cursor: pointer;" onclick="composeLinkedInDM('${c.profile_url}', '${c.name.replace(/'/g, "\\'")}', '${company.replace(/'/g, "\\'")}', 'Backend Engineer', '${c.is_alumni ? 'alumni' : 'referral'}')" title="Auto-types referral DM with resume link in Brave chat">
-                    <i class="fa-solid fa-paper-plane"></i> Auto-Type DM
-                  </button>
+                  ${c.degree === '1st' ? `
+                    <button class="btn" style="background: linear-gradient(135deg, #0284c7, #10b981); color: #fff; padding: 7px 12px; font-size: 11.5px; font-weight: 700; white-space: nowrap; border: none; border-radius: 6px; cursor: pointer;" onclick="composeLinkedInDM('${c.profile_url}', '${c.name.replace(/'/g, "\\'")}', '${company.replace(/'/g, "\\'")}', 'Backend Engineer', '${c.is_alumni ? 'alumni' : 'referral'}', 'message')" title="Auto-types referral DM with resume link in Brave chat">
+                      <i class="fa-solid fa-paper-plane"></i> Auto-Type DM
+                    </button>
+                  ` : `
+                    <button class="btn" style="background: linear-gradient(135deg, #a855f7, #6366f1); color: #fff; padding: 7px 12px; font-size: 11.5px; font-weight: 700; white-space: nowrap; border: none; border-radius: 6px; cursor: pointer;" onclick="composeLinkedInDM('${c.profile_url}', '${c.name.replace(/'/g, "\\'")}', '${company.replace(/'/g, "\\'")}', 'Backend Engineer', '${c.is_alumni ? 'alumni' : 'referral'}', 'connect')" title="1-Click Connect: Clicks Connect, adds tailored referral note in Brave, and logs to CRM">
+                      <i class="fa-solid fa-user-plus"></i> Connect + Note
+                    </button>
+                  `}
                   <button class="btn" style="background: #0a66c2; color: #fff; padding: 7px 10px; font-size: 11.5px; white-space: nowrap; border: none; border-radius: 6px; cursor: pointer;" onclick="openDirectUrl('${c.profile_url}')" title="Open profile in Brave">
                     <i class="fa-brands fa-linkedin"></i> Profile
                   </button>
-                  <button class="btn" style="background: #a855f7; color: #fff; border: none; padding: 7px 10px; font-size: 11.5px; white-space: nowrap; border-radius: 6px; cursor: pointer;" onclick="logConnectionFromModal('${company.replace(/'/g, "\\'")}', '${c.name.replace(/'/g, "\\'")}', '${c.profile_url}', '${(c.headline || '').replace(/'/g, "\\'")}', ${c.is_alumni ? 'true' : 'false'})" title="Track in Referral Network CRM">
-                    <i class="fa-solid fa-user-plus"></i> Track
+                  <button class="btn" style="background: #1e293b; color: #cbd5e1; border: 1px solid #475569; padding: 7px 10px; font-size: 11.5px; white-space: nowrap; border-radius: 6px; cursor: pointer;" onclick="logConnectionFromModal('${company.replace(/'/g, "\\'")}', '${c.name.replace(/'/g, "\\'")}', '${c.profile_url}', '${(c.headline || '').replace(/'/g, "\\'")}', ${c.is_alumni ? 'true' : 'false'})" title="Track in Referral Network CRM">
+                    <i class="fa-solid fa-bookmark"></i> Track
                   </button>
                   <button class="btn" style="background: #1e293b; color: #e2e8f0; border: 1px solid #475569; padding: 7px 10px; font-size: 11.5px; white-space: nowrap; border-radius: 6px; cursor: pointer;" onclick="copyCustomReferral('${c.name.replace(/'/g, "\\'")}')" title="Copy personalized note to clipboard">
                     <i class="fa-regular fa-copy"></i> Copy Note
@@ -5137,12 +5174,16 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       showToast('Opening LinkedIn profile in Brave...');
     }
 
-    async function composeLinkedInDM(profileUrl, name = '', company = '', role = 'Backend Engineer', template = 'referral') {
+    async function composeLinkedInDM(profileUrl, name = '', company = '', role = 'Backend Engineer', template = 'referral', actionType = 'auto') {
       if (!profileUrl) {
         showToast('Please enter or select a profile URL.');
         return;
       }
-      showToast(`⚡ Launching Brave & auto-typing referral message for ${name || 'connection'}...`);
+      const isConnect = (actionType === 'connect');
+      showToast(isConnect 
+        ? `⚡ Sending connection request to ${name || 'contact'} with custom note in Brave...`
+        : `⚡ Launching Brave & auto-typing referral message for ${name || 'connection'}...`
+      );
 
       try {
         const res = await fetch('/api/linkedin/compose_dm', {
@@ -5153,14 +5194,18 @@ HTML_DASHBOARD = """<!DOCTYPE html>
             name: name,
             company: company,
             role: role,
-            template: template
+            template: template,
+            action_type: actionType
           })
         });
         const data = await res.json();
         if (data.status === 'ok') {
           showToast(`🛡️ ${data.message}`);
+          if (isConnect && company && name) {
+            logConnectionFromModal(company, name, profileUrl, 'Contacted via 1-Click Connect', template === 'alumni');
+          }
         } else {
-          showToast(`⚠️ Compose DM: ${data.message || 'Error'}`);
+          showToast(`⚠️ Compose: ${data.message || 'Error'}`);
         }
       } catch (err) {
         showToast(`Error launching DM composer: ${err}`);
@@ -5176,7 +5221,19 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       const titleEl = document.getElementById('referral-modal-title');
       const compMatch = titleEl ? titleEl.innerText.match(/Outreach:\s*([^(\\n]+)/) : null;
       const comp = compMatch ? compMatch[1].trim() : '';
-      composeLinkedInDM(val, '', comp, 'Backend Engineer', 'referral');
+      composeLinkedInDM(val, '', comp, 'Backend Engineer', 'referral', 'auto');
+    }
+
+    function sendDirectConnectionInvite() {
+      const val = document.getElementById('direct-conn-input').value.trim();
+      if (!val) {
+        showToast('Please enter a connection LinkedIn URL first.');
+        return;
+      }
+      const titleEl = document.getElementById('referral-modal-title');
+      const compMatch = titleEl ? titleEl.innerText.match(/Outreach:\s*([^(\\n]+)/) : null;
+      const comp = compMatch ? compMatch[1].trim() : '';
+      composeLinkedInDM(val, '', comp, 'Backend Engineer', 'referral', 'connect');
     }
 
     function copyText(val, label) {
@@ -7517,6 +7574,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 name_str = data.get("name", "").strip()
                 custom_msg = data.get("message", "").strip()
                 template = data.get("template", "referral").strip()
+                action_type = data.get("action_type", "auto").strip()
 
                 from applypilot.networking.linkedin import compose_referral_dm
                 res = compose_referral_dm(
@@ -7526,6 +7584,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     name=name_str,
                     custom_message=custom_msg,
                     template_type=template,
+                    action_type=action_type,
                     headed=True
                 )
             except Exception as e:

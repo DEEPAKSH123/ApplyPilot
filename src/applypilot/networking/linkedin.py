@@ -523,10 +523,12 @@ def compose_referral_dm(
     name: str = "",
     custom_message: str = "",
     template_type: str = "referral",
+    action_type: str = "auto",  # 'auto', 'connect', 'message'
     headed: bool = True
 ) -> dict[str, Any]:
-    """Launch Brave, open connection profile/chat, and auto-type personalized referral message.
+    """Launch Brave, open connection profile/chat, and auto-type personalized referral message or connection note.
 
+    If action_type == 'connect', specifically clicks Connect, Add a note, fills custom note, and highlights Send!
     Human-in-the-Loop Safe: Pre-types the message and pauses for Deepak to click 'Send'.
     """
     from playwright.sync_api import sync_playwright
@@ -628,38 +630,77 @@ def compose_referral_dm(
                     if raw_title:
                         first_name = raw_title.split()[0]
 
-            # Try clicking Message button (for 1st-degree connections)
-            msg_btn = page.query_selector("button:has-text('Message'), a:has-text('Message'), button[aria-label*='Message']")
             typed = False
 
-            if msg_btn:
+            # If action_type is explicitly 'connect', prioritize clicking Connect
+            if action_type == "connect":
                 try:
-                    msg_btn.click()
-                    time.sleep(2)
-                    # Locate chat box
-                    chat_box = page.wait_for_selector(
-                        "div.msg-form__contenteditable, div[role='textbox'][aria-label*='Write a message']",
-                        timeout=6000
-                    )
-                    if chat_box:
-                        chat_box.click()
-                        time.sleep(0.5)
-                        page.keyboard.insert_text(body_msg)
-                        typed = True
-                        log.info("Successfully typed message into LinkedIn chat box!")
+                    connect_btn = page.query_selector("button:has-text('Connect'), a:has-text('Connect')")
+                    if not connect_btn:
+                        more_btn = page.query_selector("button[aria-label*='More actions'], button:has-text('More')")
+                        if more_btn:
+                            more_btn.click()
+                            time.sleep(1)
+                            connect_btn = page.query_selector("div[role='button']:has-text('Connect'), button:has-text('Connect')")
 
-                        # Highlight the send button
-                        page.evaluate("""() => {
-                            const btn = document.querySelector('button.msg-form__send-button, button[type="submit"].msg-form__send-btn');
-                            if (btn) {
-                                btn.style.outline = '3px solid #10b981';
-                                btn.style.boxShadow = '0 0 16px #10b981';
-                            }
-                        }""")
-                except Exception as me:
-                    log.warning("Could not auto-type in inline chat: %s", me)
+                    if connect_btn:
+                        connect_btn.click()
+                        time.sleep(1.5)
 
-            # If not typed via Message button, try "Connect" -> "Add a note"
+                        # Look for "Add a note"
+                        add_note_btn = page.query_selector("button:has-text('Add a note'), button[aria-label*='Add a note']")
+                        if add_note_btn:
+                            add_note_btn.click()
+                            time.sleep(1)
+
+                        textarea = page.query_selector("textarea#custom-message, textarea[name='message']")
+                        if textarea:
+                            textarea.fill(short_note)
+                            typed = True
+                            log.info("Filled personalized note into connection request modal!")
+
+                            # Highlight the Send invitation button in green
+                            page.evaluate("""() => {
+                                const btn = document.querySelector('button[aria-label*="Send invitation"], button:has-text("Send"), button[aria-label*="Send now"]');
+                                if (btn) {
+                                    btn.style.outline = '3px solid #10b981';
+                                    btn.style.boxShadow = '0 0 16px #10b981';
+                                }
+                            }""")
+                except Exception as ce:
+                    log.warning("Could not fill connection note: %s", ce)
+
+            # Otherwise, try clicking Message button (for 1st-degree connections)
+            if not typed and action_type != "connect":
+                msg_btn = page.query_selector("button:has-text('Message'), a:has-text('Message'), button[aria-label*='Message']")
+                if msg_btn:
+                    try:
+                        msg_btn.click()
+                        time.sleep(2)
+                        # Locate chat box
+                        chat_box = page.wait_for_selector(
+                            "div.msg-form__contenteditable, div[role='textbox'][aria-label*='Write a message']",
+                            timeout=6000
+                        )
+                        if chat_box:
+                            chat_box.click()
+                            time.sleep(0.5)
+                            page.keyboard.insert_text(body_msg)
+                            typed = True
+                            log.info("Successfully typed message into LinkedIn chat box!")
+
+                            # Highlight the send button
+                            page.evaluate("""() => {
+                                const btn = document.querySelector('button.msg-form__send-button, button[type="submit"].msg-form__send-btn');
+                                if (btn) {
+                                    btn.style.outline = '3px solid #10b981';
+                                    btn.style.boxShadow = '0 0 16px #10b981';
+                                }
+                            }""")
+                    except Exception as me:
+                        log.warning("Could not auto-type in inline chat: %s", me)
+
+            # If still not typed, try "Connect" -> "Add a note"
             if not typed:
                 try:
                     connect_btn = page.query_selector("button:has-text('Connect'), a:has-text('Connect')")
@@ -685,6 +726,14 @@ def compose_referral_dm(
                             textarea.fill(short_note)
                             typed = True
                             log.info("Filled personalized note into connection request modal!")
+
+                            page.evaluate("""() => {
+                                const btn = document.querySelector('button[aria-label*="Send invitation"], button:has-text("Send"), button[aria-label*="Send now"]');
+                                if (btn) {
+                                    btn.style.outline = '3px solid #10b981';
+                                    btn.style.boxShadow = '0 0 16px #10b981';
+                                }
+                            }""")
                 except Exception as ce:
                     log.warning("Could not fill connection note: %s", ce)
 
