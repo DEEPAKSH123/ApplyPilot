@@ -10,6 +10,7 @@ Tracks:
 import json
 import logging
 import sqlite3
+import time
 from datetime import datetime, timezone
 from typing import Any
 
@@ -487,4 +488,249 @@ def generate_tailored_pitch_for_request(request_id: int) -> dict[str, Any]:
         "resume_path": resume_path
     }
 
+
+def auto_connect_referral_from_job_url(
+    job_url: str,
+    max_people: int = 5,
+    headless: bool = False,
+    send_connection: bool = False,
+) -> dict[str, Any]:
+    """Given a LinkedIn job URL: extract company + role, find connections, optionally send requests.
+
+    Workflow:
+      1. Parse company name and role title from the LinkedIn job URL (via Playwright).
+      2. Call search_linkedin_connections() to find 1st/2nd-degree engineers at that company.
+      3. For each found person:
+         a. Record them in referral_connection_requests (status='discovered').
+         b. If send_connection=True → call compose_referral_dm(..., action_type='connect')
+            to open Brave, pre-fill the connection note, and let Deepak click Send.
+      4. Return summary dict.
+
+    Args:
+        job_url:         LinkedIn job posting URL.
+        max_people:      Max connections to surface (default 5).
+        headless:        Whether to scrape job details headlessly (default False = show Brave).
+        send_connection: If True, opens Brave for each person to send a connection request.
+                         If False (default), only discovers and records — no browser pop-ups.
+
+    Returns:
+        dict with keys: status, company, role_title, found (list of person dicts), sent_count
+    """
+    import urllib.parse
+
+    conn = get_connection()
+    init_referral_connection_tables(conn)
+
+    job_url = job_url.strip()
+    if not job_url.startswith("http"):
+        return {"status": "error", "message": "Invalid job URL. Must start with http/https."}
+
+    # --- Step 1: Extract company + role from job URL ---
+    company = ""
+    role_title = "Backend Engineer"
+    job_rowid: int | None = None
+
+    # First check if job is already in our DB
+    try:
+        row = conn.execute(
+            "SELECT title, url, company FROM jobs WHERE url = ? OR application_url = ?",
+            (job_url, job_url)
+        ).fetchone()
+        if row:
+            role_title = row["title"] or role_title
+            # Try to get company from title or use 'company' col if exists
+            try:
+                company = row["company"] or ""
+            except Exception:
+                company = ""
+            job_rowid_row = conn.execute(
+                "SELECT rowid FROM jobs WHERE url = ? OR application_url = ?",
+                (job_url, job_url)
+            ).fetchone()
+            if job_rowid_row:
+                job_rowid = job_rowid_row[0]
+    except Exception:
+        pass
+
+    # If company not in DB, try to scrape it from LinkedIn job page
+    if not company:
+        try:
+            from playwright.sync_api import sync_playwright
+            from applypilot.networking.linkedin import get_stored_cookies, BRAVE_PROFILE_DIR, get_browser_executable
+
+            exe_path, _ = get_browser_executable()
+            BRAVE_PROFILE_DIR.mkdir(parents=True, exist_ok=True)
+
+            with sync_playwright() as p:
+                ctx = p.chromium.launch_persistent_context(
+                    user_data_dir=str(BRAVE_PROFILE_DIR.resolve()),
+                    executable_path=exe_path if exe_path else None,
+                    headless=True,
+                    args=["--disable-blink-features=AutomationControlled"],
+                    viewport={"width": 1280, "height": 850},
+                )
+                cookies = get_stored_cookies()
+                if cookies:
+                    try:
+                        ctx.add_cookies(cookies)
+                    except Exception:
+                        pass
+
+                page = ctx.pages[0] if ctx.pages else ctx.new_page()
+                page.goto(job_url, wait_until="domcontentloaded")
+                time.sleep(4)
+
+                extracted = page.evaluate("""() => {
+                    const compEl = document.querySelector(
+                        'a.topcard__org-name-link, span.topcard__flavor:first-child, '
+                        + '.job-details-jobs-unified-top-card__company-name a, '
+                        + 'a[data-tracking-control-name*="company"], '
+                        + '.jobs-unified-top-card__company-name'
+                    );
+                    const titleEl = document.querySelector(
+                        'h1.topcard__title, h1.jobs-unified-top-card__job-title, '
+                        + 'h1[class*="job-title"]'
+                    );
+                    return {
+                        company: compEl ? compEl.innerText.trim() : '',
+                        role_title: titleEl ? titleEl.innerText.trim() : ''
+                    };
+                }""")
+                ctx.close()
+
+                company = extracted.get("company", "").strip()
+                if extracted.get("role_title"):
+                    role_title = extracted["role_title"].strip()
+
+        except Exception as e:
+            log.warning("Could not scrape company from job URL %s: %s", job_url, e)
+
+    # Fallback: try to extract company from URL slug
+    if not company:
+        try:
+            parsed = urllib.parse.urlparse(job_url)
+            path_parts = [p for p in parsed.path.split("/") if p]
+            # e.g. /jobs/view/1234567?refId=...  — sometimes has company in query
+            q = urllib.parse.parse_qs(parsed.query)
+            if "currentJobId" in q:
+                pass  # can't determine company from ID alone
+        except Exception:
+            pass
+
+    if not company:
+        return {
+            "status": "error",
+            "message": "Could not determine company name from the job URL. Try pasting the company name manually.",
+            "job_url": job_url
+        }
+
+    log.info("auto_connect_referral: company=%s, role=%s, url=%s", company, role_title, job_url)
+
+    # --- Step 2: Search LinkedIn for connections at this company ---
+    try:
+        from applypilot.networking.linkedin import search_linkedin_connections
+        connections = search_linkedin_connections(
+            company=company,
+            role="backend engineer sde",
+            max_results=max_people
+        )
+    except Exception as e:
+        log.error("search_linkedin_connections failed: %s", e)
+        connections = []
+
+    if not connections or (len(connections) == 1 and connections[0].get("error")):
+        return {
+            "status": "error",
+            "message": f"LinkedIn not authenticated or no connections found at '{company}'. Run 'applypilot linkedin login' first.",
+            "company": company,
+            "role_title": role_title,
+            "found": [],
+            "sent_count": 0
+        }
+
+    # --- Step 3: Record & optionally connect ---
+    sent_count = 0
+    recorded = []
+
+    for person in connections[:max_people]:
+        pname = person.get("name", "").strip()
+        purl = person.get("profile_url", "").strip()
+        pheadline = person.get("headline", "").strip()
+        pdegree = person.get("degree", "2nd")
+        is_alumni = bool(person.get("is_alumni", False))
+
+        if not pname:
+            continue
+
+        # Build a brief connection note (max 295 chars)
+        is_alumni_flag = is_alumni or "rvce" in pheadline.lower() or "rv college" in pheadline.lower()
+        if is_alumni_flag:
+            short_note = (
+                f"Hi {pname.split()[0]}, RVCE CSE '25 junior here, SDE-1 Backend @ Meesho (Java/Go/Kafka). "
+                f"Saw the {role_title} role at {company} — would you be open to referring me?"
+            )[:295]
+        else:
+            short_note = (
+                f"Hi {pname.split()[0]}, I'm an SDE-1 Backend Engineer at Meesho (RVCE '25, Java/Go/Kafka/Redis). "
+                f"Interested in the {role_title} opening at {company}. Would you be open to connecting?"
+            )[:295]
+
+        # Record in CRM
+        rec_result = record_connection_request(
+            company=company,
+            person_name=pname,
+            profile_url=purl,
+            headline=pheadline,
+            is_alumni=is_alumni_flag,
+            degree=pdegree,
+            role_type="Engineer",
+            notes=f"Auto-discovered for {role_title} @ {company} | job_url={job_url}",
+            job_rowid=job_rowid,
+            tailored_msg=short_note,
+        )
+
+        p_record = {
+            "id": rec_result.get("id"),
+            "person_name": pname,
+            "profile_url": purl,
+            "headline": pheadline,
+            "degree": pdegree,
+            "is_alumni": is_alumni_flag,
+            "existing": rec_result.get("existing", False),
+            "short_note": short_note,
+        }
+        recorded.append(p_record)
+
+        # Optionally open Brave to send connection request
+        if send_connection and purl:
+            try:
+                from applypilot.networking.linkedin import compose_referral_dm
+                compose_referral_dm(
+                    profile_url=purl,
+                    company=company,
+                    role_title=role_title,
+                    name=pname,
+                    custom_message=short_note,
+                    action_type="connect",
+                    headed=True,
+                )
+                sent_count += 1
+                time.sleep(5)  # Brief pause between browser launches
+            except Exception as ce:
+                log.warning("Could not open Brave for %s: %s", pname, ce)
+
+    return {
+        "status": "ok",
+        "company": company,
+        "role_title": role_title,
+        "job_url": job_url,
+        "found": recorded,
+        "found_count": len(recorded),
+        "sent_count": sent_count,
+        "message": (
+            f"Found {len(recorded)} connection(s) at {company} for '{role_title}'. "
+            + (f"Opened Brave for {sent_count} connection request(s)." if send_connection else
+               "Recorded in CRM — click '🤝 Send Request' per person to connect via Brave.")
+        )
+    }
 

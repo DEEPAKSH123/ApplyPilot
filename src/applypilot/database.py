@@ -5,6 +5,7 @@ pipeline stage are created up front so any stage can run independently
 without migration ordering issues.
 """
 
+import logging
 import re
 import sqlite3
 import threading
@@ -12,6 +13,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from applypilot.config import DB_PATH
+
+log = logging.getLogger(__name__)
 
 # Thread-local connection storage — each thread gets its own connection
 # (required for SQLite thread safety with parallel workers)
@@ -605,3 +608,42 @@ def get_jobs_by_stage(conn: sqlite3.Connection | None = None,
         columns = rows[0].keys()
         return [dict(zip(columns, row)) for row in rows]
     return []
+
+
+def prune_old_jobs(days: int = 15, conn: "sqlite3.Connection | None" = None) -> dict:
+    """Delete stale jobs that are older than `days` days and not in an active pipeline state.
+
+    Safe states that are NEVER pruned regardless of age:
+      applied, interview, asked_referral, approved, offer, half_applied
+
+    Args:
+        days: Age threshold in days. Rows with discovered_at older than this are deleted.
+        conn: Optional connection. Uses get_connection() if None.
+
+    Returns:
+        dict with keys: deleted (int), threshold_date (str)
+    """
+    if conn is None:
+        conn = get_connection()
+
+    threshold = datetime.now(timezone.utc).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+    # Build threshold ISO string; SQLite stores TEXT in ISO format
+    from datetime import timedelta
+    cutoff = (threshold - timedelta(days=days)).isoformat()
+
+    safe_statuses = ("applied", "interview", "asked_referral", "approved", "offer", "half_applied")
+    placeholders = ",".join("?" * len(safe_statuses))
+
+    result = conn.execute(
+        f"""DELETE FROM jobs
+            WHERE discovered_at < ?
+              AND (apply_status IS NULL OR apply_status NOT IN ({placeholders}))
+        """,
+        (cutoff, *safe_statuses)
+    )
+    conn.commit()
+    deleted = result.rowcount
+    log.info("prune_old_jobs: removed %d stale jobs older than %d days (cutoff=%s)", deleted, days, cutoff)
+    return {"deleted": deleted, "threshold_date": cutoff, "days": days}

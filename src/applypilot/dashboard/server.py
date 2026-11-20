@@ -1014,6 +1014,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       <div class="quick-pill" onclick="openCustomDraftModal()"><i class="fa-solid fa-pen-nib"></i> Draft Cold Email</div>
       <div class="quick-pill" onclick="triggerBatchAutoApply()" title="Auto-apply to qualified roles in Brave"><i class="fa-solid fa-play"></i> Auto-Apply</div>
       <div class="quick-pill" onclick="triggerChannelPoll(event)" title="Poll WhatsApp, Telegram, and Gmail for referral leads"><i class="fa-solid fa-satellite-dish"></i> Poll Channels</div>
+      <div class="quick-pill" onclick="pruneOldJobsNow()" title="Delete stale job listings older than 15 days (safe — never deletes applied/interview rows)" style="background: linear-gradient(135deg, #7f1d1d, #991b1b); color: #fca5a5; border: 1px solid #dc2626; font-weight: 700;"><i class="fa-solid fa-trash-can"></i> Prune Stale (&gt;15d)</div>
     </div>
   </header>
 
@@ -3386,7 +3387,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
                   Company-wise tracking of connection requests sent to engineers and RVCE alumni: see exact acceptance ratios and follow up without forgetting!
                 </p>
               </div>
-              <div style="display: flex; gap: 10px;">
+              <div style="display: flex; gap: 10px; flex-wrap: wrap;">
                 <button onclick="syncLinkedInAcceptedConnections()" id="btn-sync-connections" style="background: linear-gradient(135deg, #0284c7, #0284c7); color: white; border: none; padding: 9px 16px; border-radius: 8px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 14px rgba(2, 132, 199, 0.35);" title="Checks your LinkedIn recent connections and auto-matches accepted referral requests">
                   <i class="fa-solid fa-arrows-rotate"></i> Sync Accepted Connections
                 </button>
@@ -3394,6 +3395,36 @@ HTML_DASHBOARD = """<!DOCTYPE html>
                   <i class="fa-solid fa-plus"></i> Log Connection Request
                 </button>
               </div>
+            </div>
+
+            <!-- Auto-Connect from Job URL Panel -->
+            <div id="auto-connect-panel" style="background: linear-gradient(135deg, rgba(15,23,42,0.95), rgba(30,41,59,0.9)); border: 1.5px solid rgba(168, 85, 247, 0.35); border-radius: 14px; padding: 20px; margin-bottom: 20px; box-shadow: 0 8px 32px rgba(168,85,247,0.1);">
+              <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 14px;">
+                <i class="fa-solid fa-wand-magic-sparkles" style="color: #a855f7; font-size: 18px;"></i>
+                <div>
+                  <div style="font-size: 15px; font-weight: 800; color: #f8fafc;">🤝 Auto-Connect from LinkedIn Job URL</div>
+                  <div style="font-size: 12px; color: #94a3b8; margin-top: 2px;">Paste a LinkedIn job link → finds your 1st/2nd-degree connections at that company → records them in CRM → optionally opens Brave to send connection requests</div>
+                </div>
+              </div>
+              <div style="display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap;">
+                <div style="flex: 1; min-width: 280px;">
+                  <label style="font-size: 11px; color: #94a3b8; display: block; margin-bottom: 5px; font-weight: 600;">LinkedIn Job URL</label>
+                  <input id="auto-connect-job-url" type="text" placeholder="https://www.linkedin.com/jobs/view/1234567..." style="width: 100%; background: rgba(15,23,42,0.8); border: 1.5px solid rgba(168,85,247,0.4); color: #f8fafc; padding: 9px 13px; border-radius: 8px; font-size: 13px; outline: none; box-sizing: border-box;" />
+                </div>
+                <div style="display: flex; gap: 8px; align-items: flex-end;">
+                  <div>
+                    <label style="font-size: 11px; color: #94a3b8; display: block; margin-bottom: 5px; font-weight: 600;">Max People</label>
+                    <input id="auto-connect-max" type="number" value="5" min="1" max="20" style="width: 70px; background: rgba(15,23,42,0.8); border: 1.5px solid rgba(100,116,139,0.3); color: #f8fafc; padding: 9px 10px; border-radius: 8px; font-size: 13px; outline: none;" />
+                  </div>
+                  <button onclick="runAutoConnect(false)" id="btn-auto-discover" style="background: linear-gradient(135deg, #7c3aed, #a855f7); color: white; border: none; padding: 9px 15px; border-radius: 8px; font-weight: 700; cursor: pointer; white-space: nowrap; font-size: 13px;">
+                    <i class="fa-solid fa-magnifying-glass"></i> Discover Only
+                  </button>
+                  <button onclick="runAutoConnect(true)" id="btn-auto-send" style="background: linear-gradient(135deg, #059669, #10b981); color: white; border: none; padding: 9px 15px; border-radius: 8px; font-weight: 700; cursor: pointer; white-space: nowrap; font-size: 13px;" title="Discover + open Brave to send connection requests">
+                    <i class="fa-solid fa-paper-plane"></i> Discover + Connect
+                  </button>
+                </div>
+              </div>
+              <div id="auto-connect-result" style="margin-top: 14px; display: none;"></div>
             </div>
 
             <!-- KPI Cards -->
@@ -3547,6 +3578,116 @@ HTML_DASHBOARD = """<!DOCTYPE html>
           showToast('Error: ' + (data.message || 'Failed'));
         }
       });
+    }
+
+    // ── Auto-Connect from LinkedIn Job URL ──────────────────────────────────
+    async function runAutoConnect(sendConnection) {
+      const jobUrl = (document.getElementById('auto-connect-job-url') || {}).value || '';
+      const maxPeople = parseInt((document.getElementById('auto-connect-max') || {}).value || '5', 10);
+      const resultBox = document.getElementById('auto-connect-result');
+
+      if (!jobUrl.trim()) {
+        showToast('⚠️ Please paste a LinkedIn job URL first.');
+        return;
+      }
+
+      const btnDiscover = document.getElementById('btn-auto-discover');
+      const btnSend = document.getElementById('btn-auto-send');
+      if (btnDiscover) { btnDiscover.disabled = true; btnDiscover.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Searching...'; }
+      if (btnSend) { btnSend.disabled = true; }
+      if (resultBox) { resultBox.style.display = 'block'; resultBox.innerHTML = '<div style="color:#a855f7; font-size:13px;"><i class="fa-solid fa-circle-notch fa-spin"></i> Searching LinkedIn connections at this company... (may take 15-30s)</div>'; }
+      showToast('🔍 Scanning LinkedIn for connections at this company...');
+
+      try {
+        const res = await fetch('/api/referral_crm/auto_connect', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ job_url: jobUrl.trim(), max_people: maxPeople, send_connection: sendConnection })
+        });
+        const data = await res.json();
+
+        if (data.status === 'ok') {
+          const found = data.found || [];
+          if (found.length === 0) {
+            if (resultBox) resultBox.innerHTML = `<div style="color:#fbbf24; font-size:13px; padding: 10px; background: rgba(251,191,36,0.1); border-radius: 8px; border: 1px solid rgba(251,191,36,0.3);">⚠️ No connections found at <strong>${escapeHtml(data.company || 'this company')}</strong>. Make sure your LinkedIn session is active (run LinkedIn Login from the sidebar).</div>`;
+            showToast('No connections found at this company.');
+          } else {
+            showToast(`🎉 Found ${found.length} connection(s) at ${data.company}! Recorded in CRM.`);
+            const peopleHtml = found.map(p => `
+              <div style="display: flex; justify-content: space-between; align-items: center; padding: 9px 12px; background: rgba(30,41,59,0.6); border: 1px solid ${p.is_alumni ? 'rgba(59,130,246,0.4)' : 'rgba(255,255,255,0.08)'}; border-radius: 8px; gap: 8px;">
+                <div style="flex: 1; min-width: 0;">
+                  <div style="font-size: 13px; font-weight: 700; color: #f1f5f9; display: flex; align-items: center; gap: 6px;">
+                    ${escapeHtml(p.person_name)}
+                    ${p.is_alumni ? '<span style="background:#1e3a8a; color:#93c5fd; font-size:9.5px; padding:1px 5px; border-radius:3px;">🎓 RVCE</span>' : ''}
+                    <span style="background: rgba(100,116,139,0.2); color: #94a3b8; font-size:9.5px; padding:1px 6px; border-radius:3px;">${escapeHtml(p.degree || '2nd')}</span>
+                    ${p.existing ? '<span style="background:rgba(16,185,129,0.1); color:#34d399; font-size:9.5px; padding:1px 6px; border-radius:3px;">Already in CRM</span>' : '<span style="background:rgba(168,85,247,0.1); color:#d8b4fe; font-size:9.5px; padding:1px 6px; border-radius:3px;">New</span>'}
+                  </div>
+                  <div style="font-size: 11px; color: #94a3b8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(p.headline || '')}</div>
+                </div>
+                <div style="display: flex; gap: 6px; flex-shrink: 0;">
+                  ${p.profile_url ? `
+                    <button onclick="sendSingleConnectionRequest('${encodeURIComponent(p.profile_url)}', '${escapeHtml(p.person_name).replace(/'/g,'')}', '${escapeHtml(data.company || '').replace(/'/g,'')}', '${escapeHtml(data.role_title || '').replace(/'/g,'')}')"
+                      style="background: linear-gradient(135deg, #059669, #10b981); color: white; border: none; padding: 5px 10px; border-radius: 6px; font-size: 11px; font-weight: 700; cursor: pointer;" title="Open Brave and pre-fill connection note">
+                      🤝 Send Request
+                    </button>
+                    <a href="${escapeHtml(p.profile_url)}" target="_blank" rel="noopener noreferrer" style="color: #38bdf8; padding: 5px 7px; border-radius: 6px; background: rgba(56,189,248,0.1); display: flex; align-items: center;">
+                      <i class="fa-brands fa-linkedin"></i>
+                    </a>
+                  ` : ''}
+                </div>
+              </div>
+            `).join('');
+
+            if (resultBox) resultBox.innerHTML = `
+              <div style="border-top: 1px solid rgba(255,255,255,0.08); padding-top: 12px;">
+                <div style="font-size: 13px; font-weight: 700; color: #f8fafc; margin-bottom: 10px;">
+                  <i class="fa-solid fa-check-circle" style="color: #10b981;"></i>
+                  Found ${found.length} connection(s) at <span style="color: #a855f7;">${escapeHtml(data.company || '')}</span> for <em>${escapeHtml(data.role_title || '')}</em>
+                  ${sendConnection ? ' — Brave opened for connection requests!' : ''}
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 8px;">${peopleHtml}</div>
+                <div style="font-size: 11px; color: #64748b; margin-top: 10px;">All contacts saved to Referral CRM. Scroll down to see company cards ↓</div>
+              </div>
+            `;
+            renderReferralCrmView();
+            updateStats();
+          }
+        } else {
+          const errMsg = data.message || 'Unknown error';
+          if (resultBox) resultBox.innerHTML = `<div style="color:#f87171; font-size:13px; padding: 10px; background: rgba(248,113,113,0.1); border-radius: 8px; border: 1px solid rgba(248,113,113,0.3);">❌ ${escapeHtml(errMsg)}</div>`;
+          showToast('Error: ' + errMsg);
+        }
+      } catch (err) {
+        if (resultBox) resultBox.innerHTML = `<div style="color:#f87171; font-size:13px;">Network error: ${err}</div>`;
+        showToast('Network error: ' + err);
+      } finally {
+        if (btnDiscover) { btnDiscover.disabled = false; btnDiscover.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> Discover Only'; }
+        if (btnSend) { btnSend.disabled = false; }
+      }
+    }
+
+    async function sendSingleConnectionRequest(encodedUrl, name, company, roleTitle) {
+      const profileUrl = decodeURIComponent(encodedUrl);
+      showToast(`🤝 Opening Brave to connect with ${name}...`);
+      try {
+        const res = await fetch('/api/referral_crm/auto_connect', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            job_url: '',
+            max_people: 1,
+            send_connection: true,
+            single_profile_url: profileUrl,
+            single_name: name,
+            single_company: company,
+            single_role: roleTitle
+          })
+        });
+        const data = await res.json();
+        showToast(data.message || (data.status === 'ok' ? '✓ Brave opened for connection request!' : 'Error: ' + (data.message || 'Unknown')));
+      } catch (err) {
+        showToast('Error: ' + err);
+      }
     }
 
     // Helper to log connection request right from the LinkedIn Outreach Modal
@@ -6176,6 +6317,30 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       }
     }
 
+    async function pruneOldJobsNow() {
+      if (!confirm('🗑 This will permanently delete all job listings older than 15 days that have NOT been applied to, interviewed, or referred. Continue?')) return;
+      showToast('🗑 Pruning stale jobs older than 15 days...');
+      try {
+        const res = await fetch('/api/jobs/prune', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ days: 15 })
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          showToast(`✅ Pruned ${data.deleted} stale job listing(s) older than 15 days. DB cleaned!`);
+          if (data.deleted > 0) {
+            updateStats();
+            renderJobs(currentTab);
+          }
+        } else {
+          showToast('Prune error: ' + (data.message || 'Unknown error'));
+        }
+      } catch (err) {
+        showToast('Prune error: ' + err);
+      }
+    }
+
     async function submitCustomDraft(action = 'draft') {
       const email = document.getElementById('custom-draft-email').value.trim();
       const comp = document.getElementById('custom-draft-comp').value.trim();
@@ -7642,6 +7807,74 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 req_id = int(data.get("request_id", 0))
                 from applypilot.networking.referral_tracker import generate_tailored_pitch_for_request
                 res = generate_tailored_pitch_for_request(req_id)
+            except Exception as e:
+                res = {"status": "error", "message": str(e)}
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(json.dumps(res).encode("utf-8"))
+            return
+
+        # /api/referral_crm/auto_connect (Auto-discover connections at a company from job URL and optionally send)
+        elif path == "/api/referral_crm/auto_connect":
+            length = int(self.headers.get("Content-Length", 0))
+            body_data = self.rfile.read(length).decode("utf-8") if length > 0 else "{}"
+            try:
+                data = json.loads(body_data)
+                job_url = data.get("job_url", "").strip()
+                max_people = int(data.get("max_people", 5))
+                send_connection = bool(data.get("send_connection", False))
+                single_profile_url = data.get("single_profile_url", "").strip()
+
+                # Handle single-person connect request (from "Send Request" button per row)
+                if single_profile_url:
+                    from applypilot.networking.linkedin import compose_referral_dm
+                    sname = data.get("single_name", "")
+                    scomp = data.get("single_company", "")
+                    srole = data.get("single_role", "Backend Engineer")
+                    is_alum = "rvce" in sname.lower()
+                    if is_alum:
+                        note = f"Hi {sname.split()[0] if sname else 'there'}, RVCE CSE '25 junior, SDE-1 @ Meesho (Java/Go/Kafka). Interested in {srole} at {scomp} — would you be open to a referral?"[:295]
+                    else:
+                        note = f"Hi {sname.split()[0] if sname else 'there'}, I'm an SDE-1 Backend Engineer at Meesho (RVCE '25, Java/Go/Kafka/Redis). Interested in the {srole} role at {scomp}. Would love to connect!"[:295]
+                    res = compose_referral_dm(
+                        profile_url=single_profile_url,
+                        company=scomp,
+                        role_title=srole,
+                        name=sname,
+                        custom_message=note,
+                        action_type="connect",
+                        headed=True,
+                    )
+                    res["message"] = f"Brave opened for {sname} — connection note pre-filled. Click Send in Brave!"
+                else:
+                    from applypilot.networking.referral_tracker import auto_connect_referral_from_job_url
+                    res = auto_connect_referral_from_job_url(
+                        job_url=job_url,
+                        max_people=max_people,
+                        headless=False,
+                        send_connection=send_connection,
+                    )
+            except Exception as e:
+                res = {"status": "error", "message": str(e)}
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(json.dumps(res).encode("utf-8"))
+            return
+
+        # /api/jobs/prune (Delete stale jobs older than N days that are not in active pipeline state)
+        elif path == "/api/jobs/prune":
+            length = int(self.headers.get("Content-Length", 0))
+            body_data = self.rfile.read(length).decode("utf-8") if length > 0 else "{}"
+            try:
+                data = json.loads(body_data)
+                days = int(data.get("days", 15))
+                from applypilot.database import prune_old_jobs
+                res = prune_old_jobs(days=days)
+                res["status"] = "ok"
             except Exception as e:
                 res = {"status": "error", "message": str(e)}
 

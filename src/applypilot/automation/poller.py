@@ -129,6 +129,17 @@ def execute_polling_cycle(headless: bool = True) -> dict[str, Any]:
         log.warning("Referral acceptance sync error: %s", e)
         results["errors"].append(f"ReferralSync: {e}")
 
+    # 7. Prune stale jobs older than 15 days (safe — never deletes applied/interview rows)
+    try:
+        log.info("[7/7] Pruning stale job listings older than 15 days...")
+        from applypilot.database import prune_old_jobs
+        prune_result = prune_old_jobs(days=15)
+        results["pruned_jobs"] = prune_result.get("deleted", 0)
+        log.info("Pruned %d stale jobs.", prune_result.get("deleted", 0))
+    except Exception as e:
+        log.warning("Job prune error: %s", e)
+        results["errors"].append(f"Prune: {e}")
+
     # 5. Refresh opportunities.csv
     try:
         csv_file = export_opportunities_csv()
