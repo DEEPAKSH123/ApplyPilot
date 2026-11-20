@@ -16,7 +16,7 @@ from playwright.sync_api import sync_playwright
 from applypilot import config
 from applypilot.database import get_connection, store_jobs_deduped
 from applypilot.discovery.workday import _location_ok
-from applypilot.networking.linkedin import check_experience_exceeds, is_role_relevant_for_backend
+from applypilot.networking.linkedin import check_experience_exceeds, is_company_excluded, is_role_relevant_for_backend
 
 log = logging.getLogger(__name__)
 
@@ -128,6 +128,14 @@ def scan_indeed_incognito_recent_jobs(
                             cmp_el = card.find("span", {"data-testid": "company-name"}) or card.find(class_="companyName")
                             company = cmp_el.text.strip() if cmp_el else "Employer"
 
+                            # Skip blacklisted companies (Accenture, Infosys, Capgemini, Flexiple)
+                            is_excluded, exc_reason = is_company_excluded(company)
+                            if not is_excluded:
+                                is_excluded, exc_reason = is_company_excluded(title)
+                            if is_excluded:
+                                log.debug("Skipping excluded company role '%s' at '%s': %s", title, company, exc_reason)
+                                continue
+
                             loc_el = card.find("div", {"data-testid": "text-location"}) or card.find(class_="companyLocation")
                             loc_str = loc_el.text.strip() if loc_el else location
 
@@ -142,11 +150,11 @@ def scan_indeed_incognito_recent_jobs(
                                 log.debug("Skipping out-of-bounds location '%s' for '%s'", loc_str, title)
                                 continue
 
-                            # 5. Experience guardrail check (<= 4 YOE)
+                            # 5. Experience guardrail check (must strictly be <= 3 YOE)
                             card_text = card.get_text(separator=" ", strip=True)
-                            over_exp, exp_reason = check_experience_exceeds(card_text, max_years=4)
+                            over_exp, exp_reason = check_experience_exceeds(card_text, max_years=3)
                             if over_exp:
-                                log.debug("Skipping Indeed role with >4 YOE (%s): '%s'", exp_reason, title)
+                                log.debug("Skipping Indeed role with >3 YOE (%s): '%s'", exp_reason, title)
                                 continue
 
                             # 6. Snippet / Salary

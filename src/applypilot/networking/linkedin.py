@@ -32,19 +32,34 @@ EXP_PATTERNS = [
     re.compile(r'(\d+)\+?\s*(?:to|-)\s*(\d+)\s*(?:years?|yrs?)(?:\s*of)?\s*(?:relevant|hands-on|industry|software|backend|work)?\s*experience', re.IGNORECASE),
     re.compile(r'(\d+)\+?\s*(?:to|-)\s*(\d+)\s*(?:years?|yrs?)', re.IGNORECASE),
     re.compile(r'(\d+)\+?\s*(?:years?|yrs?)(?:\s*of)?\s*(?:relevant|hands-on|industry|software|backend|work)?\s*experience', re.IGNORECASE),
+    re.compile(r'(\d+)\+\s*(?:years?|yrs?)', re.IGNORECASE),
     re.compile(r'experience(?:\s*of)?\s*:?\s*(\d+)\+?\s*(?:to|-)?\s*(\d+)?\s*(?:years?|yrs?)', re.IGNORECASE),
     re.compile(r'(?:minimum|min|at least)\s*(\d+)\+?\s*(?:years?|yrs?)', re.IGNORECASE),
     re.compile(r'(\d+)\+?\s*yoe\b', re.IGNORECASE),
     re.compile(r'yoe\s*:?\s*(\d+)\+?', re.IGNORECASE),
 ]
 
+# Companies to always exclude across all discovery and incognito modes
+EXCLUDED_COMPANIES = ["accenture", "infosys", "capgemini", "flexiple"]
+
+
+def is_company_excluded(company_name: str | None) -> tuple[bool, str]:
+    """Check if company should always be skipped."""
+    if not company_name:
+        return False, ""
+    c_lower = company_name.lower().strip()
+    for exc in EXCLUDED_COMPANIES:
+        if exc in c_lower:
+            return True, f"Excluded company ({exc})"
+    return False, ""
+
 
 def check_experience_exceeds(text: str, max_years: int = 3) -> tuple[bool, str]:
     """Check if the post text or description specifies experience exceeding candidate level.
     For Deepak (0-3 YOE target):
-    - Any minimum experience >= 4 years is rejected.
+    - Any minimum experience > 3 years (e.g. 4+, 5+, 6+) is rejected.
     - Any range with upper bound >= 5 years (e.g. 3-5, 4-8, 6-10) is rejected.
-    - Explicit senior patterns (e.g. 5+ years, 6-10 years) are rejected.
+    - If upper bound exceeds max_years (e.g. 4-6 yrs), it is rejected.
     """
     if not text:
         return False, ""
@@ -54,8 +69,7 @@ def check_experience_exceeds(text: str, max_years: int = 3) -> tuple[bool, str]:
             if groups:
                 min_exp = groups[0]
                 max_exp = groups[1] if len(groups) > 1 else min_exp
-                # Reject if min required is >= 4, or if upper bound >= 5, or min > max_years
-                if min_exp >= 4 or max_exp >= 5 or min_exp > max_years:
+                if min_exp > max_years or max_exp >= 5 or (len(groups) > 1 and max_exp > max_years):
                     return True, f"{m.group(0)} (exceeds {max_years} years target)"
     return False, ""
 
@@ -294,10 +308,18 @@ def search_linkedin_posts(
                 if comp_match:
                     company = comp_match.group(1)
 
-                # Check experience requirement: must be <= 4 years (Deepak has ~2 yrs experience)
-                is_over_exp, exp_reason = check_experience_exceeds(text_content, max_years=4)
+                # Skip blacklisted companies (Accenture, Infosys, Capgemini, Flexiple)
+                is_excluded, exc_reason = is_company_excluded(company)
+                if not is_excluded:
+                    is_excluded, exc_reason = is_company_excluded(text_content)
+                if is_excluded:
+                    log.info("Skipping post from excluded company (%s): %s", exc_reason, company)
+                    continue
+
+                # Check experience requirement: must strictly match candidate level (0-3 years)
+                is_over_exp, exp_reason = check_experience_exceeds(text_content, max_years=3)
                 if is_over_exp:
-                    log.info("Skipping post requiring > 4 years experience (%s): %s", exp_reason, text_content[:120].replace('\n', ' '))
+                    log.info("Skipping post requiring > 3 years experience (%s): %s", exp_reason, text_content[:120].replace('\n', ' '))
                     continue
 
                 item = {
@@ -851,8 +873,23 @@ def scan_linkedin_easy_apply_jobs(
                 total_found += 1
                 title = str(r.get("title", "Backend Engineer"))
                 company = str(r.get("company", "LinkedIn Employer"))
-                loc = str(r.get("location", location))
+
+                # Skip blacklisted companies (Accenture, Infosys, Capgemini, Flexiple)
+                is_excluded, exc_reason = is_company_excluded(company)
+                if not is_excluded:
+                    is_excluded, exc_reason = is_company_excluded(title)
+                if is_excluded:
+                    log.debug("Skipping excluded company role '%s' at '%s': %s", title, company, exc_reason)
+                    continue
+
+                # Check experience requirement (must be <= 3 YOE)
                 desc = str(r.get("description", ""))
+                is_over_exp, exp_reason = check_experience_exceeds(f"{title} {desc}", max_years=3)
+                if is_over_exp:
+                    log.debug("Skipping job requiring > 3 years experience (%s): '%s'", exp_reason, title)
+                    continue
+
+                loc = str(r.get("location", location))
                 date_posted = str(r.get("date_posted", ""))
                 apply_direct = str(r.get("job_url_direct", ""))
 
@@ -1064,6 +1101,14 @@ def scan_linkedin_incognito_recent_jobs(
                             loc = loc_el.text.strip() if loc_el else "Bengaluru, India"
                             time_str = time_el.text.strip() if time_el else (time_el.get("datetime") if time_el else "")
 
+                            # Skip blacklisted companies (Accenture, Infosys, Capgemini, Flexiple)
+                            is_excluded, exc_reason = is_company_excluded(company)
+                            if not is_excluded:
+                                is_excluded, exc_reason = is_company_excluded(title)
+                            if is_excluded:
+                                log.debug("Skipping excluded company role '%s' at '%s': %s", title, company, exc_reason)
+                                continue
+
                             # Strict Candidate Experience & Tech Stack Guardrails (Backend, Spring Boot, Java, Go, Full Stack)
                             role_ok, role_reason = is_role_relevant_for_backend(title)
                             if not role_ok:
@@ -1087,10 +1132,10 @@ def scan_linkedin_incognito_recent_jobs(
                                 log.debug("Skipping high applicant job '%s' (%d applicants >= %d)", title, num_apps, max_applicants)
                                 continue
 
-                            # Check experience requirement on card text if stated (must be <= 4 years)
-                            is_over_exp, exp_reason = check_experience_exceeds(card_text, max_years=4)
+                            # Check experience requirement on card text if stated (must strictly be <= 3 years)
+                            is_over_exp, exp_reason = check_experience_exceeds(card_text, max_years=3)
                             if is_over_exp:
-                                log.debug("Skipping job requiring > 4 years experience (%s): '%s'", exp_reason, title)
+                                log.debug("Skipping job requiring > 3 years experience (%s): '%s'", exp_reason, title)
                                 continue
 
                             total_found += 1

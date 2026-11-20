@@ -103,7 +103,7 @@ def execute_polling_cycle(headless: bool = True) -> dict[str, Any]:
 
     # 5. Live LinkedIn Tech Crawl (JobSpy Backend Roles)
     try:
-        log.info("[5/5] Crawling fresh LinkedIn postings for Bangalore backend roles...")
+        log.info("[5/6] Crawling fresh LinkedIn postings for Bangalore backend roles...")
         from applypilot.discovery.jobspy import search_jobs
         li_res = search_jobs(
             query="Software Engineer Backend",
@@ -118,6 +118,16 @@ def execute_polling_cycle(headless: bool = True) -> dict[str, Any]:
     except Exception as e:
         log.warning("LinkedIn JobSpy crawl error: %s", e)
         results["errors"].append(f"LinkedIn: {e}")
+
+    # 6. Referral Connections Acceptance Check & Follow-Up Sync
+    try:
+        log.info("[6/6] Syncing accepted LinkedIn referral requests...")
+        from applypilot.networking.referral_tracker import sync_accepted_connections_from_linkedin
+        ref_sync = sync_accepted_connections_from_linkedin(max_check=30, headless=headless)
+        results["referral_accepted_new"] = ref_sync.get("matched_count", 0)
+    except Exception as e:
+        log.warning("Referral acceptance sync error: %s", e)
+        results["errors"].append(f"ReferralSync: {e}")
 
     # 5. Refresh opportunities.csv
     try:

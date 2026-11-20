@@ -2471,6 +2471,40 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         }
       }).catch(() => {});
 
+      // Check helpers for global badge counting
+      const isCompanyBlockedGlobal = (j) => {
+        const comp = (j.company || j.site || '').toLowerCase();
+        const tit = (j.title || '').toLowerCase();
+        const blocked = ['accenture', 'infosys', 'capgemini', 'flexiple'];
+        return blocked.some(b => comp.includes(b) || tit.includes(b));
+      };
+      const checkOverExpGlobal = (j) => {
+        const tit = (j.title || '').toLowerCase();
+        const desc = (j.desc || j.description || j.full_desc || j.full_description || '').toLowerCase();
+        const combined = `${tit} ${desc}`;
+        const seniorWords = ['senior', 'sr.', 'sr ', 'lead', 'tech lead', 'staff', 'principal', 'manager', 'mgr', 'architect', 'director', 'iii', 'iv', 'l3', 'l4', 'l5'];
+        if (seniorWords.some(w => tit.includes(w))) return true;
+        const rangePat = /(\d+)\+?\s*(?:to|-)\s*(\d+)\s*(?:years?|yrs?)/gi;
+        let m;
+        while ((m = rangePat.exec(combined)) !== null) {
+          const low = parseInt(m[1], 10);
+          const high = parseInt(m[2], 10);
+          if (!isNaN(low) && low > 3) return true;
+          if (!isNaN(high) && (high >= 5 || high > 3)) return true;
+        }
+        const singlePat = /(?:(?:minimum|min|at least)\s*)?(\d+)\+?\s*(?:years?|yrs?)(?:\s*of)?\s*(?:relevant|hands-on|industry|software|backend|work)?\s*experience|\b(\d+)\+?\s*yoe\b/gi;
+        while ((m = singlePat.exec(combined)) !== null) {
+          const exp = parseInt(m[1] || m[2], 10);
+          if (!isNaN(exp) && exp > 3) return true;
+        }
+        const plusPat = /(\d+)\+\s*(?:years?|yrs?)/gi;
+        while ((m = plusPat.exec(combined)) !== null) {
+          const exp = parseInt(m[1], 10);
+          if (!isNaN(exp) && exp > 3) return true;
+        }
+        return false;
+      };
+
       const easyApplyJobsCount = allJobs.filter(j => (j.is_easy_apply === 1 || (j.source_category === 'linkedin' && j.strategy === 'linkedin_easy_apply')) && j.apply_status !== 'ignored' && j.apply_status !== 'applied').length;
       const easyBadge = document.getElementById('badge-easy-apply');
       if (easyBadge) easyBadge.textContent = easyApplyJobsCount;
@@ -2478,7 +2512,9 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       const incognitoJobsCount = allJobs.filter(j => {
         const isIncognitoJob = (j.strategy === 'linkedin_1h_incognito' || j.strategy === 'indeed_incognito' || j.strategy === 'ats');
         if (!isIncognitoJob || j.apply_status === 'ignored' || j.apply_status === 'applied') return false;
+        if (isCompanyBlockedGlobal(j)) return false;
         if (j.num_applicants !== null && j.num_applicants !== undefined && j.num_applicants >= 200) return false;
+        if (checkOverExpGlobal(j)) return false;
         const d = getJobEffectiveDate(j);
         if (d) {
           const diff = Date.now() - d.getTime();
@@ -3351,6 +3387,9 @@ HTML_DASHBOARD = """<!DOCTYPE html>
                 </p>
               </div>
               <div style="display: flex; gap: 10px;">
+                <button onclick="syncLinkedInAcceptedConnections()" id="btn-sync-connections" style="background: linear-gradient(135deg, #0284c7, #0284c7); color: white; border: none; padding: 9px 16px; border-radius: 8px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 14px rgba(2, 132, 199, 0.35);" title="Checks your LinkedIn recent connections and auto-matches accepted referral requests">
+                  <i class="fa-solid fa-arrows-rotate"></i> Sync Accepted Connections
+                </button>
                 <button onclick="openAddConnectionModal()" style="background: linear-gradient(135deg, #a855f7, #7c3aed); color: white; border: none; padding: 9px 16px; border-radius: 8px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 14px rgba(168, 85, 247, 0.35);">
                   <i class="fa-solid fa-plus"></i> Log Connection Request
                 </button>
@@ -3414,16 +3453,70 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       }
     }
 
-    function promptPitchReferral(id, name, company) {
-      const template = `Hi ${name},\n\nThanks for connecting! I noticed you are working at ${company}.\n\nI'm an SDE-1 (Backend) at Meesho with 2 years of experience in Java, Go, Spring Boot, Kafka, and distributed systems (RVCE CSE '25, CGPA 8.92).\n\nI saw an active opening for Backend Engineer at ${company} and would be really grateful if you could refer my profile or connect me with the hiring team. Can join immediately / 0 days notice.\n\nI've attached my tailored resume for your review.\n\nBest regards,\nDeepak S H | +91 8431433659\nhttps://github.com/Deepak-S-H`;
-      navigator.clipboard.writeText(template);
-      showToast(`📋 Copied referral pitch for ${name}! Paste into LinkedIn chat.`);
-      
-      fetch('/api/referral_crm/update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ request_id: id, status: 'replied_referral', referral_status: 'pitched' })
-      }).then(() => renderReferralCrmView());
+    async function syncLinkedInAcceptedConnections() {
+      const btn = document.getElementById('btn-sync-connections');
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Checking LinkedIn...';
+      }
+      showToast('🔄 Scanning LinkedIn recent connections...');
+      try {
+        const res = await fetch('/api/referral_crm/sync_accepted', { method: 'POST' });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          if (data.matched_count > 0) {
+            showToast(`🎉 Found ${data.matched_count} new accepted connection(s)!`);
+            triggerConfetti();
+          } else {
+            showToast(`Scanned ${data.connections_scraped || 0} connections. No new acceptances found yet.`);
+          }
+          renderReferralCrmView();
+          updateStats();
+        } else {
+          showToast('Sync notice: ' + (data.message || 'Error syncing'));
+        }
+      } catch (err) {
+        showToast('Error syncing connections: ' + err);
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = '<i class="fa-solid fa-arrows-rotate"></i> Sync Accepted Connections';
+        }
+      }
+    }
+
+    async function promptPitchReferral(id, name, company) {
+      showToast(`⚡ Preparing tailored referral pitch for ${name}...`);
+      try {
+        const res = await fetch('/api/referral_crm/pitch_generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ request_id: id })
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          if (navigator.clipboard) {
+            await navigator.clipboard.writeText(data.message);
+          }
+          showToast(`📋 Copied tailored referral pitch for ${name}! Opening Brave chat...`);
+          
+          // Open direct LinkedIn chat with the tailored message in Brave
+          if (data.profile_url) {
+            composeLinkedInDM(data.profile_url, data.message, company, data.role_title, 'referral', 'auto');
+          }
+
+          // Mark status as pitched in CRM
+          fetch('/api/referral_crm/update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ request_id: id, status: 'replied_referral', referral_status: 'pitched' })
+          }).then(() => renderReferralCrmView());
+        } else {
+          showToast('Could not generate pitch: ' + data.message);
+        }
+      } catch (err) {
+        showToast('Error preparing pitch: ' + err);
+      }
     }
 
     function openAddConnectionModal(defaultCompany = '') {
@@ -4276,35 +4369,52 @@ HTML_DASHBOARD = """<!DOCTYPE html>
 
       const q = document.getElementById('search-input').value.toLowerCase().trim();
       let filtered = allJobs.filter(job => {
+        // Excluded companies check helper (always skip accenture, infosys, capgemini, flexiple)
+        const isCompanyExcluded = (j) => {
+          const comp = (j.company || j.site || '').toLowerCase();
+          const tit = (j.title || '').toLowerCase();
+          const blocked = ['accenture', 'infosys', 'capgemini', 'flexiple'];
+          return blocked.some(b => comp.includes(b) || tit.includes(b));
+        };
+
+        if (isCompanyExcluded(job)) return false;
+
         if (currentTab === 'yet_to_apply') {
           const isEligible = (job.fit_score !== null && job.fit_score >= 7) || !!job.tailored_resume_path;
           if (!isEligible || job.apply_status === 'applied' || job.apply_status === 'interview' || job.apply_status === 'rejected' || job.apply_status === 'ignored') return false;
         }
-        // Experience guardrail check helper (reject roles requiring >= 4 YOE or ranges like 6-10, 4-8 yrs)
+        // Experience guardrail check helper (strictly reject roles requiring > 3 YOE or ranges like 6-10, 4-8, 3-5 yrs)
         const checkIsOverExperienced = (j) => {
           const tit = (j.title || '').toLowerCase();
           const desc = (j.desc || j.description || j.full_desc || j.full_description || '').toLowerCase();
           const combined = `${tit} ${desc}`;
           
           // Senior/Lead title check
-          const seniorWords = ['senior', 'sr.', 'sr ', 'lead', 'tech lead', 'staff', 'principal', 'manager', 'mgr', 'architect', 'director'];
+          const seniorWords = ['senior', 'sr.', 'sr ', 'lead', 'tech lead', 'staff', 'principal', 'manager', 'mgr', 'architect', 'director', 'iii', 'iv', 'l3', 'l4', 'l5'];
           if (seniorWords.some(w => tit.includes(w))) return true;
 
-          // Range pattern: e.g. "6-10 years", "4 to 8 yrs", "3-6 years"
+          // Range pattern: e.g. "6-10 years", "4 to 8 yrs", "3-5 years", "4-6 yrs"
           const rangePat = /(\d+)\+?\s*(?:to|-)\s*(\d+)\s*(?:years?|yrs?)/gi;
           let m;
           while ((m = rangePat.exec(combined)) !== null) {
             const low = parseInt(m[1], 10);
             const high = parseInt(m[2], 10);
-            if (!isNaN(low) && low >= 4) return true;
-            if (!isNaN(high) && high >= 5) return true;
+            if (!isNaN(low) && low > 3) return true;
+            if (!isNaN(high) && (high >= 5 || high > 3)) return true;
           }
 
-          // Single/min experience pattern: e.g. "5+ years", "6+ yrs", "min 4 years", "6 yoe"
+          // Single/min experience pattern: e.g. "4+ years", "5+ years", "6+ yrs", "min 4 years", "4 yoe", "5 yoe"
           const singlePat = /(?:(?:minimum|min|at least)\s*)?(\d+)\+?\s*(?:years?|yrs?)(?:\s*of)?\s*(?:relevant|hands-on|industry|software|backend|work)?\s*experience|\b(\d+)\+?\s*yoe\b/gi;
           while ((m = singlePat.exec(combined)) !== null) {
             const exp = parseInt(m[1] || m[2], 10);
-            if (!isNaN(exp) && exp >= 4) return true;
+            if (!isNaN(exp) && exp > 3) return true;
+          }
+
+          // Single year without trailing word: e.g. "4+ years", "5+ yrs"
+          const plusPat = /(\d+)\+\s*(?:years?|yrs?)/gi;
+          while ((m = plusPat.exec(combined)) !== null) {
+            const exp = parseInt(m[1], 10);
+            if (!isNaN(exp) && exp > 3) return true;
           }
 
           return false;
@@ -4338,6 +4448,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         if (currentTab === 'incognito_fresh' || currentTab === 'incognito_1h') {
           const isIncognitoJob = (job.strategy === 'linkedin_1h_incognito' || job.strategy === 'indeed_incognito' || job.strategy === 'ats');
           if (!isIncognitoJob || job.apply_status === 'ignored' || job.apply_status === 'applied') return false;
+          if (isCompanyExcluded(job)) return false;
           if (job.num_applicants !== null && job.num_applicants !== undefined && job.num_applicants >= 200) return false;
           if (checkIsOverExperienced(job)) return false;
           const d = getJobEffectiveDate(job);
@@ -5207,6 +5318,12 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         : `⚡ Launching Brave & auto-typing referral message for ${name || 'connection'}...`
       );
 
+      // Auto-record into Referral Network CRM immediately so it starts tracking without manual input!
+      if (company || profileUrl) {
+        const noteText = isConnectOnly ? '1-Click Connect (no note)' : isConnect ? '1-Click Connect + Tailored Note' : 'Referral Outreach DM';
+        logConnectionFromModal(company || 'Target Company', name || 'LinkedIn Contact', profileUrl, noteText, template === 'alumni');
+      }
+
       try {
         const res = await fetch('/api/linkedin/compose_dm', {
           method: 'POST',
@@ -5223,10 +5340,6 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         const data = await res.json();
         if (data.status === 'ok') {
           showToast(`🛡️ ${data.message}`);
-          if (company && name) {
-            const noteText = isConnectOnly ? 'Connection sent (no note)' : 'Contacted via 1-Click Connect';
-            logConnectionFromModal(company, name, profileUrl, noteText, template === 'alumni');
-          }
           setTimeout(() => { updateStats(); }, 2000);
         } else {
           showToast(`⚠️ Compose: ${data.message || 'Error'}`);
@@ -7497,6 +7610,38 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     referral_status=data.get("referral_status"),
                     notes=data.get("notes")
                 )
+            except Exception as e:
+                res = {"status": "error", "message": str(e)}
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(json.dumps(res).encode("utf-8"))
+            return
+
+        # /api/referral_crm/sync_accepted (Auto-detect accepted connection requests from LinkedIn)
+        elif path == "/api/referral_crm/sync_accepted":
+            try:
+                from applypilot.networking.referral_tracker import sync_accepted_connections_from_linkedin
+                res = sync_accepted_connections_from_linkedin(max_check=50, headless=True)
+            except Exception as e:
+                res = {"status": "error", "message": str(e)}
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(json.dumps(res).encode("utf-8"))
+            return
+
+        # /api/referral_crm/pitch_generate (Generate tailored referral pitch message and resume for accepted connection)
+        elif path == "/api/referral_crm/pitch_generate":
+            length = int(self.headers.get("Content-Length", 0))
+            body_data = self.rfile.read(length).decode("utf-8") if length > 0 else "{}"
+            try:
+                data = json.loads(body_data)
+                req_id = int(data.get("request_id", 0))
+                from applypilot.networking.referral_tracker import generate_tailored_pitch_for_request
+                res = generate_tailored_pitch_for_request(req_id)
             except Exception as e:
                 res = {"status": "error", "message": str(e)}
 

@@ -28,7 +28,7 @@ from applypilot.config import APP_DIR, RESUME_PATH, TAILORED_DIR, COVER_LETTER_D
 from applypilot.database import get_connection
 from applypilot.llm import get_client
 from applypilot.networking.gmail_drafter import generate_recruiter_email, create_gmail_draft
-from applypilot.networking.linkedin import get_stored_cookies, is_linkedin_authenticated, check_experience_exceeds
+from applypilot.networking.linkedin import get_stored_cookies, is_linkedin_authenticated, check_experience_exceeds, is_company_excluded
 from applypilot.networking.outreach import generate_outreach_messages, generate_linkedin_searches
 
 log = logging.getLogger(__name__)
@@ -245,13 +245,22 @@ def process_linkedin_post(post_url: str, manual_text: str = "") -> dict[str, Any
             "message": f"Could not fetch content from '{clean_url}'. The post might require an active LinkedIn login or session refresh. You can also paste the post text directly into the text area."
         }
 
-    # Guardrail: Check experience requirement in post text (must be <= 4 years for Deepak S H)
-    is_over_exp, exp_reason = check_experience_exceeds(post_text, max_years=4)
-    if is_over_exp:
-        log.warning("LinkedIn post requires > 4 years experience (%s). Aborting intake.", exp_reason)
+    # Skip blacklisted companies (Accenture, Infosys, Capgemini, Flexiple)
+    is_excluded, exc_reason = is_company_excluded(post_text)
+    if is_excluded:
+        log.warning("LinkedIn post is from an excluded company (%s). Aborting intake.", exc_reason)
         return {
             "status": "error",
-            "message": f"This role requires senior experience: {exp_reason}. ApplyPilot only targets 0–4 years of experience (Deepak has 2 YOE)."
+            "message": f"This posting is from an excluded company ({exc_reason}). Skipped."
+        }
+
+    # Guardrail: Check experience requirement in post text (must strictly match candidate level 0-3 years)
+    is_over_exp, exp_reason = check_experience_exceeds(post_text, max_years=3)
+    if is_over_exp:
+        log.warning("LinkedIn post requires > 3 years experience (%s). Aborting intake.", exp_reason)
+        return {
+            "status": "error",
+            "message": f"This role requires experience exceeding candidate level: {exp_reason}. ApplyPilot strictly targets 0–3 years of experience (Deepak has ~1.3–2 YOE)."
         }
 
     # Extract emails and form links via regex first (ground truth)

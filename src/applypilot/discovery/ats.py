@@ -17,6 +17,7 @@ from applypilot import config
 from applypilot.config import CONFIG_DIR
 from applypilot.database import get_connection, init_db, store_jobs_deduped
 from applypilot.discovery.workday import _location_ok, _posted_within_days, _title_ok, strip_html
+from applypilot.networking.linkedin import check_experience_exceeds, is_company_excluded
 
 log = logging.getLogger(__name__)
 
@@ -43,6 +44,9 @@ def _scrape_greenhouse(employer_key: str, emp: dict, accept_locs: list[str], rej
     """Fetch and filter jobs from a Greenhouse board (bulk content in 1 call)."""
     slug = emp.get("slug")
     name = emp.get("name", employer_key)
+    is_exc, _ = is_company_excluded(name)
+    if is_exc or is_company_excluded(slug)[0]:
+        return []
     api_url = emp.get("api_url") or f"https://boards-api.greenhouse.io/v1/boards/{slug}/jobs?content=true"
 
     try:
@@ -76,6 +80,10 @@ def _scrape_greenhouse(employer_key: str, emp: dict, accept_locs: list[str], rej
         raw_content = j.get("content", "")
         full_desc = strip_html(raw_content) if raw_content else ""
 
+        is_over_exp, exp_reason = check_experience_exceeds(f"{title} {full_desc}", max_years=3)
+        if is_over_exp:
+            continue
+
         matched.append({
             "title": title,
             "site": name,
@@ -95,6 +103,9 @@ def _scrape_lever(employer_key: str, emp: dict, accept_locs: list[str], reject_l
     """Fetch and filter jobs from a Lever board (bulk content in 1 call)."""
     slug = emp.get("slug")
     name = emp.get("name", employer_key)
+    is_exc, _ = is_company_excluded(name)
+    if is_exc or is_company_excluded(slug)[0]:
+        return []
     api_url = emp.get("api_url") or f"https://api.lever.co/v0/postings/{slug}?mode=json"
 
     try:
@@ -130,6 +141,10 @@ def _scrape_lever(employer_key: str, emp: dict, accept_locs: list[str], reject_l
         apply_url = j.get("hostedUrl", "")
         desc = j.get("descriptionPlain", "") or strip_html(j.get("description", ""))
 
+        is_over_exp, exp_reason = check_experience_exceeds(f"{title} {desc}", max_years=3)
+        if is_over_exp:
+            continue
+
         matched.append({
             "title": title,
             "site": name,
@@ -149,6 +164,9 @@ def _scrape_smartrecruiters(employer_key: str, emp: dict, accept_locs: list[str]
     """Fetch and filter jobs from a SmartRecruiters board."""
     slug = emp.get("slug")
     name = emp.get("name", employer_key)
+    is_exc, _ = is_company_excluded(name)
+    if is_exc or is_company_excluded(slug)[0]:
+        return []
     api_url = emp.get("api_url") or f"https://api.smartrecruiters.com/v1/companies/{slug}/postings"
 
     try:
@@ -201,6 +219,9 @@ def _scrape_ashby(employer_key: str, emp: dict, accept_locs: list[str], reject_l
     """Fetch and filter jobs from Ashby public posting API."""
     slug = emp.get("slug")
     name = emp.get("name", employer_key)
+    is_exc, _ = is_company_excluded(name)
+    if is_exc or is_company_excluded(slug)[0]:
+        return []
     api_url = emp.get("api_url") or f"https://api.ashbyhq.com/posting-api/job-board/{slug}"
 
     try:
@@ -235,6 +256,10 @@ def _scrape_ashby(employer_key: str, emp: dict, accept_locs: list[str], reject_l
 
         apply_url = j.get("applyUrl") or j.get("jobUrl") or f"https://jobs.ashbyhq.com/{slug}/{j.get('id')}"
         desc = j.get("descriptionPlain") or strip_html(j.get("descriptionHtml", ""))
+
+        is_over_exp, exp_reason = check_experience_exceeds(f"{title} {desc}", max_years=3)
+        if is_over_exp:
+            continue
 
         matched.append({
             "title": title,
