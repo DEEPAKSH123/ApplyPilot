@@ -79,11 +79,11 @@ def execute_polling_cycle(headless: bool = True) -> dict[str, Any]:
                             deadline=resp.get("deadline", "Check Dashboard"),
                             test_url=resp.get("portal_link", "")
                         )
-                    elif cat in ("interview", "selection", "shortlist"):
+                    elif cat in ("interview", "selection", "shortlist", "interview_selected", "referral_or_recruiter_reply", "offer"):
                         alert_recruiter_interview(
                             company=comp,
                             sender_name=resp.get("sender", "Recruiter"),
-                            snippet=resp.get("snippet", "")
+                            snippet=resp.get("body_snippet", resp.get("snippet", ""))
                         )
             except Exception as pe:
                 log.debug("Push alert notification error: %s", pe)

@@ -510,7 +510,8 @@ def normalize_loc(loc: str | None) -> str:
 
 
 def store_jobs_deduped(conn: sqlite3.Connection, jobs: list[dict],
-                       site: str, strategy: str) -> tuple[int, int, int]:
+                       site: str, strategy: str,
+                       now_time: datetime | str | None = None) -> tuple[int, int, int]:
     """Store discovered jobs with cross-source deduplication.
 
     Deduplicates by:
@@ -523,7 +524,10 @@ def store_jobs_deduped(conn: sqlite3.Connection, jobs: list[dict],
     Returns:
         (new_count, url_dupe_count, cross_source_dupe_count)
     """
-    now = datetime.now(timezone.utc).isoformat()
+    if now_time is not None:
+        now = now_time.isoformat() if isinstance(now_time, datetime) else str(now_time)
+    else:
+        now = datetime.now(timezone.utc).isoformat()
     new = 0
     url_dupes = 0
     cross_dupes = 0
@@ -581,10 +585,10 @@ def store_jobs_deduped(conn: sqlite3.Connection, jobs: list[dict],
         # 3. Insert new unique job
         try:
             conn.execute(
-                "INSERT INTO jobs (url, title, salary, description, location, site, strategy, discovered_at, full_description, application_url, recruiter_email) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO jobs (url, title, salary, description, location, site, strategy, discovered_at, full_description, application_url, recruiter_email, fit_score) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (url, raw_title, job.get("salary"), job.get("description"),
-                 raw_loc, job_site, strategy, now, full_desc, app_url, job.get("recruiter_email")),
+                 raw_loc, job_site, strategy, now, full_desc, app_url, job.get("recruiter_email"), job.get("fit_score")),
             )
             new += 1
             try:
@@ -599,6 +603,7 @@ def store_jobs_deduped(conn: sqlite3.Connection, jobs: list[dict],
                     job_url=app_url or url,
                     location=raw_loc or "",
                     is_tier_1=is_tier_1_employer(job_site),
+                    now=now,
                 )
             except Exception as fe_err:
                 log.warning("Followup engine auto-registration warning for %s: %s", url, fe_err)
@@ -609,7 +614,8 @@ def store_jobs_deduped(conn: sqlite3.Connection, jobs: list[dict],
     return new, url_dupes, cross_dupes
 
 def store_jobs(conn: sqlite3.Connection, jobs: list[dict],
-               site: str, strategy: str) -> tuple[int, int]:
+               site: str, strategy: str,
+               now_time: datetime | str | None = None) -> tuple[int, int]:
     """Store discovered jobs, skipping duplicates by URL.
 
     Args:
@@ -621,7 +627,10 @@ def store_jobs(conn: sqlite3.Connection, jobs: list[dict],
     Returns:
         Tuple of (new_count, duplicate_count).
     """
-    now = datetime.now(timezone.utc).isoformat()
+    if now_time is not None:
+        now = now_time.isoformat() if isinstance(now_time, datetime) else str(now_time)
+    else:
+        now = datetime.now(timezone.utc).isoformat()
     new = 0
     existing = 0
 
@@ -649,6 +658,7 @@ def store_jobs(conn: sqlite3.Connection, jobs: list[dict],
                     job_url=job.get("application_url") or url,
                     location=job.get("location") or "",
                     is_tier_1=is_tier_1_employer(site),
+                    now=now,
                 )
             except Exception as fe_err:
                 log.warning("Followup engine auto-registration warning for %s: %s", url, fe_err)

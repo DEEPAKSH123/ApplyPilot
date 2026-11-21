@@ -117,6 +117,116 @@ def extract_company_from_email(from_header: str, subject: str, body: str) -> str
     return "Employer"
 
 
+def is_known_outreach_contact(from_header: str, conn: Any = None) -> bool:
+    """Check if the sender's email or domain matches any contact_handle or recruiter_email in DB."""
+    if not from_header or not conn:
+        return False
+
+    # Extract email and domain from from_header
+    email_match = re.search(r"[\w\.-]+@[\w\.-]+\.\w+", from_header)
+    if not email_match:
+        return False
+    sender_email = email_match.group(0).lower()
+    sender_domain = sender_email.split("@")[-1]
+
+    # Ignore generic public mail domains
+    generic_domains = {"gmail.com", "google.com", "outlook.com", "yahoo.com", "hotmail.com", "icloud.com"}
+
+    try:
+        # 1. Check referral_followup_state (contact_handle)
+        cursor = conn.cursor()
+        rows = cursor.execute("SELECT contact_handle FROM referral_followup_state WHERE contact_handle IS NOT NULL AND contact_handle != ''").fetchall()
+        for r in rows:
+            handle = (r[0] or "").lower()
+            if sender_email in handle:
+                return True
+            if sender_domain not in generic_domains and f"@{sender_domain}" in handle:
+                return True
+
+        # 2. Check cold_email_outreach (recipient_email)
+        try:
+            ce_rows = cursor.execute("SELECT recipient_email FROM cold_email_outreach WHERE recipient_email IS NOT NULL AND recipient_email != ''").fetchall()
+            for r in ce_rows:
+                rec_em = (r[0] or "").lower()
+                if sender_email == rec_em:
+                    return True
+                if sender_domain not in generic_domains and rec_em.endswith(f"@{sender_domain}"):
+                    return True
+        except Exception:
+            pass
+
+        # 3. Check jobs table (recruiter_email)
+        try:
+            job_rows = cursor.execute("SELECT recruiter_email FROM jobs WHERE recruiter_email IS NOT NULL AND recruiter_email != ''").fetchall()
+            for r in job_rows:
+                rec_em = (r[0] or "").lower()
+                if sender_email == rec_em:
+                    return True
+                if sender_domain not in generic_domains and rec_em.endswith(f"@{sender_domain}"):
+                    return True
+        except Exception:
+            pass
+    except Exception as e:
+        log.debug("Contact lookup error: %s", e)
+
+    return False
+
+
+def extract_instahyre_job(from_header: str, subject: str, body: str) -> dict[str, str] | None:
+    """Extract job opening from Instahyre email (e.g. from jushey@tryinstahyre.com)."""
+    if "tryinstahyre.com" not in from_header.lower() and "instahyre" not in from_header.lower():
+        return None
+
+    # Find instahyre.com/job- URL
+    url_match = re.search(r"https?://(?:www\.)?instahyre\.com/job-[^\s<>\"']+", body)
+    if not url_match:
+        return None
+    job_url = url_match.group(0).rstrip(".,)>\"'")
+
+    # Extract company and title heuristics
+    company = ""
+    title = ""
+
+    # Subject pattern: e.g. "Opportunity at Razorpay: Backend Engineer" or "Razorpay is hiring Backend Engineer"
+    sub_patterns = [
+        r"Job Match:\s*(.+?)\s+at\s+(.+)",
+        r"(?:at|with)\s+([^:]+?):\s*(.+)",
+        r"([^:\-]+?)\s+(?:is hiring|is looking for)\s+(.+)",
+    ]
+    for p in sub_patterns:
+        m = re.search(p, subject, re.IGNORECASE)
+        if m:
+            if "Job Match:" in p:
+                title = m.group(1).strip()
+                company = m.group(2).strip()
+            elif "at" in p:
+                company = m.group(1).strip()
+                title = m.group(2).strip()
+            else:
+                company = m.group(1).strip()
+                title = m.group(2).strip()
+            break
+
+    if not company or not title:
+        comp_m = re.search(r"(?:Company|Employer):\s*([^\n\r]+)", body, re.IGNORECASE)
+        if comp_m:
+            company = comp_m.group(1).strip()
+        role_m = re.search(r"(?:Role|Position|Job Title):\s*([^\n\r]+)", body, re.IGNORECASE)
+        if role_m:
+            title = role_m.group(1).strip()
+
+    if not company:
+        company = "Instahyre Match"
+    if not title:
+        title = "Software Engineer"
+
+    return {
+        "url": job_url,
+        "company": company,
+        "title": title,
+    }
+
+
 def extract_due_date(text: str) -> str:
     """Extract deadline or due date for Online Assessments or time-sensitive application actions."""
     patterns = [
@@ -139,10 +249,31 @@ def extract_due_date(text: str) -> str:
     return ""
 
 
-def classify_email(subject: str, body: str) -> dict[str, Any]:
-    """Classify email into detailed categories: OA, Selected/Interview, Rejected, Apply Link, or Acknowledged."""
+def classify_email(subject: str, body: str, from_header: str = "", conn: Any = None) -> dict[str, Any]:
+    """Classify email into detailed categories: OA, Selected/Interview, Rejected, Reply, Apply Link, or Acknowledged."""
     combined = f"{subject}\n{body}"
     text_lower = combined.lower()
+
+    # 0. Direct Human Reply (In-Reply-To / Re:) on an outreach thread or known contact
+    is_re_thread = subject.strip().lower().startswith("re:") or "re:" in subject.lower()
+    is_known_contact = is_known_outreach_contact(from_header, conn) if from_header else False
+    if is_re_thread or is_known_contact:
+        # Check if it's not an explicit automated rejection
+        is_rejection = any(neg in text_lower for neg in [
+            "unfortunately", "not moving forward", "regret to inform",
+            "pursuing other candidates", "decided not to proceed",
+            "not selected at this time", "position has been filled"
+        ])
+        if not is_rejection and (is_known_contact or ("referral" in text_lower or "interview" in text_lower or "resume" in text_lower or "profile" in text_lower or is_re_thread)):
+            return {
+                "category": "referral_or_recruiter_reply",
+                "sentiment": "positive",
+                "status": "Direct Reply / Active Thread",
+                "summary": "Direct human reply received on outreach or application thread.",
+                "due_date": "",
+                "action_url": "",
+                "action_type": "reply",
+            }
 
     # 1. Online Assessment (OA) / Coding Challenge / Technical Test
     oa_triggers = [
@@ -301,7 +432,7 @@ def sync_gmail_job_responses(max_results: int = 20) -> list[dict[str, Any]]:
         log.warning("Gmail CLI binary not found on system. Returning cached responses.")
         return get_cached_responses()
 
-    query = 'subject:(application OR interview OR assessment OR "next step" OR "offer" OR "regret" OR "status" OR "thank you for applying" OR "coding challenge" OR "hackerrank" OR "codility")'
+    query = 'newer_than:7d -label:"Career/Job Board Digests" -label:"Personal & Social/LinkedIn"'
     cmd = [gmail_bin, "readonly", "read", query, "--max", str(max_results), "--json"]
 
     log.info("Querying Gmail CLI for application responses: %s", " ".join(cmd))
@@ -320,6 +451,18 @@ def sync_gmail_job_responses(max_results: int = 20) -> list[dict[str, Any]]:
     except Exception as e:
         log.error("Failed to execute Gmail CLI: %s", e)
         return get_cached_responses()
+
+    # Prioritize messages carrying Career/Interviews & Action or Career/ATS & Applications
+    def _priority_score(m: dict) -> int:
+        lbls = [l.lower() for l in m.get("labelIds", [])]
+        for l in lbls:
+            if "interview" in l or "action" in l:
+                return 0
+            if "ats" in l or "application" in l:
+                return 1
+        return 2
+
+    messages.sort(key=_priority_score)
 
     conn = get_connection()
     c = conn.cursor()
@@ -340,8 +483,31 @@ def sync_gmail_job_responses(max_results: int = 20) -> list[dict[str, Any]]:
         snippet = msg.get("snippet", "")
         full_body = get_full_email_body(payload) or snippet
 
+        # Check for Instahyre direct match email ingestion
+        instahyre_job = extract_instahyre_job(from_hdr, subject, full_body)
+        if instahyre_job:
+            try:
+                from applypilot.database import store_jobs_deduped
+                store_jobs_deduped(
+                    conn=conn,
+                    jobs=[{
+                        "url": instahyre_job["url"],
+                        "title": instahyre_job["title"],
+                        "company": instahyre_job["company"],
+                        "site": instahyre_job["company"],
+                        "location": "Bengaluru",
+                        "description": full_body[:1000],
+                        "application_url": instahyre_job["url"],
+                        "fit_score": 8,
+                    }],
+                    site=instahyre_job["company"],
+                    strategy="instahyre_email_match",
+                )
+            except Exception as ih_err:
+                log.warning("Instahyre direct match ingestion warning: %s", ih_err)
+
         company = extract_company_from_email(from_hdr, subject, full_body)
-        classification = classify_email(subject, full_body)
+        classification = classify_email(subject, full_body, from_header=from_hdr, conn=conn)
 
         category = classification["category"]
         sentiment = classification["sentiment"]
@@ -381,7 +547,7 @@ def sync_gmail_job_responses(max_results: int = 20) -> list[dict[str, Any]]:
                 from applypilot.notifications.alerts import alert_new_online_assessment, alert_interview_shortlisted
                 if category == "oa":
                     alert_new_online_assessment(company, role_title, due_date, action_url)
-                elif category == "interview_selected":
+                elif category in ("interview_selected", "referral_or_recruiter_reply"):
                     alert_interview_shortlisted(company, role_title, summary, action_url)
             except Exception as alert_err:
                 log.debug("Notification alert dispatch error: %s", alert_err)
@@ -411,14 +577,14 @@ def sync_gmail_job_responses(max_results: int = 20) -> list[dict[str, Any]]:
         ))
 
         # Update matching jobs status
-        if category in ("oa", "interview_selected"):
+        if category in ("oa", "interview_selected", "referral_or_recruiter_reply"):
             c.execute("""
                 UPDATE jobs 
                 SET apply_status = 'interview',
                     application_stage = 'interview'
                 WHERE (site LIKE ? OR url LIKE ?)
             """, (f"%{company}%", f"%{company.lower()}%"))
-        elif category == "rejected":
+        elif category in ("rejected", "rejection"):
             c.execute("""
                 UPDATE jobs 
                 SET apply_status = 'rejected',
@@ -433,6 +599,18 @@ def sync_gmail_job_responses(max_results: int = 20) -> list[dict[str, Any]]:
                     application_stage = 'applied'
                 WHERE (site LIKE ? OR url LIKE ?) AND (apply_status IS NULL OR apply_status NOT IN ('interview', 'rejected'))
             """, (now, f"%{company}%", f"%{company.lower()}%"))
+
+        # Bridge email response to ReferralFollowUpEngine to automatically pause/stop follow-ups
+        try:
+            from applypilot.networking.followup_engine import sync_state_from_email_response
+            sync_state_from_email_response(
+                conn=conn,
+                company=company,
+                role_title=role_title,
+                category=category,
+            )
+        except Exception as fe_sync_err:
+            log.warning("Failed syncing followup state from email response: %s", fe_sync_err)
 
         results.append(entry)
 

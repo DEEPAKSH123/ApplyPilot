@@ -295,7 +295,7 @@ def test_store_jobs_auto_registers_tier1_hold(temp_engine, monkeypatch):
         }
     ]
 
-    new, url_dupes, cross_dupes = store_jobs_deduped(conn, jobs, site="Razorpay", strategy="test_scrape")
+    new, url_dupes, cross_dupes = store_jobs_deduped(conn, jobs, site="Razorpay", strategy="test_scrape", now_time=t0)
     assert new == 1
 
     # Verify referral_followup_state has REFERRAL_HOLD created

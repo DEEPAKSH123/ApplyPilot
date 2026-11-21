@@ -420,3 +420,95 @@ class ReferralFollowUpEngine:
         if not row:
             return None
         return dict(row)
+
+
+def sync_state_from_email_response(
+    conn: sqlite3.Connection,
+    company: str,
+    role_title: str = "",
+    category: str = "",
+) -> int:
+    """Sync email response (reply, interview, OA, rejection) to referral_followup_state.
+
+    - Matches open rows in referral_followup_state where LOWER(company) LIKE ?
+      and status IN ('REFERRAL_HOLD', 'REFERRAL_REQUESTED', 'APPLIED', 'FOLLOWUP_1_SENT').
+    - If category in ("interview", "oa", "referral_or_recruiter_reply", "offer"):
+        updates status = 'REPLIED_ACTIVE', sets next_due_at = NULL,
+        and triggers a high-priority Telegram alert.
+    - If category == "rejection":
+        updates status = 'REJECTED', sets next_due_at = NULL.
+
+    Returns:
+        Number of rows updated.
+    """
+    if not company:
+        return 0
+
+    init_referral_followup_state(conn)
+    clean_company = company.strip().lower()
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT job_id, company, title, status, email_used, contact_name, contact_handle
+        FROM referral_followup_state
+        WHERE LOWER(company) LIKE ?
+          AND status IN ('REFERRAL_HOLD', 'REFERRAL_REQUESTED', 'APPLIED', 'FOLLOWUP_1_SENT')
+        """,
+        (f"%{clean_company}%",),
+    )
+    rows = cursor.fetchall()
+    if not rows:
+        return 0
+
+    updated_count = 0
+    cat_lower = category.lower()
+
+    if cat_lower in ("interview", "oa", "referral_or_recruiter_reply", "offer"):
+        new_status = "REPLIED_ACTIVE"
+        for r in rows:
+            cursor.execute(
+                """
+                UPDATE referral_followup_state
+                SET status = ?,
+                    next_due_at = NULL,
+                    last_action_at = ?
+                WHERE job_id = ?
+                """,
+                (new_status, now_iso, r["job_id"]),
+            )
+            updated_count += 1
+
+            # Trigger high-priority Telegram alert
+            try:
+                from applypilot.automation.telegram_notifier import send_telegram_alert
+                msg = (
+                    f"🎯 *APPLYPILOT: ACTIVE RESPONSE DETECTED*\n\n"
+                    f"🏢 *Company:* `{r['company']}`\n"
+                    f"💼 *Role:* {r['title']}\n"
+                    f"📩 *Category:* `{category}`\n"
+                    f"✅ *State Machine:* Moved to `REPLIED_ACTIVE`. Automated Day-3/Day-7 follow-ups paused."
+                )
+                send_telegram_alert(msg)
+            except Exception as te:
+                log.debug("Telegram alert error on reply sync: %s", te)
+
+    elif cat_lower in ("rejection", "rejected"):
+        new_status = "REJECTED"
+        for r in rows:
+            cursor.execute(
+                """
+                UPDATE referral_followup_state
+                SET status = ?,
+                    next_due_at = NULL,
+                    last_action_at = ?
+                WHERE job_id = ?
+                """,
+                (new_status, now_iso, r["job_id"]),
+            )
+            updated_count += 1
+
+    conn.commit()
+    return updated_count
+
