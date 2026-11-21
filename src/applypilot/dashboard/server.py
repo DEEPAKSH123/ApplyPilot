@@ -1009,149 +1009,35 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     <!-- Candidate Quick Bar -->
     <div class="quick-bar">
       <div class="quick-pill" onclick="copyText('8431433659', 'Phone Number')"><i class="fa-solid fa-phone"></i> 8431433659</div>
-      <div class="quick-pill" onclick="copyText('deepakshkarkala@gmail.com', 'Email')"><i class="fa-solid fa-envelope"></i> deepakshkarkala@gmail.com</div>
-      <div class="quick-pill" onclick="copyText('https://www.linkedin.com/in/deepak-s-h-82b772254', 'LinkedIn URL')"><i class="fa-brands fa-linkedin"></i> LinkedIn</div>
       <div class="quick-pill" onclick="copyText('20 LPA', 'Current CTC')"><i class="fa-solid fa-indian-rupee-sign"></i> 20 LPA</div>
       <div class="quick-pill" onclick="copyText('Immediate', 'Notice Period')"><i class="fa-solid fa-bolt"></i> Immediate</div>
-      <a href="https://www.linkedin.com/feed/" target="_blank" rel="noopener noreferrer" class="quick-pill"><i class="fa-brands fa-linkedin"></i> Feed</a>
-      <a href="https://www.linkedin.com/search/results/content/?keywords=backend%20engineer%20AND%20(%22hiring%22%20OR%20%22requirement%22)&sortBy=%22date_posted%22" target="_blank" rel="noopener noreferrer" class="quick-pill" title="Open live LinkedIn hiring & requirement posts feed"><i class="fa-solid fa-magnifying-glass"></i> Hiring Posts</a>
-      <div class="quick-pill" onclick="triggerLinkedInIncognitoScan()" style="background: linear-gradient(135deg, #4f46e5, #3730a3); color: #fff; font-weight: 800; border: 1px solid #a5b4fc; box-shadow: 0 0 10px rgba(99,102,241,0.35); cursor: pointer;" title="Primary Action: Run Multi-Source Fresh Scan across LinkedIn Incognito, Indeed India Incognito & Direct ATS (38+ tech companies)"><i class="fa-solid fa-bolt"></i> Incognito Multi-Search (Fresh ⚡)</div>
-      <a href="https://www.google.com/search?q=site%3Aboards.greenhouse.io+OR+site%3Ajobs.lever.co+OR+site%3Ajobs.smartrecruiters.com+(%22Backend+Engineer%22+OR+%22Java%22+OR+%22Golang%22)+%22Bengaluru%22&tbs=qdr:d" target="_blank" rel="noopener noreferrer" class="quick-pill" style="background: linear-gradient(135deg, #ea4335, #c5221f); color: #fff; font-weight: 700; border: 1px solid #f87171;" title="Search Google for freshly indexed ATS jobs in last 24h (Greenhouse, Lever, SmartRecruiters) in Bengaluru"><i class="fa-brands fa-google"></i> Google ATS (24h)</a>
-      <a href="https://www.linkedin.com/jobs/search/?keywords=%28%22Software%20Engineer%22%20OR%20%22Backend%20Engineer%22%20OR%20%22Java%20Developer%22%20OR%20%22Golang%20Developer%22%29%20NOT%20Senior%20NOT%20Lead%20NOT%20Staff%20NOT%20Manager%20NOT%20Director&geoId=105126231&f_TPR=r14400&f_JT=F&sortBy=DD" target="_blank" rel="noopener noreferrer" class="quick-pill" style="background: linear-gradient(135deg, #0284c7, #0369a1); color: #fff; font-weight: 700; border: 1px solid #38bdf8;" title="Fresh SDE-1 Backend Jobs posted in last 4 hours in Bangalore (Sorted by Date Descending)"><i class="fa-solid fa-bolt"></i> 4h Fresh (DD)</a>
-      <a href="https://www.linkedin.com/jobs/search/?keywords=%28%22Software%20Engineer%22%20OR%20%22Backend%20Engineer%22%29%20NOT%20Senior%20NOT%20Lead&geoId=105126231&f_TPR=r86400&f_EA=true&f_AL=true&f_JT=F&sortBy=DD" target="_blank" rel="noopener noreferrer" class="quick-pill" style="background: linear-gradient(135deg, #15803d, #166534); color: #fff; font-weight: 700; border: 1px solid #4ade80;" title="Easy Apply Jobs with <10 Applicants posted in last 24h"><i class="fa-solid fa-user-group"></i> &lt;10 Applicants</a>
-      <a href="https://referral-community.kadegree.in/get" target="_blank" rel="noopener noreferrer" class="quick-pill"><i class="fa-solid fa-users"></i> KaDegree</a>
-      <a href="https://remotive.com/remote-jobs/software-dev?search=backend" target="_blank" rel="noopener noreferrer" class="quick-pill" style="background: linear-gradient(135deg, #0d9488, #0f766e); color: #fff; font-weight: 700; border: 1px solid #2dd4bf;" title="Remotive Curated Remote Backend Roles"><i class="fa-solid fa-globe"></i> Remotive</a>
-      <a href="https://www.workingnomads.com/jobs?category=development" target="_blank" rel="noopener noreferrer" class="quick-pill" style="background: linear-gradient(135deg, #4338ca, #3730a3); color: #fff; font-weight: 700; border: 1px solid #818cf8;" title="Working Nomads Worldwide Developer Roles"><i class="fa-solid fa-laptop-code"></i> Working Nomads</a>
-      <a href="https://www.remoterocketship.com/?search=backend+engineer" target="_blank" rel="noopener noreferrer" class="quick-pill" style="background: linear-gradient(135deg, #c026d3, #a21caf); color: #fff; font-weight: 700; border: 1px solid #e879f9;" title="Remote Rocketship Unlisted Remote Roles"><i class="fa-solid fa-rocket"></i> Remote Rocketship</a>
-      <div class="quick-pill" onclick="triggerRemoteBoardsSync()" style="background: linear-gradient(135deg, #0284c7, #0891b2); color: #fff; font-weight: 700; border: 1px solid #38bdf8; cursor: pointer;" title="Crawl & ingest fresh remote backend jobs from Remotive and Working Nomads APIs into ApplyPilot"><i class="fa-solid fa-cloud-arrow-down"></i> Sync Remote APIs</div>
-      <a href="http://127.0.0.1:5000" target="_blank" rel="noopener noreferrer" class="quick-pill" style="background: linear-gradient(135deg, #7c3aed, #6d28d9); color: #fff; font-weight: 700; border: 1px solid #a78bfa;" title="Open Auto Job Applier Control Panel (Port 5000)"><i class="fa-solid fa-robot"></i> Auto-Applier Bot UI</a>
-      <a href="https://mail.google.com/mail/u/0/#drafts" target="_blank" rel="noopener noreferrer" class="quick-pill"><i class="fa-solid fa-envelope"></i> Gmail Drafts</a>
-      <div class="quick-pill" onclick="triggerLinkedInEasyApplyScan()" style="background: linear-gradient(135deg, #1e3a8a, #2563eb); color: #fff; font-weight: 700; border: 1px solid #3b82f6;" title="Scan LinkedIn specifically for Easy Apply backend openings"><i class="fa-brands fa-linkedin"></i> Scan Easy Apply</div>
-      <div class="quick-pill" id="pill-sync-ats" onclick="triggerAtsSync()" style="background: linear-gradient(135deg, #065f46, #059669); color: #fff; font-weight: 700; border: 1px solid #10b981;" title="Sync Direct Corporate ATS (Workday, Greenhouse, Lever, SmartRecruiters)"><i class="fa-solid fa-building-circle-check" id="icon-sync-ats-pill"></i> Sync Direct ATS</div>
-      <div class="quick-pill" onclick="syncGmailNow()" title="Scan Gmail inbox for application acknowledgments, OAs & interview invites"><i class="fa-solid fa-envelope-open-text"></i> Sync Gmail</div>
-      <div id="naukri-quick-pill" class="quick-pill" onclick="triggerNaukriRefresh()" title="Naukri Daily Refresh Active (Click to refresh now)"><i class="fa-solid fa-arrows-rotate"></i> <span id="naukri-pill-label">Naukri: 8:55 AM Active</span></div>
-      <div class="quick-pill" onclick="openScreeningCopilotModal()" style="background: linear-gradient(135deg, #4f46e5, #7c3aed); color: #fff; font-weight: 700; border: 1px solid #818cf8; cursor: pointer;" title="Gemini Application & Screening Copilot: Paste any question asked in forms for human, grounded answers"><i class="fa-solid fa-robot"></i> Screening Copilot 🤖</div>
-      <div class="quick-pill" onclick="openJobLinkTailorModal()" style="background: linear-gradient(135deg, #0284c7, #2563eb); color: #fff; font-weight: 700; border: 1px solid #38bdf8; cursor: pointer;" title="Input any job link: auto-reads JD, tailors resume & generates referral messages"><i class="fa-solid fa-wand-magic-sparkles"></i> Tailor from Job Link ⚡</div>
-      <div class="quick-pill" onclick="openLinkedInPostModal()" style="background: linear-gradient(135deg, #0a66c2, #0284c7); color: #fff; font-weight: 700; border: 1px solid #38bdf8; cursor: pointer;" title="Analyze any LinkedIn Hiring Post link: extracts recruiter mail or form link and generates tailored resume PDF"><i class="fa-brands fa-linkedin"></i> LinkedIn Post Intake 🚀</div>
-      <div class="quick-pill" onclick="openLogCallModal()"><i class="fa-solid fa-phone"></i> Log Recruiter Call</div>
-      <div class="quick-pill" onclick="openCheatsheetModal('PhonePe', 'SDE-1 Backend')" title="Technical & HR Interview Cheat-Sheet"><i class="fa-solid fa-file-code"></i> Tech Cheat-Sheet</div>
-      <div class="quick-pill" onclick="testAlertsFromUI()" title="Test instant alerts to Telegram, WhatsApp & Desktop"><i class="fa-solid fa-bell"></i> Mobile Alerts</div>
-      <div class="quick-pill" onclick="syncGSheetsNow()"><i class="fa-solid fa-table"></i> Google Sheet</div>
-      <div class="quick-pill" onclick="triggerLinkedInPostsPoll()" title="Scan LinkedIn for fresh hiring posts right now"><i class="fa-brands fa-linkedin"></i> Fetch LinkedIn Posts</div>
-      <div class="quick-pill" onclick="openCustomDraftModal()"><i class="fa-solid fa-pen-nib"></i> Draft Cold Email</div>
-      <div class="quick-pill" onclick="triggerBatchAutoApply()" title="Auto-apply to qualified roles in Brave"><i class="fa-solid fa-play"></i> Auto-Apply</div>
-      <div class="quick-pill" onclick="triggerChannelPoll(event)" title="Poll WhatsApp, Telegram, and Gmail for referral leads"><i class="fa-solid fa-satellite-dish"></i> Poll Channels</div>
-      <div class="quick-pill" onclick="pruneOldJobsNow()" title="Delete stale job listings older than 15 days (safe — never deletes applied/interview rows)" style="background: linear-gradient(135deg, #7f1d1d, #991b1b); color: #fca5a5; border: 1px solid #dc2626; font-weight: 700;"><i class="fa-solid fa-trash-can"></i> Prune Stale (&gt;15d)</div>
+      <div class="quick-pill" onclick="triggerLinkedInIncognitoScan()" style="background: linear-gradient(135deg, #4f46e5, #3730a3); color: #fff; font-weight: 800; border: 1px solid #a5b4fc; cursor: pointer;"><i class="fa-solid fa-bolt"></i> Scan Fresh Jobs ⚡</div>
+      <div class="quick-pill" onclick="triggerBatchAutoApply()" style="background: linear-gradient(135deg, #059669, #10b981); color: #fff; font-weight: 800; cursor: pointer;"><i class="fa-solid fa-play"></i> Auto-Apply</div>
+      <div class="quick-pill" onclick="syncGmailNow()" style="cursor: pointer;"><i class="fa-solid fa-envelope-open-text"></i> Sync Gmail</div>
+      <div class="quick-pill" onclick="openScreeningCopilotModal()" style="background: linear-gradient(135deg, #4f46e5, #7c3aed); color: #fff; font-weight: 700; cursor: pointer;"><i class="fa-solid fa-robot"></i> Copilot 🤖</div>
     </div>
   </header>
 
   <div class="container">
-    <!-- Daily Target Discipline Tracker (Min 5 Resume Requests & Min 5 Applied <= 100 Applicants) -->
-    <div id="daily-target-tracker" style="background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.85)); border: 1.5px solid rgba(56, 189, 248, 0.35); border-radius: 14px; padding: 18px 22px; margin-bottom: 20px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);">
-      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px; margin-bottom: 14px;">
-        <div style="display: flex; align-items: center; gap: 12px;">
-          <div style="background: linear-gradient(135deg, #0284c7, #2563eb); color: #fff; width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; box-shadow: 0 0 12px rgba(56, 189, 248, 0.4);">
-            <i class="fa-solid fa-bullseye"></i>
-          </div>
-          <div>
-            <div style="display: flex; align-items: center; gap: 10px;">
-              <span style="font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.8px; color: #38bdf8;">Daily Target & Consistency Tracker</span>
-              <span id="daily-streak-badge" style="background: rgba(16, 185, 129, 0.2); border: 1px solid #10b981; color: #34d399; font-size: 11px; font-weight: 700; padding: 2px 10px; border-radius: 999px;">
-                <i class="fa-solid fa-fire"></i> Day 1 Streak
-              </span>
-            </div>
-            <div style="font-size: 14px; font-weight: 700; color: #f8fafc; margin-top: 2px;">
-              Daily Disciplined Quota: <span style="color: #38bdf8;">Min 5 Asking Resume / Pitched</span> + <span style="color: #34d399;">Min 5 Applied within 100 Applicants</span>
-            </div>
-          </div>
-        </div>
-
-        <div style="display: flex; align-items: center; gap: 10px;">
-          <button class="btn btn-sm" onclick="setTab('daily_tracker')" style="background: rgba(56, 189, 248, 0.15); border: 1px solid #38bdf8; color: #38bdf8; font-weight: 700; padding: 6px 14px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 6px;">
-            <i class="fa-solid fa-calendar-days"></i> 14-Day Trajectory
-          </button>
-          <button class="btn btn-sm" onclick="setTab('incognito_fresh')" style="background: linear-gradient(135deg, #0284c7, #2563eb); color: #fff; font-weight: 700; padding: 6px 14px; border-radius: 8px; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px;">
-            <i class="fa-solid fa-bolt"></i> Apply Fresh (< 100 Apps)
-          </button>
-        </div>
-      </div>
-
-      <!-- Live Dual Progress Cards -->
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px;">
-        <!-- Card 1: Asking Resume Target -->
-        <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(148, 163, 184, 0.15); border-radius: 10px; padding: 14px 16px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-            <span style="font-size: 12px; font-weight: 700; color: #cbd5e1; display: flex; align-items: center; gap: 6px;">
-              <i class="fa-solid fa-file-invoice" style="color: #38bdf8;"></i> 1. Companies Asking Resume / Pitched
-            </span>
-            <span id="tracker-resume-status" style="font-size: 12px; font-weight: 800; color: #38bdf8;">0 / 5</span>
-          </div>
-          <div style="background: rgba(51, 65, 85, 0.6); height: 8px; border-radius: 999px; overflow: hidden; margin-bottom: 6px;">
-            <div id="tracker-resume-bar" style="background: linear-gradient(90deg, #0284c7, #38bdf8); height: 100%; width: 0%; border-radius: 999px; transition: width 0.4s ease;"></div>
-          </div>
-          <div style="display: flex; justify-content: space-between; font-size: 11px; color: #94a3b8;">
-            <span>Target: min 5 daily</span>
-            <span id="tracker-resume-note" style="color: #64748b;">Cold pitches & referrals sent</span>
-          </div>
-        </div>
-
-        <!-- Card 2: Applied <= 100 Applicants Target -->
-        <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(148, 163, 184, 0.15); border-radius: 10px; padding: 14px 16px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-            <span style="font-size: 12px; font-weight: 700; color: #cbd5e1; display: flex; align-items: center; gap: 6px;">
-              <i class="fa-solid fa-circle-check" style="color: #34d399;"></i> 2. Applied within 100 Applicants
-            </span>
-            <span id="tracker-applied-status" style="font-size: 12px; font-weight: 800; color: #34d399;">0 / 5</span>
-          </div>
-          <div style="background: rgba(51, 65, 85, 0.6); height: 8px; border-radius: 999px; overflow: hidden; margin-bottom: 6px;">
-            <div id="tracker-applied-bar" style="background: linear-gradient(90deg, #059669, #34d399); height: 100%; width: 0%; border-radius: 999px; transition: width 0.4s ease;"></div>
-          </div>
-          <div style="display: flex; justify-content: space-between; font-size: 11px; color: #94a3b8;">
-            <span>Target: min 5 low-competition</span>
-            <span id="tracker-applied-note" style="color: #64748b;">High ATS visibility</span>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Clean KPI Stats Grid -->
-    <div class="stats-grid">
-      <div class="stat-card">
-        <span class="label">Total Jobs</span>
-        <span class="val" id="stat-total">0</span>
-      </div>
-      <div class="stat-card">
-        <span class="label">Top Matches (9-10)</span>
-        <span class="val" id="stat-nine">0</span>
-      </div>
-      <div class="stat-card">
-        <span class="label">Strong Fit (≥ 7)</span>
-        <span class="val" id="stat-high">0</span>
-      </div>
-      <div class="stat-card">
-        <span class="label">Approved Shortlist</span>
-        <span class="val" id="stat-approved">0</span>
-      </div>
-      <div class="stat-card">
-        <span class="label">Tailored Resumes</span>
-        <span class="val" id="stat-tailored">0</span>
-      </div>
-      <div class="stat-card" style="cursor: pointer;" onclick="setTab('responses'); filterResponsesCategory('oa');">
-        <span class="label">Active Assessments</span>
-        <span class="val" id="stat-oa">0</span>
-      </div>
-      <div class="stat-card" style="cursor: pointer;" onclick="setTab('responses'); filterResponsesCategory('all');">
-        <span class="label">Recruiter Replies</span>
-        <span class="val" id="stat-responses">0</span>
-      </div>
-      <div class="stat-card" style="cursor: pointer;" onclick="setTab('kadegree');" title="Click to view live referral openings">
-        <span class="label">Community Referrals</span>
-        <span class="val" id="stat-kadegree">0</span>
-      </div>
-      <div class="stat-card">
-        <span class="label">Applied</span>
-        <span class="val" id="stat-applied">0</span>
-      </div>
+    <!-- Hidden container preserving stat/tracker elements for JS updates to avoid console errors -->
+    <div style="display: none;">
+      <span id="stat-total">0</span>
+      <span id="stat-nine">0</span>
+      <span id="stat-high">0</span>
+      <span id="stat-approved">0</span>
+      <span id="stat-tailored">0</span>
+      <span id="stat-oa">0</span>
+      <span id="stat-responses">0</span>
+      <span id="stat-kadegree">0</span>
+      <span id="stat-applied">0</span>
+      <div id="daily-target-tracker"></div>
+      <span id="daily-streak-badge"></span>
+      <span id="tracker-resume-status"></span>
+      <div id="tracker-resume-bar"></div>
+      <span id="tracker-resume-note"></span>
+      <span id="tracker-applied-status"></span>
+      <div id="tracker-applied-bar"></div>
+      <span id="tracker-applied-note"></span>
     </div>
 
     <!-- Urgent OA Alert Bar -->
@@ -1230,84 +1116,42 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     <!-- Tabs & Search -->
     <div class="controls">
       <div class="tabs">
-        <button class="tab-btn active" onclick="setTab('incognito_fresh')" style="color: #c7d2fe; font-weight: 700;" title="Primary Tab: Openings strictly posted in the last 4 hours with < 200 applicants (Backend, Spring Boot, Java, Go, Full Stack)">
+        <button class="tab-btn active" onclick="setTab('incognito_fresh')" style="color: #c7d2fe; font-weight: 700;">
           <i class="fa-solid fa-bolt" style="margin-right: 5px; color: #818cf8;"></i> Fresh < 4h (< 200 Apps) ⚡
-          <span class="tab-badge" id="badge-incognito-fresh" style="background: rgba(99, 102, 241, 0.3); color: #c7d2fe; border: 1px solid #818cf8;">0</span>
+          <span class="tab-badge" id="badge-incognito-fresh">0</span>
         </button>
-        <button class="tab-btn" onclick="setTab('fresh_24h')" style="color: #38bdf8; font-weight: 700;" title="Fresh openings discovered or posted within the last 24 hours with < 200 applicants">
-          <i class="fa-solid fa-fire-flame-curved" style="margin-right: 5px; color: #38bdf8;"></i> Fresh < 24 Hours 🔥
-          <span class="tab-badge" id="badge-fresh-24h" style="background: rgba(56, 189, 248, 0.25); color: #7dd3fc; border: 1px solid #38bdf8;">0</span>
+        <button class="tab-btn" onclick="setTab('easy_apply')" style="color: #60a5fa;">
+          <i class="fa-brands fa-linkedin" style="margin-right: 5px; color: #3b82f6;"></i> Easy Apply
+          <span class="tab-badge" id="badge-easy-apply">0</span>
         </button>
-        <button class="tab-btn" onclick="setTab('yet_to_apply')">
-          <i class="fa-solid fa-clock-rotate-left" style="margin-right: 5px; color: #38bdf8;"></i> Yet to Apply
-          <span class="tab-badge" id="badge-yet-to-apply">0</span>
-        </button>
-        <button class="tab-btn" onclick="setTab('fresh')" style="color: #fbbf24;" title="Openings discovered or posted within the last 4 hours">
-          <i class="fa-solid fa-bolt" style="margin-right: 5px; color: #f59e0b;"></i> < 4 Hours Fresh ⚡
-          <span class="tab-badge" id="badge-fresh" style="background: rgba(245, 158, 11, 0.25); color: #fbbf24; border: 1px solid #f59e0b;">0</span>
+        <button class="tab-btn" onclick="setTab('asked_referral')" style="color: #c084fc;">
+          <i class="fa-solid fa-people-arrows" style="margin-right: 5px; color: #a855f7;"></i> Asked Referral
+          <span class="tab-badge" id="badge-asked-referral">0</span>
         </button>
         <button class="tab-btn" onclick="setTab('applied')">
           <i class="fa-solid fa-circle-check" style="margin-right: 5px; color: #10b981;"></i> Applied
           <span class="tab-badge" id="badge-applied">0</span>
         </button>
-        <button class="tab-btn" onclick="setTab('asked_referral')" style="color: #c084fc;" title="Roles where you have reached out to a connection, alumnus or recruiter for a referral">
-          <i class="fa-solid fa-people-arrows" style="margin-right: 5px; color: #a855f7;"></i> Asked for Referral
-          <span class="tab-badge" id="badge-asked-referral" style="background: rgba(168, 85, 247, 0.25); color: #d8b4fe; border: 1px solid #a855f7;">0</span>
-        </button>
-        <button class="tab-btn" onclick="setTab('ignored')">
-          <i class="fa-solid fa-ban" style="margin-right: 5px; color: #94a3b8;"></i> Ignored
-          <span class="tab-badge" id="badge-ignored">0</span>
-        </button>
-        <button class="tab-btn" onclick="setTab('high')">
-          High Fit (≥ 7)
-          <span class="tab-badge" id="badge-high">0</span>
-        </button>
-        <button class="tab-btn" onclick="setTab('top')">
-          Top Matches (≥ 8)
-          <span class="tab-badge" id="badge-top">0</span>
-        </button>
-        <button class="tab-btn" onclick="setTab('approved')">
-          Approved Queue
-          <span class="tab-badge" id="badge-approved">0</span>
-        </button>
         <button class="tab-btn" onclick="setTab('responses')">
-          Gmail Tracker
+          <i class="fa-solid fa-envelope" style="margin-right: 5px; color: #38bdf8;"></i> Gmail Replies & OAs
           <span class="tab-badge" id="badge-responses">0</span>
         </button>
-        <button class="tab-btn" onclick="setTab('kadegree')">
-          KaDegree Referrals
+        <!-- Hidden badges for unrendered tabs to avoid JS errors -->
+        <div style="display: none;">
+          <span class="tab-badge" id="badge-fresh-24h">0</span>
+          <span class="tab-badge" id="badge-yet-to-apply">0</span>
+          <span class="tab-badge" id="badge-fresh">0</span>
+          <span class="tab-badge" id="badge-ignored">0</span>
+          <span class="tab-badge" id="badge-high">0</span>
+          <span class="tab-badge" id="badge-top">0</span>
+          <span class="tab-badge" id="badge-approved">0</span>
           <span class="tab-badge" id="badge-kadegree">0</span>
-        </button>
-
-        <button class="tab-btn" onclick="setTab('daily_tracker')" style="color: #38bdf8; font-weight: 700;" title="Daily Tracker: Minimum 5 asking resume & 5 applied within 100 applicants">
-          <i class="fa-solid fa-bullseye" style="margin-right: 5px; color: #38bdf8;"></i> Daily Tracker (5+5)
-          <span class="tab-badge" id="badge-daily-tracker" style="background: rgba(56, 189, 248, 0.25); color: #7dd3fc; border: 1px solid #38bdf8;">Goal Met</span>
-        </button>
-        <button class="tab-btn" onclick="setTab('referral_crm')" style="color: #a855f7; font-weight: 700;" title="Company-wise Referral Connection Request Tracker (Sent vs Accepted)">
-          <i class="fa-solid fa-user-plus" style="margin-right: 5px; color: #c084fc;"></i> Referral Network CRM
-          <span class="tab-badge" id="badge-referral-crm" style="background: rgba(168, 85, 247, 0.25); color: #d8b4fe; border: 1px solid #a855f7;">0</span>
-        </button>
-        <button class="tab-btn" onclick="setTab('remote_portals')" style="color: #34d399; font-weight: 600;" title="Top Remote Engineering Platforms & Agencies (Uplers, Arc, DistantJob, Turing, etc.)">
-          <i class="fa-solid fa-globe" style="margin-right: 5px; color: #10b981;"></i> Remote Portals & Agencies
-          <span class="tab-badge" id="badge-remote-portals" style="background: rgba(16, 185, 129, 0.25); color: #6ee7b7; border: 1px solid #10b981;">18</span>
-        </button>
-        <button class="tab-btn" onclick="setTab('cold_crm')" style="color: #38bdf8;" title="Cold Email Sales Funnel & Tracking CRM">
-          <i class="fa-solid fa-bullseye" style="margin-right: 5px; color: #0284c7;"></i> Cold Email CRM
-          <span class="tab-badge" id="badge-cold-crm" style="background: rgba(14, 165, 233, 0.25); color: #7dd3fc; border: 1px solid #0284c7;">0</span>
-        </button>
-
-        <button class="tab-btn" onclick="setTab('easy_apply')" style="color: #60a5fa;" title="LinkedIn 1-Click Easy Apply Openings">
-          <i class="fa-brands fa-linkedin" style="margin-right: 5px; color: #3b82f6;"></i> Easy Apply
-          <span class="tab-badge" id="badge-easy-apply" style="background: rgba(59, 130, 246, 0.25); color: #93c5fd; border: 1px solid #3b82f6;">0</span>
-        </button>
-        <button class="tab-btn" onclick="setTab('strategy')">
-          Conversion Strategy
-        </button>
-        <button class="tab-btn" onclick="setTab('analytics')">
-          Analytics
+          <span class="tab-badge" id="badge-daily-tracker">0</span>
+          <span class="tab-badge" id="badge-referral-crm">0</span>
+          <span class="tab-badge" id="badge-remote-portals">0</span>
+          <span class="tab-badge" id="badge-cold-crm">0</span>
           <span class="tab-badge" id="badge-analytics">0</span>
-        </button>
-        <button class="tab-btn" onclick="setTab('all')">All Opportunities</button>
+        </div>
       </div>
 
       <div class="search-box">

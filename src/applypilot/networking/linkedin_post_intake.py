@@ -346,6 +346,27 @@ def process_linkedin_post(post_url: str, manual_text: str = "") -> dict[str, Any
     except Exception as e:
         log.error("Failed to update database for LinkedIn post intake: %s", e)
 
+    # Automatically record author in Referral CRM if author name is present
+    if author_name and author_name != "Recruiter":
+        try:
+            from applypilot.networking.referral_tracker import record_connection_request
+            record_connection_request(
+                company=company,
+                person_name=author_name,
+                profile_url=clean_url,
+                headline=author_headline or f"Recruiter / Hiring Lead @ {company}",
+                is_alumni="rvce" in (author_headline or "").lower(),
+                degree="2nd",
+                role_type="Hiring Lead",
+                notes=f"Auto-logged from LinkedIn Hiring Post for {title}",
+                job_rowid=rowid,
+                tailored_msg=outreach.get("recruiter_message") or outreach.get("second_deg_message", ""),
+                resume_path=pdf_resume_path
+            )
+            log.info("Auto-recorded author %s into Referral CRM for %s", author_name, company)
+        except Exception as re:
+            log.warning("Could not auto-record post author to Referral CRM: %s", re)
+
     return {
         "status": "ok",
         "rowid": rowid,

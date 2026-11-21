@@ -8,6 +8,7 @@ outreach messages + 1-click LinkedIn network search links.
 import json
 import logging
 import re
+import time
 import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
@@ -32,35 +33,77 @@ UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like 
 def fetch_job_page(url: str) -> tuple[str, str]:
     """Fetch job posting webpage content and extract clean text and title.
     
-    Tries standard fast HTTP request first. If content seems dynamic or empty,
-    falls back to headless Playwright.
+    Handles LinkedIn job search/view links using persistent Brave session cookies.
+    Tries standard fast HTTP request first for standard web pages, falling back to Playwright.
     """
     raw_html = ""
     title_tag = ""
 
-    # Strategy 1: Fast HTTP GET
-    try:
-        req = urllib.request.Request(
-            url,
-            headers={
-                "User-Agent": UA,
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-                "Accept-Language": "en-US,en;q=0.9",
-            },
-        )
-        with urllib.request.urlopen(req, timeout=12) as resp:
-            raw_html = resp.read().decode("utf-8", errors="ignore")
-    except Exception as e:
-        log.warning("Fast HTTP fetch failed for %s: %s. Trying Playwright fallback...", url, e)
+    # Check if this is a LinkedIn URL (search result or view)
+    is_linkedin = "linkedin.com" in url.lower()
+    clean_target_url = url
+    if is_linkedin and "currentJobId=" in url:
+        # Extract direct view URL
+        m = re.search(r"currentJobId=(\d+)", url)
+        if m:
+            clean_target_url = f"https://www.linkedin.com/jobs/view/{m.group(1)}/"
 
-    # Strategy 2: Playwright fallback if fast fetch got blocked or short content
+    # Strategy 1: For LinkedIn URLs, directly use Brave profile with stored cookies
+    if is_linkedin:
+        try:
+            from playwright.sync_api import sync_playwright
+            from applypilot.apply.assistant import BRAVE_PROFILE_DIR, get_browser_executable
+            from applypilot.networking.linkedin import get_stored_cookies
+
+            exe_path, _ = get_browser_executable()
+            with sync_playwright() as p:
+                context = p.chromium.launch_persistent_context(
+                    user_data_dir=str(BRAVE_PROFILE_DIR.resolve()),
+                    executable_path=exe_path if exe_path else None,
+                    headless=True,
+                    args=["--disable-blink-features=AutomationControlled"]
+                )
+                cookies = get_stored_cookies()
+                if cookies:
+                    try:
+                        context.add_cookies(cookies)
+                    except Exception:
+                        pass
+                page = context.pages[0] if context.pages else context.new_page()
+                page.goto(clean_target_url, timeout=25000, wait_until="domcontentloaded")
+                time.sleep(4)
+                title_tag = page.title()
+                body_text = page.inner_text("body")
+                context.close()
+                if body_text and len(body_text) > 200:
+                    return body_text[:15000], title_tag
+        except Exception as le:
+            log.warning("LinkedIn authenticated fetch failed: %s", le)
+
+    # Strategy 2: Fast HTTP GET (Non-LinkedIn or fallback)
+    if not is_linkedin:
+        try:
+            req = urllib.request.Request(
+                clean_target_url,
+                headers={
+                    "User-Agent": UA,
+                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                    "Accept-Language": "en-US,en;q=0.9",
+                },
+            )
+            with urllib.request.urlopen(req, timeout=12) as resp:
+                raw_html = resp.read().decode("utf-8", errors="ignore")
+        except Exception as e:
+            log.warning("Fast HTTP fetch failed for %s: %s. Trying Playwright fallback...", clean_target_url, e)
+
+    # Strategy 3: Playwright fallback if fast fetch got blocked or short content
     if not raw_html or len(raw_html) < 800:
         try:
             from playwright.sync_api import sync_playwright
             with sync_playwright() as p:
                 browser = p.chromium.launch(headless=True)
                 page = browser.new_page(user_agent=UA)
-                page.goto(url, timeout=25000, wait_until="domcontentloaded")
+                page.goto(clean_target_url, timeout=25000, wait_until="domcontentloaded")
                 try:
                     page.wait_for_timeout(2000)
                 except Exception:
@@ -68,7 +111,7 @@ def fetch_job_page(url: str) -> tuple[str, str]:
                 raw_html = page.content()
                 browser.close()
         except Exception as e:
-            log.warning("Playwright fallback also failed for %s: %s", url, e)
+            log.warning("Playwright fallback also failed for %s: %s", clean_target_url, e)
 
     if not raw_html:
         return "", ""
@@ -288,6 +331,49 @@ def process_job_link(url: str, manual_jd: str = "") -> dict[str, Any]:
     except Exception as e:
         log.error("Failed to persist quick job to DB: %s", e)
 
+    # 4. Automatically find and queue target connections for referral reach-out
+    discovered_connections = []
+    try:
+        from applypilot.networking.linkedin import search_linkedin_connections
+        from applypilot.networking.referral_tracker import record_connection_request
+        log.info("Auto-discovering connections and RVCE alumni @ %s...", company)
+        raw_conns = search_linkedin_connections(company=company, role="backend", max_results=6)
+        for rc in raw_conns:
+            if rc.get("name") and not rc.get("error"):
+                full_name = rc.get("name", "").strip()
+                p_url = rc.get("url") or rc.get("href") or ""
+                headline = rc.get("headline") or rc.get("occupation") or "Software Engineer"
+                is_alumni = bool(rc.get("is_alumni"))
+                degree = rc.get("degree") or "2nd"
+                # Select best tailored pitch
+                tailored_msg = outreach.get("alumni_message" if is_alumni else "second_deg_message" if degree == "2nd" else "first_deg_message", "")
+                
+                # Auto-record into Referral CRM tied to this job opening
+                rec = record_connection_request(
+                    company=company,
+                    person_name=full_name,
+                    profile_url=p_url,
+                    headline=headline,
+                    is_alumni=is_alumni,
+                    degree=degree,
+                    role_type="Engineer",
+                    notes=f"Auto-discovered for {title}",
+                    job_rowid=rowid,
+                    tailored_msg=tailored_msg,
+                    resume_path=pdf_resume_path
+                )
+                discovered_connections.append({
+                    "id": rec.get("id"),
+                    "name": full_name,
+                    "profile_url": p_url,
+                    "headline": headline,
+                    "is_alumni": is_alumni,
+                    "degree": degree
+                })
+        log.info("Auto-queued %d connections in Referral CRM for %s", len(discovered_connections), company)
+    except Exception as ce:
+        log.warning("Could not auto-discover connections for %s: %s", company, ce)
+
     return {
         "status": "ok",
         "rowid": rowid,
@@ -302,4 +388,5 @@ def process_job_link(url: str, manual_jd: str = "") -> dict[str, Any]:
         "cover_letter_text": cover_txt,
         "pdf_cover_path": pdf_cover_path,
         "url": url,
+        "discovered_connections": discovered_connections
     }

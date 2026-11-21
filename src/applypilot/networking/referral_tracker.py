@@ -233,6 +233,140 @@ def get_referral_network_summary() -> dict[str, Any]:
     }
 
 
+def sync_sent_invitations_from_linkedin(max_check: int = 50, headless: bool = True) -> dict[str, Any]:
+    """Scrapes LinkedIn Sent Invitations page to automatically discover & track requests sent by Deepak.
+    
+    Navigates to https://www.linkedin.com/mynetwork/invitation-manager/sent/
+    and imports every person Deepak has invited into referral_connection_requests.
+    This eliminates ANY manual typing or logging!
+    """
+    from playwright.sync_api import sync_playwright
+    from applypilot.apply.assistant import BRAVE_PROFILE_DIR, get_browser_executable
+    from applypilot.networking.linkedin import get_stored_cookies
+
+    conn = get_connection()
+    init_referral_connection_tables(conn)
+
+    exe_path, _ = get_browser_executable()
+    BRAVE_PROFILE_DIR.mkdir(parents=True, exist_ok=True)
+
+    sent_invites = []
+    try:
+        with sync_playwright() as p:
+            launch_args = [
+                "--disable-blink-features=AutomationControlled",
+                "--no-first-run",
+                "--no-default-browser-check",
+            ]
+            context = p.chromium.launch_persistent_context(
+                user_data_dir=str(BRAVE_PROFILE_DIR.resolve()),
+                executable_path=exe_path if exe_path else None,
+                headless=headless,
+                args=launch_args,
+                viewport={"width": 1280, "height": 850},
+            )
+
+            existing_cookies = get_stored_cookies()
+            if existing_cookies:
+                try:
+                    context.add_cookies(existing_cookies)
+                except Exception:
+                    pass
+
+            page = context.pages[0] if context.pages else context.new_page()
+            url = "https://www.linkedin.com/mynetwork/invitation-manager/sent/"
+            page.goto(url, wait_until="domcontentloaded")
+            time.sleep(5)
+
+            if "login" in page.url:
+                context.close()
+                return {"status": "error", "message": "LinkedIn authentication required.", "synced": 0}
+
+            sent_invites = page.evaluate("""() => {
+                const results = [];
+                const links = Array.from(document.querySelectorAll('a[href*="/in/"]'));
+                const seen = new Set();
+                for (const a of links) {
+                    const href = a.href.split('?')[0].replace(/\\/+$/, '');
+                    if (!href || href.includes('mini-profile') || seen.has(href)) continue;
+                    seen.add(href);
+
+                    let el = a;
+                    let candidateContainer = null;
+                    for (let i = 0; i < 6 && el && el.tagName !== 'BODY'; i++) {
+                        if (el.innerText && el.innerText.includes('Withdraw')) {
+                            candidateContainer = el;
+                            break;
+                        }
+                        el = el.parentElement;
+                    }
+
+                    if (candidateContainer) {
+                        const text = candidateContainer.innerText;
+                        const lines = text.split('\\n').map(l => l.trim()).filter(Boolean);
+                        const name = lines[0] || '';
+                        const headline = lines[1] || '';
+                        let sentTime = '';
+                        for (const l of lines) {
+                            if (l.toLowerCase().includes('sent ')) {
+                                sentTime = l;
+                                break;
+                            }
+                        }
+                        results.push({ name, href, headline, sentTime });
+                    }
+                }
+                return results;
+            }""")
+            context.close()
+    except Exception as e:
+        log.error("Failed to scrape sent invitations: %s", e)
+        return {"status": "error", "message": str(e), "synced": 0}
+
+    new_recorded = 0
+    now_iso = datetime.now(timezone.utc).isoformat()
+    for inv in sent_invites:
+        name = inv.get("name", "").strip()
+        p_url = inv.get("href", "").strip()
+        headline = inv.get("headline", "").strip()
+        sent_time = inv.get("sentTime", "")
+
+        if not name or name.lower().startswith("people"):
+            continue
+
+        # Extract company heuristic from headline
+        comp = "LinkedIn Network"
+        if " at " in headline or " @ " in headline:
+            part = headline.split(" at ")[-1] if " at " in headline else headline.split(" @ ")[-1]
+            comp = part.split("|")[0].split("·")[0].split("•")[0].strip()
+        elif "Building " in headline:
+            comp = headline.split("Building ")[1].split("|")[0].strip()
+
+        is_alumni = "rvce" in headline.lower() or "rv college" in headline.lower()
+
+        # Record into referral CRM
+        res = record_connection_request(
+            company=comp,
+            person_name=name,
+            profile_url=p_url,
+            headline=headline,
+            is_alumni=is_alumni,
+            degree="2nd",
+            role_type="Engineer",
+            notes=f"Auto-imported from LinkedIn Sent Manager ({sent_time})",
+            tailored_msg="",
+            resume_path=""
+        )
+        if not res.get("existing"):
+            new_recorded += 1
+
+    return {
+        "status": "ok",
+        "total_sent_found": len(sent_invites),
+        "new_recorded": new_recorded
+    }
+
+
 def sync_accepted_connections_from_linkedin(max_check: int = 50, headless: bool = True) -> dict[str, Any]:
     """Scrapes LinkedIn recent connections list to detect accepted connection requests.
     
