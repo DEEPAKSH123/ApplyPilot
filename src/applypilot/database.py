@@ -278,6 +278,7 @@ _ALL_COLUMNS: dict[str, str] = {
     "calendar_event_id": "TEXT",
     "calendar_event_link": "TEXT",
     "num_applicants": "INTEGER",
+    "ignore_reason": "TEXT",
 }
 
 

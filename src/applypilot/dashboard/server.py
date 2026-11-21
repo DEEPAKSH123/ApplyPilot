@@ -22,6 +22,7 @@ import urllib.parse
 import webbrowser
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from datetime import datetime, timezone
 
 from applypilot.config import APP_DIR, DB_PATH, TAILORED_DIR, COVER_LETTER_DIR, load_profile, load_env
 from applypilot.database import get_connection
@@ -1409,6 +1410,63 @@ HTML_DASHBOARD = """<!DOCTYPE html>
             </div>
             <div id="copilot-answer-text" style="white-space: pre-wrap; font-size: 13.5px; color: #f8fafc; line-height: 1.6; max-height: 320px; overflow-y: auto; background: #090d16; padding: 14px; border-radius: 6px; border: 1px solid #1e293b;"></div>
           </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ignore Reason Feedback Modal -->
+  <div id="ignore-reason-modal" class="modal-backdrop" onclick="if(event.target===this) closeIgnoreModal()">
+    <div class="modal-content" style="max-width: 520px; border: 1px solid #ef4444; box-shadow: 0 20px 40px rgba(0,0,0,0.6);">
+      <div class="modal-header" style="background: linear-gradient(90deg, #450a0a, #7f1d1d);">
+        <h3 style="color:#fecaca; display: flex; align-items: center; gap: 8px;">
+          <i class="fa-solid fa-ban" style="color: #f87171;"></i> Ignore Opportunity & Search Engine Feedback
+        </h3>
+        <button class="modal-close" onclick="closeIgnoreModal()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div style="padding: 22px; color: #cbd5e1; font-size: 13.5px; line-height: 1.5;">
+        <p style="margin-top:0; color: #94a3b8; font-size: 12.5px; margin-bottom: 14px;">
+          Why are you ignoring <strong id="ignore-job-title" style="color:#fff;">this position</strong> at <strong id="ignore-job-company" style="color:#38bdf8;">Company</strong>?
+          This feedback is logged to refine crawler filters and search rankings.
+        </p>
+        <input type="hidden" id="ignore-target-rowid" value="">
+
+        <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px;">
+          <label style="display: flex; align-items: center; gap: 10px; background: #1e293b; padding: 10px 14px; border-radius: 8px; cursor: pointer; border: 1px solid #334155; font-size: 13px;">
+            <input type="radio" name="ignore-reason-option" value="link_broken" checked onchange="toggleCustomIgnoreInput(false)">
+            <span><i class="fa-solid fa-link-slash" style="color:#f87171; width: 18px;"></i> Link not working / Expired job</span>
+          </label>
+          <label style="display: flex; align-items: center; gap: 10px; background: #1e293b; padding: 10px 14px; border-radius: 8px; cursor: pointer; border: 1px solid #334155; font-size: 13px;">
+            <input type="radio" name="ignore-reason-option" value="experience_mismatch" onchange="toggleCustomIgnoreInput(false)">
+            <span><i class="fa-solid fa-user-clock" style="color:#fbbf24; width: 18px;"></i> Asking for more experience (Senior/Lead/Over 3 YOE)</span>
+          </label>
+          <label style="display: flex; align-items: center; gap: 10px; background: #1e293b; padding: 10px 14px; border-radius: 8px; cursor: pointer; border: 1px solid #334155; font-size: 13px;">
+            <input type="radio" name="ignore-reason-option" value="salary_low" onchange="toggleCustomIgnoreInput(false)">
+            <span><i class="fa-solid fa-indian-rupee-sign" style="color:#34d399; width: 18px;"></i> Salary below expectations (< 20 LPA)</span>
+          </label>
+          <label style="display: flex; align-items: center; gap: 10px; background: #1e293b; padding: 10px 14px; border-radius: 8px; cursor: pointer; border: 1px solid #334155; font-size: 13px;">
+            <input type="radio" name="ignore-reason-option" value="location_unrelocatable" onchange="toggleCustomIgnoreInput(false)">
+            <span><i class="fa-solid fa-location-dot" style="color:#60a5fa; width: 18px;"></i> Location not possible / Cannot relocate (Not BLR/Remote)</span>
+          </label>
+          <label style="display: flex; align-items: center; gap: 10px; background: #1e293b; padding: 10px 14px; border-radius: 8px; cursor: pointer; border: 1px solid #334155; font-size: 13px;">
+            <input type="radio" name="ignore-reason-option" value="tech_stack_mismatch" onchange="toggleCustomIgnoreInput(false)">
+            <span><i class="fa-solid fa-code" style="color:#c084fc; width: 18px;"></i> Tech stack mismatch (Not Backend / Java / Go)</span>
+          </label>
+          <label style="display: flex; align-items: center; gap: 10px; background: #1e293b; padding: 10px 14px; border-radius: 8px; cursor: pointer; border: 1px solid #334155; font-size: 13px;">
+            <input type="radio" name="ignore-reason-option" value="other" onchange="toggleCustomIgnoreInput(true)">
+            <span><i class="fa-solid fa-ellipsis" style="color:#94a3b8; width: 18px;"></i> Other reason</span>
+          </label>
+        </div>
+
+        <div id="ignore-custom-box" style="display: none; margin-bottom: 16px;">
+          <input type="text" id="ignore-custom-reason" placeholder="Type custom reason..." style="width: 100%; background: #0f172a; border: 1px solid #ef4444; color: #fff; padding: 9px 12px; border-radius: 8px; font-size: 13px;">
+        </div>
+
+        <div style="display: flex; gap: 10px; justify-content: flex-end;">
+          <button class="btn" onclick="closeIgnoreModal()" style="background: #334155; color: #fff; padding: 8px 16px; border-radius: 8px; border:none; cursor: pointer;">Cancel</button>
+          <button class="btn" onclick="confirmIgnoreWithReason()" style="background: linear-gradient(135deg, #dc2626, #991b1b); color: #fff; font-weight: 700; padding: 8px 18px; border-radius: 8px; border:none; cursor: pointer; box-shadow: 0 4px 12px rgba(220, 38, 38, 0.4);">
+            <i class="fa-solid fa-ban"></i> Confirm Ignore & Save Feedback
+          </button>
         </div>
       </div>
     </div>
@@ -4703,7 +4761,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
               ` : ''}
 
               ${!isIgnored ? `
-                <button class="btn btn-ignore" onclick="ignoreJob(${job.rowid})" title="Hide / ignore this job (e.g. broken or invalid link)">
+                <button class="btn btn-ignore" onclick="promptIgnoreModal(${job.rowid})" title="Hide / ignore this job with search refinement feedback">
                   <i class="fa-solid fa-ban"></i> Ignore
                 </button>
               ` : `
@@ -4870,11 +4928,72 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       }
     }
 
-    async function ignoreJob(rowid) {
-      const res = await fetch(`/api/jobs/${rowid}/ignore`, { method: 'POST' });
+    function promptIgnoreModal(rowid) {
+      const job = allJobs.find(j => j.rowid === rowid);
+      document.getElementById('ignore-target-rowid').value = rowid;
+      document.getElementById('ignore-job-title').textContent = job ? job.title : 'this position';
+      document.getElementById('ignore-job-company').textContent = job ? job.company : 'Company';
+      document.getElementById('ignore-custom-reason').value = '';
+      toggleCustomIgnoreInput(false);
+      // Reset radio to link_broken
+      const defaultRadio = document.querySelector('input[name="ignore-reason-option"][value="link_broken"]');
+      if (defaultRadio) defaultRadio.checked = true;
+
+      const modal = document.getElementById('ignore-reason-modal');
+      modal.classList.add('active');
+      modal.style.display = 'flex';
+    }
+
+    function closeIgnoreModal() {
+      const modal = document.getElementById('ignore-reason-modal');
+      modal.classList.remove('active');
+      modal.style.display = 'none';
+    }
+
+    function toggleCustomIgnoreInput(show) {
+      document.getElementById('ignore-custom-box').style.display = show ? 'block' : 'none';
+      if (show) document.getElementById('ignore-custom-reason').focus();
+    }
+
+    async function confirmIgnoreWithReason() {
+      const rowid = document.getElementById('ignore-target-rowid').value;
+      if (!rowid) return;
+      const selected = document.querySelector('input[name="ignore-reason-option"]:checked');
+      let reason = selected ? selected.value : 'other';
+      if (reason === 'other') {
+        const custom = (document.getElementById('ignore-custom-reason').value || '').trim();
+        reason = custom ? `other: ${custom}` : 'other';
+      }
+
+      closeIgnoreModal();
+
+      try {
+        const res = await fetch(`/api/jobs/${rowid}/ignore`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reason: reason })
+        });
+        const data = await res.json();
+        if (data.status === 'ok') {
+          showToast('🚫 Job ignored & feedback saved to analysis log.');
+          fetchJobs();
+        } else {
+          showToast('Error ignoring job: ' + (data.message || 'unknown error'));
+        }
+      } catch (err) {
+        showToast('Failed to ignore job: ' + err);
+      }
+    }
+
+    async function ignoreJob(rowid, reason) {
+      const res = await fetch(`/api/jobs/${rowid}/ignore`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: reason || 'unspecified' })
+      });
       const data = await res.json();
       if (data.status === 'ok') {
-        showToast('🚫 Job ignored and removed from active feeds.');
+        showToast('🚫 Job ignored.');
         fetchJobs();
       }
     }
@@ -5196,10 +5315,21 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         }
 
         if (data.status === 'ok' && data.connections && data.connections.length > 0) {
+          // Count 2nd-degree connections for batch connect
+          _lastScannedConnections = data.connections;
+          const secondDegConns = data.connections.filter(c => c.degree !== '1st');
+          const batchBtnHtml = secondDegConns.length > 0 ? `
+            <button class="btn" style="background: linear-gradient(135deg, #f59e0b, #ea580c); color: #fff; padding: 7px 14px; font-size: 12px; font-weight: 700; white-space: nowrap; border: none; border-radius: 6px; cursor: pointer;" onclick="batchConnectAll()" title="Send connection requests to all ${secondDegConns.length} people with tailored notes — opens Brave sequentially">
+              <i class="fa-solid fa-bolt"></i> Connect All (${secondDegConns.length})
+            </button>
+          ` : '';
           container.innerHTML = `
-            <div style="font-size: 12px; color: #94a3b8; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+            <div style="font-size: 12px; color: #94a3b8; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
               <span>Found <strong>${data.connections.length}</strong> active connections @ <strong>${company}</strong> ready for referral:</span>
-              <span style="font-size: 11px; color: #38bdf8;">1-Click Auto-Types customized DM in Brave</span>
+              <div style="display: flex; gap: 8px; align-items: center;">
+                ${batchBtnHtml}
+                <span style="font-size: 11px; color: #38bdf8;">1-Click Auto-Types customized DM in Brave</span>
+              </div>
             </div>
             ${data.connections.map(c => `
               <div style="background: #0f172a; border: 1px solid #334155; border-radius: 10px; padding: 12px; display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px;">
@@ -5396,6 +5526,28 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       const comp = compMatch ? compMatch[1].trim() : '';
       const action = withNote ? 'connect' : 'connect_only';
       composeLinkedInDM(val, '', comp, 'Backend Engineer', 'referral', action);
+    }
+
+
+    // Batch Connect All: Send connection requests to all scanned 2nd-degree people sequentially
+    let _lastScannedConnections = [];
+    async function batchConnectAll() {
+      const conns = _lastScannedConnections.filter(c => c.degree !== '1st');
+      if (conns.length === 0) { showToast('No 2nd-degree connections to batch-connect.'); return; }
+      const names = conns.map((c, i) => (i+1) + '. ' + c.name).join('\n');
+      if (!confirm('Send connection requests to ' + conns.length + ' people?\n\n' + names + '\n\nBrave opens for each. Click Send in each window.')) return;
+      showToast('Starting batch connect for ' + conns.length + ' people...');
+      let sent = 0;
+      for (const c of conns) {
+        try {
+          showToast('[' + (sent+1) + '/' + conns.length + '] Connecting with ' + c.name + '...');
+          const comp = c.company || '';
+          await composeLinkedInDM(c.profile_url, c.name, comp, 'Backend Engineer', c.is_alumni ? 'alumni' : 'referral', 'connect');
+          sent++;
+          if (sent < conns.length) await new Promise(r => setTimeout(r, 8000));
+        } catch (err) { showToast('Error connecting with ' + c.name + ': ' + err); }
+      }
+      showToast('Batch connect done! Opened Brave for ' + sent + '/' + conns.length + ' requests.');
     }
 
     function copyText(val, label) {
@@ -6523,7 +6675,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     COALESCE(referral_contact_platform, '') AS referral_contact_platform,
                     COALESCE(is_easy_apply, 0) AS is_easy_apply,
                     COALESCE(date_posted, '') AS date_posted,
-                    num_applicants
+                    num_applicants,
+                    COALESCE(ignore_reason, '') AS ignore_reason
                 FROM jobs
                 ORDER BY fit_score DESC NULLS LAST, discovered_at DESC
             """
@@ -7283,19 +7436,54 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps({"status": "ok", "rowid": rowid}).encode("utf-8"))
             return
 
-        # 3b. /api/jobs/{rowid}/ignore
+        # 3b. /api/jobs/{rowid}/ignore (with structured reasoning feedback logged for analytics)
         elif path.startswith("/api/jobs/") and path.endswith("/ignore"):
             parts = path.split("/")
             rowid = int(parts[3])
+
+            length = int(self.headers.get("Content-Length", 0))
+            body_data = self.rfile.read(length).decode("utf-8") if length > 0 else "{}"
+            reason = "unspecified"
+            try:
+                payload = json.loads(body_data)
+                reason = payload.get("reason", "unspecified")
+            except Exception:
+                pass
+
             conn = get_connection()
-            conn.execute("UPDATE jobs SET apply_status = 'ignored' WHERE rowid = ?", (rowid,))
+            # Fetch job details for rich audit log
+            job_row = conn.execute("SELECT site, title, location, url, salary, strategy FROM jobs WHERE rowid = ?", (rowid,)).fetchone()
+            company = job_row["site"] if job_row and "site" in job_row.keys() else ""
+            title = job_row["title"] if job_row and "title" in job_row.keys() else ""
+            location = job_row["location"] if job_row and "location" in job_row.keys() else ""
+            url = job_row["url"] if job_row and "url" in job_row.keys() else ""
+
+            conn.execute("UPDATE jobs SET apply_status = 'ignored', ignore_reason = ? WHERE rowid = ?", (reason, rowid))
             conn.commit()
+
+            # Append structured feedback record to data/ignored_jobs_feedback.jsonl
+            try:
+                feedback_file = APP_DIR / "ignored_jobs_feedback.jsonl"
+                feedback_entry = {
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "rowid": rowid,
+                    "company": company,
+                    "title": title,
+                    "location": location,
+                    "url": url,
+                    "reason": reason
+                }
+                with open(feedback_file, "a", encoding="utf-8") as ff:
+                    ff.write(json.dumps(feedback_entry) + "\n")
+            except Exception as fe:
+                log.warning(f"Could not write to ignored_jobs_feedback.jsonl: {fe}")
+
             export_opportunities_csv()
 
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
-            self.wfile.write(json.dumps({"status": "ok", "rowid": rowid}).encode("utf-8"))
+            self.wfile.write(json.dumps({"status": "ok", "rowid": rowid, "reason": reason}).encode("utf-8"))
             return
 
         # 3c. /api/jobs/{rowid}/unignore
