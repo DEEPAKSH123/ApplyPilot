@@ -25,6 +25,7 @@ from applypilot.database import get_connection
 log = logging.getLogger(__name__)
 
 SESSION_FILE = APP_DIR / "linkedin_session.json"
+STORAGE_STATE_FILE = APP_DIR / "storage_state.json"
 EMAIL_REGEX = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,7}\b")
 
 # Regex patterns to detect years of experience required
@@ -87,7 +88,16 @@ def is_linkedin_authenticated() -> bool:
 
 
 def get_stored_cookies() -> list[dict]:
-    """Retrieve stored LinkedIn cookies."""
+    """Retrieve stored LinkedIn cookies from storage_state.json or linkedin_session.json."""
+    if STORAGE_STATE_FILE.exists():
+        try:
+            data = json.loads(STORAGE_STATE_FILE.read_text(encoding="utf-8"))
+            cookies = data.get("cookies", [])
+            if cookies:
+                return cookies
+        except Exception:
+            pass
+
     if not SESSION_FILE.exists():
         return []
     try:
@@ -106,6 +116,15 @@ def save_stored_cookies(cookies: list[dict], user_info: dict | None = None) -> N
     }
     SESSION_FILE.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     log.info("Saved %d LinkedIn cookies to %s", len(cookies), SESSION_FILE)
+    try:
+        # Also maintain standard Playwright storage_state.json format
+        playwright_state = {
+            "cookies": cookies,
+            "origins": []
+        }
+        STORAGE_STATE_FILE.write_text(json.dumps(playwright_state, indent=2), encoding="utf-8")
+    except Exception as se:
+        log.warning("Could not sync storage_state.json: %s", se)
 
 
 def set_li_at_cookie(li_at_token: str) -> bool:
@@ -926,6 +945,301 @@ def compose_referral_dm(
         "status": "ok",
         "message": f"Assisted DM composer active in Brave for {first_name or 'connection'}! Message pre-typed and ready to Send.",
         "copied_to_clipboard": True
+    }
+
+
+def send_connect_via_api(profile_url: str, note: str | None = None) -> dict[str, Any]:
+    """Send LinkedIn connection request directly via LinkedIn Voyager API in the background.
+
+    Reads li_at and JSESSIONID from saved storage_state.json / session file.
+    Resolves target member's urn:li:fsd_profile via Voyager profile API.
+    Sends invitation POST to Voyager normInvitations endpoint.
+    """
+    import requests
+
+    cookies = get_stored_cookies()
+    cookie_dict = {}
+    for c in cookies:
+        if isinstance(c, dict) and "name" in c and "value" in c:
+            cookie_dict[c["name"]] = c["value"]
+
+    li_at = cookie_dict.get("li_at")
+    jsessionid = cookie_dict.get("JSESSIONID", "").strip('"').strip("'")
+
+    if not li_at or not jsessionid:
+        return {
+            "ok": False,
+            "error": "Missing li_at or JSESSIONID cookies. Please ensure LinkedIn session is active.",
+            "method": "voyager_api",
+        }
+
+    clean_url = (profile_url or "").strip().rstrip("/")
+    if not clean_url:
+        return {"ok": False, "error": "No profile URL provided.", "method": "voyager_api"}
+
+    # Extract member slug from profile_url (e.g. https://www.linkedin.com/in/username/ -> username)
+    slug = clean_url.split("linkedin.com/in/")[-1].split("?")[0].split("/")[0].strip()
+    if not slug:
+        slug = clean_url.split("/")[-1].split("?")[0].strip()
+
+    csrf_token = jsessionid
+
+    headers = {
+        "csrf-token": csrf_token,
+        "x-restli-protocol-version": "2.0.0",
+        "user-agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+        ),
+        "accept": "application/vnd.linkedin.normalized+json+2.1",
+        "x-li-lang": "en_US",
+    }
+
+    session = requests.Session()
+    session.cookies.update(cookie_dict)
+
+    # Step 1: Resolve target member's profile URN / entityUrn
+    profile_api_url = f"https://www.linkedin.com/voyager/api/identity/dash/profiles?q=memberIdentity&memberIdentity={urllib.parse.quote(slug)}"
+    try:
+        resp = session.get(profile_api_url, headers=headers, timeout=12)
+    except Exception as e:
+        return {"ok": False, "error": f"Voyager profile lookup failed: {e}", "method": "voyager_api"}
+
+    if resp.status_code != 200:
+        return {
+            "ok": False,
+            "error": f"Voyager profile lookup returned status {resp.status_code}: {resp.text[:200]}",
+            "method": "voyager_api",
+        }
+
+    target_urn = ""
+    try:
+        prof_data = resp.json()
+        # Look for urn:li:fsd_profile:... in entities or data
+        if "elements" in prof_data and len(prof_data["elements"]) > 0:
+            target_urn = prof_data["elements"][0].get("entityUrn", "")
+        elif "*elements" in prof_data and len(prof_data["*elements"]) > 0:
+            target_urn = prof_data["*elements"][0]
+        else:
+            # Recursive or text search for urn:li:fsd_profile
+            raw_text = resp.text
+            match = re.search(r'urn:li:fsd_profile:[a-zA-Z0-9_\-]+', raw_text)
+            if match:
+                target_urn = match.group(0)
+    except Exception as e:
+        return {"ok": False, "error": f"Failed parsing Voyager profile response: {e}", "method": "voyager_api"}
+
+    if not target_urn:
+        return {
+            "ok": False,
+            "error": f"Could not resolve urn:li:fsd_profile for slug '{slug}'",
+            "method": "voyager_api",
+        }
+
+    # Step 2: Send connection invite
+    invite_url = "https://www.linkedin.com/voyager/api/growth/normInvitations"
+    payload: dict[str, Any] = {
+        "invitee": {
+            "inviteeUnion": {
+                "memberProfile": target_urn
+            }
+        }
+    }
+    if note:
+        payload["message"] = str(note)[:200]
+
+    try:
+        inv_resp = session.post(invite_url, json=payload, headers=headers, timeout=15)
+    except Exception as e:
+        return {"ok": False, "error": f"Voyager invite POST failed: {e}", "method": "voyager_api"}
+
+    if inv_resp.status_code == 201:
+        log.info("Successfully sent LinkedIn connection request via Voyager API to %s (%s)", slug, target_urn)
+        return {"ok": True, "method": "voyager_api", "target_urn": target_urn}
+
+    if inv_resp.status_code == 422 and "CANT_RESEND_YET" in inv_resp.text:
+        log.info("Invitation to %s already pending or recently sent (CANT_RESEND_YET)", slug)
+        return {"ok": True, "method": "voyager_api", "target_urn": target_urn, "note": "CANT_RESEND_YET"}
+
+    return {
+        "ok": False,
+        "error": f"Voyager invitation POST returned {inv_resp.status_code}: {inv_resp.text[:250]}",
+        "method": "voyager_api",
+        "status_code": inv_resp.status_code
+    }
+
+
+def send_connect_via_headless_browser(profile_url: str, note: str | None = None) -> dict[str, Any]:
+    """Send LinkedIn connection request in the background using Playwright in headless mode.
+
+    Loads session from saved storage_state.json / session file, navigates to profile,
+    clicks Connect (or More -> Connect), adds note if provided, submits, and verifies
+    Pending state.
+    """
+    from playwright.sync_api import sync_playwright
+
+    clean_url = (profile_url or "").strip()
+    if not clean_url:
+        return {"ok": False, "error": "No profile URL provided.", "method": "headless_playwright"}
+    if not clean_url.startswith("http"):
+        clean_url = f"https://www.linkedin.com/in/{clean_url.lstrip('/')}"
+
+    exe_path, _ = get_browser_executable()
+    BRAVE_PROFILE_DIR.mkdir(parents=True, exist_ok=True)
+
+    with sync_playwright() as p:
+        browser = None
+        context = None
+
+        # Check if storage_state.json exists
+        storage_state_arg = str(STORAGE_STATE_FILE.resolve()) if STORAGE_STATE_FILE.exists() else None
+
+        try:
+            # Run strictly headless
+            if exe_path and Path(exe_path).exists():
+                browser = p.chromium.launch(
+                    executable_path=exe_path,
+                    headless=True,
+                    args=["--disable-blink-features=AutomationControlled"]
+                )
+            else:
+                browser = p.chromium.launch(
+                    headless=True,
+                    args=["--disable-blink-features=AutomationControlled"]
+                )
+
+            if storage_state_arg:
+                context = browser.new_context(
+                    storage_state=storage_state_arg,
+                    viewport={"width": 1280, "height": 850}
+                )
+            else:
+                context = browser.new_context(viewport={"width": 1280, "height": 850})
+
+            # Add cookies if available
+            existing_cookies = get_stored_cookies()
+            if existing_cookies:
+                try:
+                    context.add_cookies(existing_cookies)
+                except Exception:
+                    pass
+
+            page = context.new_page()
+            page.goto(clean_url, wait_until="domcontentloaded", timeout=30000)
+            time.sleep(3)
+
+            if "login" in page.url:
+                browser.close()
+                return {"ok": False, "error": "Not authenticated on LinkedIn.", "method": "headless_playwright"}
+
+            # Check if already pending or connected
+            page_text = page.evaluate("() => document.body.innerText || ''")
+            if "Pending" in page_text and ("Withdraw" in page_text or "Invitation sent" in page_text):
+                browser.close()
+                return {"ok": True, "method": "headless_playwright", "already_pending": True}
+
+            # Locate Connect button
+            connect_btn = page.query_selector("button:has-text('Connect'), a:has-text('Connect')")
+            if not connect_btn:
+                # Check More actions dropdown
+                more_btn = page.query_selector("button[aria-label*='More actions'], button:has-text('More')")
+                if more_btn:
+                    more_btn.click()
+                    time.sleep(1)
+                    connect_btn = page.query_selector("div[role='button']:has-text('Connect'), button:has-text('Connect')")
+
+            if not connect_btn:
+                # If still not found, check if already Pending
+                if page.query_selector("button:has-text('Pending'), span:has-text('Pending')"):
+                    browser.close()
+                    return {"ok": True, "method": "headless_playwright", "already_pending": True}
+                browser.close()
+                return {"ok": False, "error": "Connect button not found on profile page.", "method": "headless_playwright"}
+
+            connect_btn.click()
+            time.sleep(1.5)
+
+            if note:
+                # Click 'Add a note'
+                add_note_btn = page.query_selector("button:has-text('Add a note'), button[aria-label*='Add a note']")
+                if add_note_btn:
+                    add_note_btn.click()
+                    time.sleep(1)
+
+                textarea = page.query_selector("textarea#custom-message, textarea[name='message']")
+                if textarea:
+                    textarea.fill(str(note)[:200])
+                    time.sleep(0.5)
+
+                send_btn = page.query_selector(
+                    "button[aria-label*='Send invitation'], button:has-text('Send'), button[aria-label*='Send now']"
+                )
+                if send_btn:
+                    send_btn.click()
+                    time.sleep(2)
+            else:
+                # Send without note
+                send_without_note = page.query_selector(
+                    "button[aria-label*='Send without a note'], button:has-text('Send without a note'), button:has-text('Send now'), button:has-text('Send')"
+                )
+                if send_without_note:
+                    send_without_note.click()
+                    time.sleep(2)
+                else:
+                    # In case a simple modal appears with Send
+                    gen_send = page.query_selector("button:has-text('Send')")
+                    if gen_send:
+                        gen_send.click()
+                        time.sleep(2)
+
+            # Verification: check if 'Pending' appears on page
+            time.sleep(2)
+            verified_pending = page.evaluate("""() => {
+                const text = document.body.innerText || '';
+                return text.includes('Pending') || document.querySelector('button:has-text("Pending")') !== null;
+            }""")
+
+            browser.close()
+            if verified_pending:
+                log.info("Headless Playwright verified 'Pending' invitation for %s", clean_url)
+                return {"ok": True, "method": "headless_playwright"}
+            else:
+                log.info("Headless Playwright completed submission for %s", clean_url)
+                return {"ok": True, "method": "headless_playwright", "verified": False}
+
+        except Exception as e:
+            if browser:
+                try: browser.close()
+                except Exception: pass
+            log.warning("Headless Playwright connection error for %s: %s", clean_url, e)
+            return {"ok": False, "error": str(e), "method": "headless_playwright"}
+
+
+def connect_in_background(profile_url: str, note: str | None = None) -> dict[str, Any]:
+    """Attempt background connection request via Voyager API first, falling back to headless Playwright.
+
+    Never opens a visible browser window.
+    """
+    clean_url = (profile_url or "").strip()
+    truncated_note = str(note)[:200] if note else None
+
+    # Step 1: Try Voyager API
+    api_res = send_connect_via_api(clean_url, truncated_note)
+    if api_res.get("ok"):
+        return api_res
+
+    log.info("Voyager API failed (%s); falling back to headless Playwright...", api_res.get("error"))
+
+    # Step 2: Fallback to headless Playwright
+    headless_res = send_connect_via_headless_browser(clean_url, truncated_note)
+    if headless_res.get("ok"):
+        return headless_res
+
+    return {
+        "ok": False,
+        "error": f"API error: {api_res.get('error')} | Headless error: {headless_res.get('error')}",
+        "api_result": api_res,
+        "headless_result": headless_res
     }
 
 

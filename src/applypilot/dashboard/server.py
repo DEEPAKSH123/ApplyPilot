@@ -7964,25 +7964,52 @@ class DashboardHandler(SimpleHTTPRequestHandler):
 
                 # Handle single-person connect request (from "Send Request" button per row)
                 if single_profile_url:
-                    from applypilot.networking.linkedin import compose_referral_dm
+                    from applypilot.networking.linkedin import connect_in_background
+                    from applypilot.networking.referral_tracker import record_connection_request
                     sname = data.get("single_name", "")
                     scomp = data.get("single_company", "")
                     srole = data.get("single_role", "Backend Engineer")
                     is_alum = "rvce" in sname.lower()
                     if is_alum:
-                        note = f"Hi {sname.split()[0] if sname else 'there'}, RVCE CSE '25 junior, SDE-1 @ Meesho (Java/Go/Kafka). Interested in {srole} at {scomp} — would you be open to a referral?"[:295]
+                        note = f"Hi {sname.split()[0] if sname else 'there'}, RVCE CSE '25 junior, SDE-1 @ Meesho (Java/Go/Kafka). Interested in {srole} at {scomp} — would you be open to a referral?"[:200]
                     else:
-                        note = f"Hi {sname.split()[0] if sname else 'there'}, I'm an SDE-1 Backend Engineer at Meesho (RVCE '25, Java/Go/Kafka/Redis). Interested in the {srole} role at {scomp}. Would love to connect!"[:295]
-                    res = compose_referral_dm(
-                        profile_url=single_profile_url,
-                        company=scomp,
-                        role_title=srole,
-                        name=sname,
-                        custom_message=note,
-                        action_type="connect",
-                        headed=True,
-                    )
-                    res["message"] = f"Brave opened for {sname} — connection note pre-filled. Click Send in Brave!"
+                        note = f"Hi {sname.split()[0] if sname else 'there'}, I'm an SDE-1 Backend Engineer at Meesho (RVCE '25, Java/Go/Kafka/Redis). Interested in the {srole} role at {scomp}. Would love to connect!"[:200]
+
+                    conn_res = connect_in_background(single_profile_url, note=note)
+                    if conn_res.get("ok"):
+                        rec_res = record_connection_request(
+                            company=scomp,
+                            person_name=sname or "LinkedIn Connection",
+                            profile_url=single_profile_url,
+                            headline=srole,
+                            is_alumni=is_alum,
+                            degree="2nd",
+                            role_type="Engineer",
+                            notes=f"Auto-connect sent in background via {conn_res.get('method')}",
+                            tailored_msg=note
+                        )
+                        res = {
+                            "status": "ok",
+                            "message": f"Connection request sent in background to {sname} via {conn_res.get('method')}! Tracked in CRM.",
+                            "method": conn_res.get("method"),
+                            "db_id": rec_res.get("id")
+                        }
+                    else:
+                        err_msg = conn_res.get("error", "Unknown error")
+                        record_connection_request(
+                            company=scomp,
+                            person_name=sname or "LinkedIn Connection",
+                            profile_url=single_profile_url,
+                            headline=srole,
+                            degree="2nd",
+                            role_type="Engineer",
+                            notes=f"CONNECT_FAILED: {err_msg}"
+                        )
+                        res = {
+                            "status": "error",
+                            "message": f"Failed sending connection request to {sname}: {err_msg}",
+                            "error": err_msg
+                        }
                 else:
                     from applypilot.networking.referral_tracker import auto_connect_referral_from_job_url
                     res = auto_connect_referral_from_job_url(
@@ -8114,17 +8141,96 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 template = data.get("template", "referral").strip()
                 action_type = data.get("action_type", "auto").strip()
 
-                from applypilot.networking.linkedin import compose_referral_dm
-                res = compose_referral_dm(
-                    profile_url=profile_url,
-                    company=company,
-                    role_title=role_str,
-                    name=name_str,
-                    custom_message=custom_msg,
-                    template_type=template,
-                    action_type=action_type,
-                    headed=True
-                )
+                from applypilot.networking.linkedin import compose_referral_dm, connect_in_background
+                from applypilot.networking.referral_tracker import record_connection_request
+
+                if action_type in ("connect", "connect_only"):
+                    # Send directly in background (Voyager API -> Headless Playwright fallback)
+                    note_to_send = custom_msg if action_type == "connect" else None
+                    conn_res = connect_in_background(profile_url, note=note_to_send)
+
+                    if conn_res.get("ok"):
+                        is_alum = "rvce" in template.lower() or "rvce" in name_str.lower()
+                        rec_res = record_connection_request(
+                            company=company,
+                            person_name=name_str or "LinkedIn Connection",
+                            profile_url=profile_url,
+                            headline=role_str,
+                            is_alumni=is_alum,
+                            degree="2nd",
+                            role_type="Engineer",
+                            notes=f"Sent via background {conn_res.get('method', 'api')}",
+                            tailored_msg=custom_msg if action_type == "connect" else ""
+                        )
+                        # Also sync referral followup engine if job exists
+                        try:
+                            from applypilot.networking.followup_engine import ReferralFollowUpEngine
+                            conn_db = get_connection()
+                            job_match = conn_db.execute(
+                                "SELECT rowid FROM jobs WHERE LOWER(site) = LOWER(?) OR LOWER(company) = LOWER(?) LIMIT 1",
+                                (company, company)
+                            ).fetchone()
+                            if job_match:
+                                engine = ReferralFollowUpEngine(db_path=DB_PATH)
+                                engine.mark_referral_requested(
+                                    job_id=str(job_match[0]),
+                                    contact_name=name_str,
+                                    contact_handle=profile_url
+                                )
+                        except Exception as fe_err:
+                            log.debug("Followup engine sync note: %s", fe_err)
+
+                        res = {
+                            "status": "ok",
+                            "message": f"Connection request sent in background to {name_str or 'connection'} via {conn_res.get('method')}! Tracked in CRM.",
+                            "method": conn_res.get("method"),
+                            "db_id": rec_res.get("id")
+                        }
+                    else:
+                        err_msg = conn_res.get("error", "Unknown connect error")
+                        # Record failed attempt
+                        record_connection_request(
+                            company=company,
+                            person_name=name_str or "LinkedIn Connection",
+                            profile_url=profile_url,
+                            headline=role_str,
+                            degree="2nd",
+                            role_type="Engineer",
+                            notes=f"CONNECT_FAILED: {err_msg}"
+                        )
+                        try:
+                            from applypilot.networking.followup_engine import ReferralFollowUpEngine
+                            conn_db = get_connection()
+                            job_match = conn_db.execute(
+                                "SELECT rowid FROM jobs WHERE LOWER(site) = LOWER(?) OR LOWER(company) = LOWER(?) LIMIT 1",
+                                (company, company)
+                            ).fetchone()
+                            if job_match:
+                                engine = ReferralFollowUpEngine(db_path=DB_PATH)
+                                engine.mark_connect_failed(
+                                    job_id=str(job_match[0]),
+                                    contact_name=name_str,
+                                    contact_handle=profile_url,
+                                    error_message=err_msg
+                                )
+                        except Exception:
+                            pass
+                        res = {
+                            "status": "error",
+                            "message": f"Could not send connection request: {err_msg}",
+                            "error": err_msg
+                        }
+                else:
+                    res = compose_referral_dm(
+                        profile_url=profile_url,
+                        company=company,
+                        role_title=role_str,
+                        name=name_str,
+                        custom_message=custom_msg,
+                        template_type=template,
+                        action_type=action_type,
+                        headed=True
+                    )
             except Exception as e:
                 res = {"status": "error", "message": str(e)}
 

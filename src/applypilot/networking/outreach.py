@@ -183,3 +183,77 @@ def generate_outreach_messages(
         "kadegree_url": "https://referral-community.kadegree.in/get",
         "company_clean": comp,
     }
+
+
+def send_referral_connection_outreach(
+    profile_url: str,
+    company: str,
+    person_name: str,
+    role_title: str = "Backend Engineer",
+    custom_note: str | None = None,
+    job_id: str | None = None
+) -> dict[str, Any]:
+    """Send referral connection request in background and update SQLite followup state and CRM."""
+    from applypilot.networking.linkedin import connect_in_background
+    from applypilot.networking.referral_tracker import record_connection_request
+
+    conn_res = connect_in_background(profile_url, note=custom_note)
+
+    if conn_res.get("ok"):
+        rec_res = record_connection_request(
+            company=company,
+            person_name=person_name,
+            profile_url=profile_url,
+            headline=role_title,
+            degree="2nd",
+            role_type="Engineer",
+            notes=f"Sent via background {conn_res.get('method')}",
+            tailored_msg=custom_note or ""
+        )
+        if job_id:
+            try:
+                from applypilot.networking.followup_engine import ReferralFollowUpEngine
+                from applypilot.config import DB_PATH
+                engine = ReferralFollowUpEngine(db_path=DB_PATH)
+                engine.mark_referral_requested(
+                    job_id=str(job_id),
+                    contact_name=person_name,
+                    contact_handle=profile_url
+                )
+            except Exception:
+                pass
+        return {
+            "status": "ok",
+            "message": f"Connection request sent in background to {person_name} via {conn_res.get('method')}",
+            "method": conn_res.get("method"),
+            "db_id": rec_res.get("id")
+        }
+    else:
+        err_msg = conn_res.get("error", "Connect failed")
+        record_connection_request(
+            company=company,
+            person_name=person_name,
+            profile_url=profile_url,
+            headline=role_title,
+            degree="2nd",
+            role_type="Engineer",
+            notes=f"CONNECT_FAILED: {err_msg}"
+        )
+        if job_id:
+            try:
+                from applypilot.networking.followup_engine import ReferralFollowUpEngine
+                from applypilot.config import DB_PATH
+                engine = ReferralFollowUpEngine(db_path=DB_PATH)
+                engine.mark_connect_failed(
+                    job_id=str(job_id),
+                    contact_name=person_name,
+                    contact_handle=profile_url,
+                    error_message=err_msg
+                )
+            except Exception:
+                pass
+        return {
+            "status": "error",
+            "message": f"Failed sending connection request: {err_msg}",
+            "error": err_msg
+        }

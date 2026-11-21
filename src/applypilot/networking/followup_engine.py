@@ -208,6 +208,39 @@ class ReferralFollowUpEngine:
         )
         conn.commit()
 
+    def mark_connect_failed(
+        self,
+        job_id: str,
+        contact_name: str,
+        contact_handle: str,
+        error_message: str = "",
+        now: datetime | str | None = None,
+    ) -> None:
+        """Mark job referral connection attempt as CONNECT_FAILED with error details."""
+        conn = self._get_conn()
+        now_dt = _parse_iso(_to_iso(now)) if now is not None else datetime.now(timezone.utc)
+        now_iso = now_dt.isoformat()
+
+        conn.execute(
+            """
+            UPDATE referral_followup_state
+            SET status = 'CONNECT_FAILED',
+                contact_name = CASE WHEN ? != '' THEN ? ELSE contact_name END,
+                contact_handle = CASE WHEN ? != '' THEN ? ELSE contact_handle END,
+                last_action_at = ?
+            WHERE job_id = ?
+            """,
+            (
+                contact_name or "",
+                contact_name or "",
+                contact_handle or "",
+                contact_handle or "",
+                now_iso,
+                str(job_id),
+            ),
+        )
+        conn.commit()
+
     def mark_applied(
         self,
         job_id: str,

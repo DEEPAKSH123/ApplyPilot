@@ -835,23 +835,28 @@ def auto_connect_referral_from_job_url(
         }
         recorded.append(p_record)
 
-        # Optionally open Brave to send connection request
+        # Optionally send connection request in background
         if send_connection and purl:
             try:
-                from applypilot.networking.linkedin import compose_referral_dm
-                compose_referral_dm(
-                    profile_url=purl,
-                    company=company,
-                    role_title=role_title,
-                    name=pname,
-                    custom_message=short_note,
-                    action_type="connect",
-                    headed=True,
-                )
-                sent_count += 1
-                time.sleep(5)  # Brief pause between browser launches
+                from applypilot.networking.linkedin import connect_in_background
+                conn_res = connect_in_background(profile_url=purl, note=short_note)
+                if conn_res.get("ok"):
+                    sent_count += 1
+                    # Update status in referral_connection_requests
+                    cur.execute(
+                        "UPDATE referral_connection_requests SET status = 'requested', notes = ? WHERE id = ?",
+                        (f"Sent in background via {conn_res.get('method')}", rec_result.get("id"))
+                    )
+                    conn.commit()
+                else:
+                    cur.execute(
+                        "UPDATE referral_connection_requests SET notes = ? WHERE id = ?",
+                        (f"CONNECT_FAILED: {conn_res.get('error')}", rec_result.get("id"))
+                    )
+                    conn.commit()
+                time.sleep(2)  # Brief pause between background requests
             except Exception as ce:
-                log.warning("Could not open Brave for %s: %s", pname, ce)
+                log.warning("Could not send background connection for %s: %s", pname, ce)
 
     return {
         "status": "ok",
@@ -863,8 +868,8 @@ def auto_connect_referral_from_job_url(
         "sent_count": sent_count,
         "message": (
             f"Found {len(recorded)} connection(s) at {company} for '{role_title}'. "
-            + (f"Opened Brave for {sent_count} connection request(s)." if send_connection else
-               "Recorded in CRM — click '🤝 Send Request' per person to connect via Brave.")
+            + (f"Sent {sent_count} background connection request(s) via API/Headless." if send_connection else
+               "Recorded in CRM — click '🤝 Send Request' per person to connect.")
         )
     }
 
