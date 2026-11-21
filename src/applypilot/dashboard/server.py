@@ -5372,6 +5372,13 @@ HTML_DASHBOARD = """<!DOCTYPE html>
               </div>
             `).join('')}
           `;
+        } else if (data.status === 'error') {
+          container.innerHTML = `
+            <div style="background: rgba(239,68,68,0.1); border: 1px solid #ef4444; border-radius: 10px; padding: 12px; text-align: center; color: #fca5a5; font-size: 13px;">
+              <i class="fa-solid fa-triangle-exclamation"></i> Scanner notice: ${data.message || 'Could not scan LinkedIn'}.
+              <button class="btn" style="margin-left: 10px; padding: 4px 10px; font-size: 11px; background: #0284c7; color: white;" onclick="scanCompanyConnections('${company.replace(/'/g, "\\'")}')">Retry Scan</button>
+            </div>
+          `;
         } else {
           const firstDegUrl = document.getElementById('ref-first-deg-link') ? document.getElementById('ref-first-deg-link').href : '#';
           container.innerHTML = `
