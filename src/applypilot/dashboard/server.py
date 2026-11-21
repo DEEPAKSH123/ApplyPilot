@@ -265,6 +265,33 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       border: 1px solid var(--panel-border);
       flex-wrap: wrap;
     }
+
+    /* === MINIMALIST FULL-AUTOMATION OVERRIDES === */
+
+    /* 1. Hide redundant tabs (keep only: Fresh <4h, Easy Apply, Asked Referral, Applied, Gmail Tracker) */
+    .tabs .tab-btn:not([onclick*="'incognito_fresh'"]):not([onclick*="'easy_apply'"]):not([onclick*="'asked_referral'"]):not([onclick*="'applied'"]):not([onclick*="'responses'"]) {
+      display: none !important;
+    }
+
+    /* 2. Hide noisy top header pills (keep only Scan, Auto-Apply, Sync Gmail, Copilot, and manual copy pills) */
+    .quick-bar > a.quick-pill,
+    .quick-bar > .quick-pill:not([onclick*="triggerLinkedInIncognitoScan"]):not([onclick*="triggerBatchAutoApply"]):not([onclick*="syncGmailNow"]):not([onclick*="openScreeningCopilotModal"]):not([onclick*="copyText"]) {
+      display: none !important;
+    }
+
+    /* 3. Hide the bulky 9-card KPI grid & daily quota banner (keep urgent OA alerts only) */
+    #daily-target-tracker,
+    .stats-grid {
+      display: none !important;
+    }
+
+    /* 4. Simplify Job Card buttons: keep only Primary Apply, Referral Outreach, and Ignore */
+    .job-card .btn-cheatsheet,
+    .job-card .btn-approve,
+    .job-card .btn-email-ghost,
+    .job-card button[onclick*="navigator.clipboard"] {
+      display: none !important;
+    }
     .tab-btn {
       background: transparent;
       color: var(--text-muted);
