@@ -369,9 +369,9 @@ def search_linkedin_connections(
 
     if comp_clean:
         comp_enc = urllib.parse.quote(f'"{comp_clean}"')
-        search_url = f"https://www.linkedin.com/search/results/people/?keywords={comp_enc}&network=%5B%22F%22%5D"
+        search_url = f"https://www.linkedin.com/search/results/people/?keywords={comp_enc}&network=%5B%22F%22%2C%22S%22%5D"
     else:
-        search_url = "https://www.linkedin.com/search/results/people/?network=%5B%22F%22%5D"
+        search_url = "https://www.linkedin.com/search/results/people/?network=%5B%22F%22%2C%22S%22%5D"
 
     results = []
 
@@ -490,6 +490,60 @@ def search_linkedin_connections(
             c["search_url"] = search_url
             results.append(c)
 
+    # ── CRITICAL FIX: Filter to only people CURRENTLY at target company ──
+    # LinkedIn keyword search matches anyone who ever mentioned the company
+    # (including past roles). We must verify the person currently works there.
+    comp_lower = comp_clean.lower().strip()
+    filtered_results = []
+    for c in results:
+        headline = (c.get("headline") or "").lower()
+        current_role = (c.get("current_role") or "").lower()
+        past_role = (c.get("past_role") or "").lower()
+
+        # Case 1: current_role explicitly mentions the company → definitely current
+        if comp_lower and comp_lower in current_role:
+            c["_match_type"] = "current_role"
+            filtered_results.append(c)
+            continue
+
+        # Case 2: headline mentions the company (headline = current position)
+        if comp_lower and comp_lower in headline:
+            # But exclude if headline only mentions it in a "Past:" or "Former" context
+            if "past:" not in headline and "former" not in headline and "ex-" not in headline and "previously" not in headline:
+                c["_match_type"] = "headline"
+                filtered_results.append(c)
+                continue
+
+        # Case 3: No current_role detected but company is ONLY in past_role → SKIP
+        if comp_lower and comp_lower in past_role and not current_role:
+            log.info("Skipping %s — '%s' appears only in PAST role, not current company.", c.get("name"), comp_clean)
+            continue
+
+        # Case 4: 1st-degree connection (already connected) — keep as likely current
+        # since LinkedIn keyword search with F filter usually matches current
+        if c.get("degree") == "1st":
+            # Extra check: if past_role mentions company but headline doesn't, still skip
+            if comp_lower and comp_lower in past_role and comp_lower not in headline:
+                log.info("Skipping 1st-degree %s — '%s' in past role only.", c.get("name"), comp_clean)
+                continue
+            c["_match_type"] = "1st_degree"
+            filtered_results.append(c)
+            continue
+
+        # Case 5: If neither current nor past explicitly mention company,
+        # it may be in their overall card text (LinkedIn search matched it somewhere)
+        # Only include if there's NO past_role mentioning it
+        if comp_lower and comp_lower not in past_role:
+            c["_match_type"] = "keyword_match"
+            filtered_results.append(c)
+            continue
+
+        # Default: skip (company only appears in past context)
+        log.info("Skipping %s — could not confirm '%s' as current employer.", c.get("name"), comp_clean)
+
+    results = filtered_results
+    log.info("After current-company filter: %d of %d connections for '%s'", len(results), len(raw_cards), comp_clean)
+
     # Sort: 1st-degree first, RVCE alumni first, current employee first
     def sort_score(c):
         score = 0
@@ -499,6 +553,11 @@ def search_linkedin_connections(
             score += 8
         if c.get("current_role"):
             score += 5
+        # Boost people confirmed via current_role or headline match
+        if c.get("_match_type") == "current_role":
+            score += 15
+        elif c.get("_match_type") == "headline":
+            score += 12
         return score
 
     results.sort(key=sort_score, reverse=True)
