@@ -397,33 +397,19 @@ def search_linkedin_connections(
     with sync_playwright() as p:
         browser = None
         context = None
-        created_page = False
 
-        # Attempt to connect to active Brave session over remote debugging (port 9222) first
+        # Always run in isolated headless browser in the background (never open visible windows/tabs)
         try:
-            browser = p.chromium.connect_over_cdp("http://localhost:9222")
-            if browser.contexts:
-                context = browser.contexts[0]
-                page = context.new_page()
-                created_page = True
-                log.info("Attached to running Brave session via CDP on port 9222 for live LinkedIn scan.")
-        except Exception:
-            browser = None
-            context = None
-
-        # Fallback to persistent context if active Brave port 9222 is unavailable
-        if not context:
-            try:
-                context = p.chromium.launch_persistent_context(
-                    user_data_dir=str(BRAVE_PROFILE_DIR.resolve()),
-                    executable_path=exe_path if exe_path else None,
-                    headless=True,
-                    args=["--disable-blink-features=AutomationControlled"],
-                )
-                page = context.pages[0] if context.pages else context.new_page()
-            except Exception as le:
-                log.warning("Could not launch persistent context: %s", le)
-                return [{"error": f"Browser launch error: {le}"}]
+            browser = p.chromium.launch(
+                executable_path=exe_path if (exe_path and Path(exe_path).exists()) else None,
+                headless=True,
+                args=["--disable-blink-features=AutomationControlled"]
+            )
+            context = browser.new_context(viewport={"width": 1280, "height": 850})
+            page = context.new_page()
+        except Exception as le:
+            log.warning("Could not launch headless browser for connection scan: %s", le)
+            return [{"error": f"Browser launch error: {le}"}]
 
         existing_cookies = get_stored_cookies()
         if existing_cookies:
@@ -432,19 +418,12 @@ def search_linkedin_connections(
             except Exception:
                 pass
 
-        page.goto(search_url, wait_until="domcontentloaded")
+        page.goto(search_url, wait_until="domcontentloaded", timeout=30000)
         time.sleep(4)
 
         if "login" in page.url:
-            if created_page:
-                try: page.close()
-                except Exception: pass
-            if browser:
-                try: browser.close()
-                except Exception: pass
-            elif context:
-                try: context.close()
-                except Exception: pass
+            try: browser.close()
+            except Exception: pass
             return [{"error": "Not authenticated. Run 'applypilot linkedin login' first."}]
 
         # Robust extraction supporting modern LinkedIn DOM
@@ -531,15 +510,10 @@ def search_linkedin_connections(
             }
         """)
 
-        if created_page:
-            try: page.close()
-            except Exception: pass
-        if browser:
-            try: browser.close()
-            except Exception: pass
-        elif context:
-            try: context.close()
-            except Exception: pass
+        try:
+            browser.close()
+        except Exception:
+            pass
 
         for c in raw_cards:
             c["company"] = comp_clean
