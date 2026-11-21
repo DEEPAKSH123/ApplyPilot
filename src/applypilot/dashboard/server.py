@@ -923,9 +923,6 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     /* Modal Backdrop */
     .modal-backdrop {
       display: none;
-    }
-    .modal-backdrop.active {
-      display: flex !important;
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
       background: rgba(0, 0, 0, 0.75);
@@ -934,6 +931,9 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       align-items: center;
       justify-content: center;
       padding: 20px;
+    }
+    .modal-backdrop.active {
+      display: flex !important;
     }
     .modal-content {
       background: #0f172a;
