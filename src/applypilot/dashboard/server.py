@@ -5534,8 +5534,9 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     async function batchConnectAll() {
       const conns = _lastScannedConnections.filter(c => c.degree !== '1st');
       if (conns.length === 0) { showToast('No 2nd-degree connections to batch-connect.'); return; }
-      const names = conns.map((c, i) => (i+1) + '. ' + c.name).join('\n');
-      if (!confirm('Send connection requests to ' + conns.length + ' people?\n\n' + names + '\n\nBrave opens for each. Click Send in each window.')) return;
+      const nl = String.fromCharCode(10);
+      const names = conns.map((c, i) => (i+1) + '. ' + c.name).join(nl);
+      if (!confirm('Send connection requests to ' + conns.length + ' people?' + nl + nl + names + nl + nl + 'Brave opens for each. Click Send in each window.')) return;
       showToast('Starting batch connect for ' + conns.length + ' people...');
       let sent = 0;
       for (const c of conns) {
