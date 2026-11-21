@@ -587,6 +587,21 @@ def store_jobs_deduped(conn: sqlite3.Connection, jobs: list[dict],
                  raw_loc, job_site, strategy, now, full_desc, app_url, job.get("recruiter_email")),
             )
             new += 1
+            try:
+                from applypilot.config import is_tier_1_employer
+                from applypilot.networking.followup_engine import ReferralFollowUpEngine
+
+                fe = ReferralFollowUpEngine(db_path=conn)
+                fe.register_job(
+                    job_id=url,
+                    company=job_site,
+                    title=raw_title,
+                    job_url=app_url or url,
+                    location=raw_loc or "",
+                    is_tier_1=is_tier_1_employer(job_site),
+                )
+            except Exception as fe_err:
+                log.warning("Followup engine auto-registration warning for %s: %s", url, fe_err)
         except sqlite3.IntegrityError:
             url_dupes += 1
 
@@ -622,6 +637,21 @@ def store_jobs(conn: sqlite3.Connection, jobs: list[dict],
                  job.get("location"), site, strategy, now),
             )
             new += 1
+            try:
+                from applypilot.config import is_tier_1_employer
+                from applypilot.networking.followup_engine import ReferralFollowUpEngine
+
+                fe = ReferralFollowUpEngine(db_path=conn)
+                fe.register_job(
+                    job_id=url,
+                    company=site,
+                    title=job.get("title") or "",
+                    job_url=job.get("application_url") or url,
+                    location=job.get("location") or "",
+                    is_tier_1=is_tier_1_employer(site),
+                )
+            except Exception as fe_err:
+                log.warning("Followup engine auto-registration warning for %s: %s", url, fe_err)
         except sqlite3.IntegrityError:
             existing += 1
 

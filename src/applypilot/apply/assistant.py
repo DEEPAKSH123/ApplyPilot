@@ -843,6 +843,21 @@ def launch_application_assistant(identifier: str | int, headed: bool = True, aut
                 (ident_str, ident_str, "Shared Target Job", site_name, now_iso)
             )
             conn.commit()
+            try:
+                from applypilot.config import is_tier_1_employer
+                from applypilot.networking.followup_engine import ReferralFollowUpEngine
+
+                fe = ReferralFollowUpEngine(db_path=conn)
+                fe.register_job(
+                    job_id=ident_str,
+                    company=site_name,
+                    title="Shared Target Job",
+                    job_url=ident_str,
+                    location="",
+                    is_tier_1=is_tier_1_employer(site_name),
+                )
+            except Exception as fe_reg_err:
+                log.warning("Followup engine ad-hoc registration warning: %s", fe_reg_err)
             job = _find_job(conn, ident_str)
         if not job:
             return {"status": "error", "message": f"Job '{identifier}' not found in database."}
@@ -855,6 +870,36 @@ def launch_application_assistant(identifier: str | int, headed: bool = True, aut
         conn.commit()
         return {"status": "error", "message": "No application URL available for this job."}
 
+    # Two-Email Guardrail & Referral Hold Pre-Check
+    try:
+        from applypilot.networking.followup_engine import ReferralFollowUpEngine
+        from applypilot.config import get_secondary_email
+        fe = ReferralFollowUpEngine(db_path=conn)
+        job_state = fe.get_job_state(str(job["url"])) or fe.get_job_state(str(apply_url))
+        if job_state:
+            st = job_state.get("status")
+            due_at = job_state.get("next_due_at")
+            now_iso = datetime.now(timezone.utc).isoformat()
+            if st == "REFERRAL_HOLD":
+                if due_at and now_iso < due_at:
+                    block_msg = f"BLOCKED: Tier-1 Referral Hold active until {due_at}. Send referral via Primary Email first."
+                    print(block_msg)
+                    log.warning(block_msg)
+                    return {
+                        "status": "BLOCKED",
+                        "submitted": False,
+                        "job_title": job.get("title", "Role"),
+                        "company": job.get("site", "Company"),
+                        "message": block_msg,
+                    }
+                elif due_at and now_iso >= due_at:
+                    # Hold has expired: auto-acknowledge to switch to READY_TO_APPLY_SECONDARY
+                    fe.acknowledge_action(job_id=job_state["job_id"])
+                    # Refresh state
+                    job_state = fe.get_job_state(job_state["job_id"])
+    except Exception as fe_err:
+        log.warning("Followup engine pre-check warning: %s", fe_err)
+
     # Strict constraint: If easy_apply_only is True, skip external jobs or non-LinkedIn postings immediately
     if easy_apply_only and "linkedin.com" not in str(apply_url).lower():
         conn.execute("UPDATE jobs SET apply_status = 'skipped_non_easy_apply', apply_error = 'Not a LinkedIn Easy Apply job' WHERE rowid = ?", (job["rowid"],))
@@ -866,30 +911,6 @@ def launch_application_assistant(identifier: str | int, headed: bool = True, aut
             "company": job.get("site", "Company"),
             "message": "Skipped: Not a LinkedIn Easy Apply job (easy_apply_only=True)",
         }
-
-    # Two-Email Guardrail & Referral Hold Pre-Check
-    try:
-        from applypilot.networking.followup_engine import ReferralFollowUpEngine
-        from applypilot.config import get_secondary_email
-        fe = ReferralFollowUpEngine(db_path=conn)
-        job_state = fe.get_job_state(str(job["url"]))
-        if job_state:
-            st = job_state.get("status")
-            due_at = job_state.get("next_due_at")
-            now_iso = datetime.now(timezone.utc).isoformat()
-            if st == "REFERRAL_HOLD" and due_at and now_iso < due_at:
-                block_msg = f"BLOCKED: Tier-1 Referral Hold active until {due_at}. Send referral via Primary Email first."
-                print(block_msg)
-                log.warning(block_msg)
-                return {
-                    "status": "BLOCKED",
-                    "submitted": False,
-                    "job_title": job.get("title", "Role"),
-                    "company": job.get("site", "Company"),
-                    "message": block_msg,
-                }
-    except Exception as fe_err:
-        log.warning("Followup engine pre-check warning: %s", fe_err)
 
     if "kadegree.in/openings" in str(apply_url):
         return {
@@ -915,7 +936,7 @@ def launch_application_assistant(identifier: str | int, headed: bool = True, aut
         from applypilot.networking.followup_engine import ReferralFollowUpEngine
         from applypilot.config import get_secondary_email
         fe = ReferralFollowUpEngine(db_path=conn)
-        jstate = fe.get_job_state(str(job["url"]))
+        jstate = fe.get_job_state(str(job["url"])) or fe.get_job_state(str(apply_url))
         if jstate and jstate.get("email_used"):
             assigned_email = jstate["email_used"]
             if assigned_email == get_secondary_email():
@@ -1039,11 +1060,13 @@ def launch_application_assistant(identifier: str | int, headed: bool = True, aut
                 try:
                     from applypilot.networking.followup_engine import ReferralFollowUpEngine
                     fe = ReferralFollowUpEngine(db_path=conn)
-                    rec_name = job.get("recruiter_name") or ""
+                    rec_name = job.get("recruiter_name")
+                    if not rec_name and job.get("recruiter_email"):
+                        rec_name = job.get("recruiter_email", "").split("@")[0].replace(".", " ").title()
                     fe.mark_applied(
                         job_id=str(job["url"]),
                         used_secondary_email=used_secondary,
-                        recruiter_name=rec_name,
+                        recruiter_name=rec_name or "",
                     )
                 except Exception as me:
                     log.warning("Followup engine mark_applied warning: %s", me)

@@ -255,3 +255,110 @@ def test_tier2_immediate_apply_uses_primary_email(temp_engine):
     assert len(actions) == 1
     assert actions[0].stage == "DAY_3_NUDGE"
     assert actions[0].email_to_use == "deepakshkarkala@gmail.com"
+
+
+def test_store_jobs_auto_registers_tier1_hold(temp_engine, monkeypatch):
+    """Calling store_jobs_deduped() with a Tier-1 company automatically creates a
+
+    REFERRAL_HOLD row in referral_followup_state and blocks launch_application_assistant()
+    until 48 hours elapse.
+    """
+    engine, db_path = temp_engine
+    conn = get_connection(db_path)
+    from applypilot.database import store_jobs_deduped
+    from applypilot.apply import assistant
+
+    monkeypatch.setattr(assistant, "DB_PATH", db_path)
+    monkeypatch.setattr(assistant, "get_connection", lambda path=None: conn)
+
+    t0 = datetime(2026, 11, 21, 10, 0, 0, tzinfo=timezone.utc)
+
+    # Class to mock datetime.now
+    current_mock_time = t0
+
+    class MockDatetime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return current_mock_time
+
+    monkeypatch.setattr(assistant, "datetime", MockDatetime)
+
+    tier1_job_url = "https://razorpay.com/jobs/backend-lead-1"
+    jobs = [
+        {
+            "url": tier1_job_url,
+            "title": "Staff Backend Engineer",
+            "company": "Razorpay",
+            "site": "Razorpay",
+            "location": "Bengaluru",
+            "description": "Lead distributed core payment systems",
+        }
+    ]
+
+    new, url_dupes, cross_dupes = store_jobs_deduped(conn, jobs, site="Razorpay", strategy="test_scrape")
+    assert new == 1
+
+    # Verify referral_followup_state has REFERRAL_HOLD created
+    state = engine.get_job_state(tier1_job_url)
+    assert state is not None
+    assert state["status"] == "REFERRAL_HOLD"
+    assert state["company"] == "Razorpay"
+    assert state["email_used"] == "deepakshkarkala@gmail.com"
+
+    # Pre-check at T + 12h -> BLOCKED
+    current_mock_time = t0 + timedelta(hours=12)
+    res_blocked = assistant.launch_application_assistant(tier1_job_url, auto_submit=True)
+    assert res_blocked.get("status") == "BLOCKED"
+    assert "Tier-1 Referral Hold active" in res_blocked.get("message", "")
+
+    # Advance beyond 48 hours (T + 49h) -> Hold expires, auto-acknowledges and switches to SECONDARY_EMAIL
+    current_mock_time = t0 + timedelta(hours=49)
+    # Mock playwright or connection to verify that assistant transitions state to READY_TO_APPLY_SECONDARY
+    # launch_application_assistant will auto-acknowledge and proceed past the REFERRAL_HOLD block.
+    # We can mock prefill or check the state after launching assistant.
+    # To prevent launching full browser in tests, we can test that calling launch_application_assistant
+    # does NOT return BLOCKED.
+    # Let's mock sync_playwright in assistant:
+    class DummyPage:
+        def __init__(self):
+            self.url = tier1_job_url
+        def is_closed(self):
+            return True
+        def evaluate(self, script):
+            return None
+        def wait_for_timeout(self, ms):
+            pass
+
+    class DummyContext:
+        def __init__(self):
+            self.pages = [DummyPage()]
+        def new_page(self):
+            return DummyPage()
+        def close(self):
+            pass
+
+    class DummyChromium:
+        def launch_persistent_context(self, *args, **kwargs):
+            return DummyContext()
+        def launch(self, *args, **kwargs):
+            return DummyContext()
+
+    class DummyPlaywright:
+        def __init__(self):
+            self.chromium = DummyChromium()
+        def __enter__(self):
+            return self
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            pass
+
+    import playwright.sync_api
+    monkeypatch.setattr(playwright.sync_api, "sync_playwright", lambda: DummyPlaywright())
+
+    res_allowed = assistant.launch_application_assistant(tier1_job_url, auto_submit=False, headed=False)
+    assert res_allowed.get("status") != "BLOCKED"
+
+    # Check updated state after hold expired
+    updated_state = engine.get_job_state(tier1_job_url)
+    assert updated_state["status"] == "READY_TO_APPLY_SECONDARY"
+    assert updated_state["email_used"] == "deepaksh.apply@gmail.com"
+

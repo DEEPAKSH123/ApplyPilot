@@ -111,13 +111,23 @@ def execute_polling_cycle(headless: bool = True) -> dict[str, Any]:
             sites=["linkedin"],
             remote_only=False,
             results_per_site=15,
-            hours_old=24,
+            hours_old=4,
             country_indeed="india"
         )
         results["linkedin_jobs_new"] = li_res.get("new", 0)
     except Exception as e:
         log.warning("LinkedIn JobSpy crawl error: %s", e)
         results["errors"].append(f"LinkedIn: {e}")
+
+    # 5b. Pipeline Auto-Score/Tailor for Newly Polled Jobs
+    try:
+        log.info("[5b] Running pipeline (enrich, score, tailor, pdf) for newly polled jobs...")
+        from applypilot.pipeline import run_pipeline
+        pipeline_res = run_pipeline(stages=["enrich", "score", "tailor", "pdf"], min_score=8, workers=4)
+        results["pipeline_run"] = pipeline_res
+    except Exception as e:
+        log.warning("Pipeline auto-run error: %s", e)
+        results["errors"].append(f"Pipeline: {e}")
 
     # 6. Referral Connections Acceptance Check & Follow-Up Sync
     try:
