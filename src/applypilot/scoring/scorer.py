@@ -31,10 +31,11 @@ SCORING CRITERIA:
 - 1-2: Poor match. Completely different field or experience level.
 
 IMPORTANT FACTORS:
-- Weight technical skills heavily (programming languages, frameworks, tools)
-- Consider transferable experience (automation, scripting, API work)
-- Factor in the candidate's project experience
-- Be realistic about experience level vs. job requirements (years of experience, seniority)
+- Weight technical skills heavily (Go / Golang, Java / Spring Boot, Kafka, Redis, PostgreSQL, MySQL)
+- Boost score (+1 to +2 points, up to 10) for roles in Payments, Lending, BNPL, Settlement, Reconciliation, Ledger, and High-Throughput Distributed Microservices (1,000+ RPS)
+- Consider transferable experience (concurrency, event-driven architecture, API optimization)
+- Target experience level: SDE-1 / Software Engineer (1-3 YOE) and Early SDE-2 (2-4 YOE)
+- Be realistic about experience level vs. job requirements (senior/staff/lead roles requiring 5+ years should be penalized)
 
 RESPOND IN EXACTLY THIS FORMAT (no other text):
 SCORE: [1-10]
