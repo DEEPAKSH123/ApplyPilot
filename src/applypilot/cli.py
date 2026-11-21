@@ -1137,5 +1137,92 @@ def linkedin_post_cmd(
     console.print("")
 
 
+@app.command("referral-sync")
+def referral_sync_cmd(
+    max_check: int = typer.Option(50, "--max", "-m", help="Max recent LinkedIn connections to check"),
+) -> None:
+    """Sync recent LinkedIn connections and auto-match accepted referral requests."""
+    _bootstrap()
+    from applypilot.networking.referral_tracker import sync_accepted_connections_from_linkedin
+
+    console.print(f"[bold cyan]🔄 Scanning LinkedIn connections (checking up to {max_check})...[/bold cyan]")
+    res = sync_accepted_connections_from_linkedin(max_check=max_check, headless=True)
+
+    if res.get("status") == "ok":
+        scraped = res.get("connections_scraped", 0)
+        matched = res.get("matched_count", 0)
+        console.print(f"[bold green]✓ Scanned {scraped} recent LinkedIn connections.[/bold green]")
+        if matched > 0:
+            console.print(f"[bold yellow]🎉 {matched} Connection(s) ACCEPTED![/bold yellow]")
+            for m in res.get("matched", []):
+                console.print(f"  • [bold white]{m['person_name']}[/bold white] @ {m['company']}")
+        else:
+            console.print("[dim]No new acceptances matched with pending referral requests.[/dim]")
+    else:
+        console.print(f"[bold red]✗ Sync error:[/bold red] {res.get('message')}")
+
+
+@app.command("referral-sent")
+def referral_sent_cmd(
+    job_id: str = typer.Argument(..., help="Job ID or URL"),
+    contact: str = typer.Option("", "--contact", "-c", help="Referrer or contact person name"),
+    handle: str = typer.Option("", "--handle", "-u", help="LinkedIn profile URL or email handle"),
+) -> None:
+    """Log an outreach / referral request sent for a job."""
+    _bootstrap()
+    from applypilot.networking.followup_engine import ReferralFollowUpEngine
+    engine = ReferralFollowUpEngine()
+    engine.mark_referral_requested(job_id=job_id, contact_name=contact, contact_handle=handle)
+    console.print(f"[bold green]✓ Referral request logged for job:[/bold green] {job_id}")
+    console.print(f"  • Contact: {contact or 'N/A'}")
+    console.print(f"  • Handle:  {handle or 'N/A'}")
+    console.print(f"  • Status:  [bold cyan]REFERRAL_REQUESTED[/bold cyan] (Day-3 follow-up scheduled)")
+
+
+@app.command("followups-due")
+def followups_due_cmd() -> None:
+    """Print all due Day-3, Day-7, and 48-Hour Fallback actions."""
+    _bootstrap()
+    from applypilot.networking.followup_engine import ReferralFollowUpEngine
+    engine = ReferralFollowUpEngine()
+    actions = engine.collect_due_actions()
+    if not actions:
+        console.print("[dim]No follow-up actions currently due.[/dim]")
+        return
+
+    table = Table(title="ApplyPilot Due Follow-Up Actions", show_lines=True)
+    table.add_column("Stage", style="bold magenta")
+    table.add_column("Company", style="bold white")
+    table.add_column("Role", style="cyan")
+    table.add_column("Assigned Email", style="yellow")
+    table.add_column("Contact", style="green")
+    table.add_column("Due At", style="dim")
+    table.add_column("Job ID", style="dim")
+
+    for a in actions:
+        table.add_row(
+            a.stage,
+            a.company,
+            a.title,
+            a.email_to_use,
+            f"{a.contact_name} ({a.contact_handle})" if a.contact_handle else (a.contact_name or "-"),
+            a.due_at[:19] if a.due_at else "-",
+            a.job_id[:40] if len(a.job_id) > 40 else a.job_id,
+        )
+    console.print(table)
+
+
+@app.command("followup-ack")
+def followup_ack_cmd(
+    job_id: str = typer.Argument(..., help="Job ID or URL to acknowledge follow-up for"),
+) -> None:
+    """Acknowledge action and advance follow-up state machine (Day 3 -> Day 7 -> Archived)."""
+    _bootstrap()
+    from applypilot.networking.followup_engine import ReferralFollowUpEngine
+    engine = ReferralFollowUpEngine()
+    engine.acknowledge_action(job_id=job_id)
+    console.print(f"[bold green]✓ Acknowledged follow-up action for:[/bold green] {job_id}")
+
+
 if __name__ == "__main__":
     app()

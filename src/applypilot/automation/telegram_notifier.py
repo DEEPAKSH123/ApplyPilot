@@ -121,3 +121,26 @@ def alert_dream_job_discovered(company: str, role: str, score: int, apply_url: s
         f"🚀 [1-Click Apply Portal]({apply_url})"
     )
     return send_telegram_alert(msg)
+
+
+def send_message(message: str, parse_mode: str = "Markdown") -> dict[str, Any]:
+    """Alias for send_telegram_alert."""
+    return send_telegram_alert(message, parse_mode=parse_mode)
+
+
+def alert_followup_digest(actions: list) -> dict[str, Any]:
+    """Dispatch a structured digest of due follow-up and fallback actions."""
+    if not actions:
+        return {"status": "skipped", "message": "No actions due"}
+
+    lines = [f"📬 *APPLYPILOT: {len(actions)} FOLLOW-UP ACTIONS DUE*\n"]
+    for idx, act in enumerate(actions, 1):
+        lines.append(
+            f"*{idx}. {act.stage}* — `{act.company}`\n"
+            f"   Role: {act.title}\n"
+            f"   Email to use: `{act.email_to_use}`\n"
+            f"   Contact: {act.contact_name or 'N/A'}\n"
+        )
+    lines.append("⚡ _Run `applypilot followups-due` or visit Dashboard to act._")
+    msg = "\n".join(lines)
+    return send_telegram_alert(msg)

@@ -3495,12 +3495,17 @@ HTML_DASHBOARD = """<!DOCTYPE html>
         const res = await fetch('/api/referral_crm/sync_accepted', { method: 'POST' });
         const data = await res.json();
         if (data.status === 'ok') {
+          let msg = '';
           if (data.matched_count > 0) {
-            showToast(`🎉 Found ${data.matched_count} new accepted connection(s)!`);
+            msg = `🎉 Found ${data.matched_count} new accepted connection(s)!`;
             triggerConfetti();
           } else {
-            showToast(`Scanned ${data.connections_scraped || 0} connections. No new acceptances found yet.`);
+            msg = `Scanned connections.`;
           }
+          if (data.new_sent_discovered > 0) {
+            msg += ` Auto-tracked ${data.new_sent_discovered} new sent invite(s)!`;
+          }
+          showToast(msg || 'Sync complete!');
           renderReferralCrmView();
           updateStats();
         } else {
@@ -6577,6 +6582,37 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps(AUTO_APPLY_STATE).encode("utf-8"))
             return
 
+        elif path == "/api/followups/due":
+            try:
+                from applypilot.networking.followup_engine import ReferralFollowUpEngine
+                engine = ReferralFollowUpEngine()
+                actions = engine.collect_due_actions()
+                data = [
+                    {
+                        "job_id": a.job_id,
+                        "stage": a.stage,
+                        "company": a.company,
+                        "title": a.title,
+                        "job_url": a.job_url,
+                        "email_to_use": a.email_to_use,
+                        "contact_name": a.contact_name,
+                        "contact_handle": a.contact_handle,
+                        "due_at": a.due_at,
+                        "template_text": a.template_text,
+                    }
+                    for a in actions
+                ]
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(json.dumps({"status": "ok", "actions": data}).encode("utf-8"))
+            except Exception as e:
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(json.dumps({"status": "error", "message": str(e)}).encode("utf-8"))
+            return
+
         elif path == "/api/jobs":
             from applypilot.config import load_search_config
             cfg = load_search_config()
@@ -7021,6 +7057,26 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         from applypilot.database import get_connection
 
         # /api/jobs/process_link (Instant Job Link Intake -> JD extraction + tailored resume + referral messages)
+        if path.startswith("/api/followups/") and path.endswith("/ack"):
+            parts = path.strip("/").split("/")
+            # ["api", "followups", "<job_id>", "ack"]
+            if len(parts) >= 4 and parts[1] == "followups" and parts[-1] == "ack":
+                job_id = urllib.parse.unquote("/".join(parts[2:-1]))
+                try:
+                    from applypilot.networking.followup_engine import ReferralFollowUpEngine
+                    engine = ReferralFollowUpEngine()
+                    engine.acknowledge_action(job_id)
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"status": "ok", "job_id": job_id, "message": "Action acknowledged"}).encode("utf-8"))
+                except Exception as e:
+                    self.send_response(500)
+                    self.send_header("Content-Type", "application/json")
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"status": "error", "message": str(e)}).encode("utf-8"))
+                return
+
         if path == "/api/jobs/process_link":
             length = int(self.headers.get("Content-Length", 0))
             body_data = self.rfile.read(length).decode("utf-8") if length > 0 else "{}"
@@ -7784,11 +7840,16 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps(res).encode("utf-8"))
             return
 
-        # /api/referral_crm/sync_accepted (Auto-detect accepted connection requests from LinkedIn)
+        # /api/referral_crm/sync_accepted (Auto-detect accepted connection requests and sent invites from LinkedIn)
         elif path == "/api/referral_crm/sync_accepted":
             try:
-                from applypilot.networking.referral_tracker import sync_accepted_connections_from_linkedin
+                from applypilot.networking.referral_tracker import sync_accepted_connections_from_linkedin, sync_sent_invitations_from_linkedin
+                # 1. First sync sent invites so nothing manual is required!
+                sent_res = sync_sent_invitations_from_linkedin(max_check=50, headless=True)
+                # 2. Sync accepted connections
                 res = sync_accepted_connections_from_linkedin(max_check=50, headless=True)
+                res["new_sent_discovered"] = sent_res.get("new_recorded", 0)
+                res["total_sent_found"] = sent_res.get("total_sent_found", 0)
             except Exception as e:
                 res = {"status": "error", "message": str(e)}
 

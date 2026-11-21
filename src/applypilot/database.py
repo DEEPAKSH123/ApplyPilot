@@ -142,6 +142,7 @@ def init_db(db_path: Path | str | None = None) -> sqlite3.Connection:
     # Run migrations for any columns added after initial schema
     ensure_columns(conn)
     init_auxiliary_tables(conn)
+    init_referral_followup_state(conn)
     try:
         from applypilot.networking.cold_email_tracker import init_cold_email_tables
         init_cold_email_tables(conn)
@@ -149,6 +150,86 @@ def init_db(db_path: Path | str | None = None) -> sqlite3.Connection:
         pass
 
     return conn
+
+
+def init_referral_followup_state(conn: sqlite3.Connection) -> None:
+    """Initialize referral_followup_state table and indexes."""
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS referral_followup_state (
+            job_id TEXT PRIMARY KEY,
+            canonical_hash TEXT NOT NULL,
+            company TEXT NOT NULL,
+            title TEXT NOT NULL,
+            job_url TEXT,
+            is_tier_1 INTEGER NOT NULL DEFAULT 0,
+            status TEXT NOT NULL,
+            email_used TEXT NOT NULL,
+            contact_name TEXT DEFAULT '',
+            contact_handle TEXT DEFAULT '',
+            created_at TEXT NOT NULL,
+            last_action_at TEXT NOT NULL,
+            followup_count INTEGER NOT NULL DEFAULT 0,
+            next_due_at TEXT
+        );
+    """)
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS idx_rfs_canonical_hash ON referral_followup_state(canonical_hash);
+    """)
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS idx_rfs_status_due ON referral_followup_state(status, next_due_at);
+    """)
+    conn.commit()
+
+
+def compute_canonical_hash(company: str, title: str, location: str) -> str:
+    """Compute canonical hash for deduplication.
+
+    Canonical fingerprint:
+    sha256(norm_company + ":" + norm_title + ":" + norm_loc)[:16]
+    Strips non-alphanumerics, lowercases, normalizes remote vs city prefix ([:10]).
+    """
+    import hashlib
+
+    # Normalize company: lowercase, strip common entity suffixes like "india", "pvt", "ltd", "technologies"
+    comp_clean = (company or "").lower()
+    for suff in ["india", "private", "pvt", "limited", "ltd", "technologies", "technology", "software", "solutions", "corp", "inc"]:
+        comp_clean = re.sub(rf"\b{suff}\b", "", comp_clean)
+    norm_company = re.sub(r"[^a-z0-9]", "", comp_clean)
+
+    # Normalize title: roman numerals to digits (ii -> 2, iii -> 3, iv -> 4), strip non-alphanumerics
+    title_clean = (title or "").lower()
+    # word boundaries for roman numerals
+    title_clean = re.sub(r"\biii\b", "3", title_clean)
+    title_clean = re.sub(r"\bii\b", "2", title_clean)
+    title_clean = re.sub(r"\biv\b", "4", title_clean)
+    title_clean = re.sub(r"\bi\b", "1", title_clean)
+    norm_title = re.sub(r"[^a-z0-9]", "", title_clean)
+
+    # Normalize location: if contains remote, normalize to remote;
+    # handle common cities: bengaluru <-> bangalore -> blr / bengaluru
+    loc_clean = (location or "").lower()
+    if "remote" in loc_clean:
+        norm_loc = "remote"
+    elif "bengaluru" in loc_clean or "bangalore" in loc_clean:
+        norm_loc = "bangalore"[:10]
+    else:
+        norm_loc = re.sub(r"[^a-z0-9]", "", loc_clean)[:10]
+
+    raw = f"{norm_company}:{norm_title}:{norm_loc}"
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+
+
+def job_hash_exists(conn: sqlite3.Connection, canonical_hash: str) -> str | None:
+    """Check if canonical_hash exists in referral_followup_state, returning job_id if present."""
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT job_id FROM referral_followup_state WHERE canonical_hash = ? LIMIT 1",
+        (canonical_hash,)
+    )
+    row = cursor.fetchone()
+    if row:
+        return row[0] if isinstance(row, tuple) else row["job_id"]
+    return None
 
 
 # Complete column registry: column_name -> SQL type with optional default.

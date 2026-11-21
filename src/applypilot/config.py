@@ -179,6 +179,53 @@ DEFAULTS = {
     "viewport": "1280x900",
 }
 
+# ---------------------------------------------------------------------------
+# Tier-1 & Email Configuration (Referral Tracking & Two-Email Guardrail)
+# ---------------------------------------------------------------------------
+
+DEFAULT_PRIMARY_EMAIL = "deepakshkarkala@gmail.com"
+DEFAULT_SECONDARY_EMAIL = "deepaksh.apply@gmail.com"
+
+def get_primary_email() -> str:
+    load_env()
+    return os.environ.get("PRIMARY_EMAIL", "").strip() or DEFAULT_PRIMARY_EMAIL
+
+def get_secondary_email() -> str:
+    load_env()
+    return os.environ.get("SECONDARY_EMAIL", "").strip() or DEFAULT_SECONDARY_EMAIL
+
+def get_referral_hold_hours() -> int:
+    load_env()
+    try:
+        return int(os.environ.get("REFERRAL_HOLD_HOURS", 48))
+    except (ValueError, TypeError):
+        return 48
+
+def load_employers_config() -> dict:
+    """Load employers.yaml configuration."""
+    import yaml
+    path = CONFIG_DIR / "employers.yaml"
+    if not path.exists():
+        return {}
+    return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+
+def get_tier_1_companies() -> list[str]:
+    """Load Tier-1 companies list from employers.yaml."""
+    cfg = load_employers_config()
+    return cfg.get("tier_1", [])
+
+def is_tier_1_employer(company: str) -> bool:
+    """Case-insensitive substring/exact match against tier_1_companies."""
+    if not company:
+        return False
+    tier1_list = get_tier_1_companies()
+    clean_target = company.strip().lower()
+    for t in tier1_list:
+        clean_t = t.strip().lower()
+        if clean_t and (clean_t == clean_target or clean_t in clean_target or clean_target in clean_t):
+            return True
+    return False
+
 
 def load_env():
     """Load environment variables from ~/.applypilot/.env if it exists."""

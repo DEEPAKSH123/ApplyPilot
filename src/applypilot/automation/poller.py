@@ -131,7 +131,7 @@ def execute_polling_cycle(headless: bool = True) -> dict[str, Any]:
 
     # 7. Prune stale jobs older than 15 days (safe — never deletes applied/interview rows)
     try:
-        log.info("[7/7] Pruning stale job listings older than 15 days...")
+        log.info("[7/8] Pruning stale job listings older than 15 days...")
         from applypilot.database import prune_old_jobs
         prune_result = prune_old_jobs(days=15)
         results["pruned_jobs"] = prune_result.get("deleted", 0)
@@ -139,6 +139,35 @@ def execute_polling_cycle(headless: bool = True) -> dict[str, Any]:
     except Exception as e:
         log.warning("Job prune error: %s", e)
         results["errors"].append(f"Prune: {e}")
+
+    # 8. Collect Due Referral & Fallback Follow-Ups
+    try:
+        log.info("[8/8] Checking due referral & fallback actions...")
+        from applypilot.networking.followup_engine import ReferralFollowUpEngine
+        from applypilot.automation.telegram_notifier import alert_followup_digest
+        engine = ReferralFollowUpEngine()
+        due_actions = engine.collect_due_actions()
+        results["due_followup_actions"] = len(due_actions)
+        if due_actions:
+            alert_followup_digest(due_actions)
+
+            # Optionally create Gmail drafts if recruiter email present
+            for act in due_actions:
+                if "@" in (act.contact_handle or ""):
+                    try:
+                        from applypilot.networking.gmail_drafter import draft_single_cold_email
+                        draft_single_cold_email(
+                            recipient_email=act.contact_handle,
+                            recipient_name=act.contact_name or "Hiring Team",
+                            company=act.company,
+                            role_title=act.title,
+                            custom_body=act.template_text,
+                        )
+                    except Exception as d_err:
+                        log.debug("Auto draft error: %s", d_err)
+    except Exception as e:
+        log.warning("Due follow-ups collection error: %s", e)
+        results["errors"].append(f"Followups: {e}")
 
     # 5. Refresh opportunities.csv
     try:

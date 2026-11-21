@@ -132,6 +132,41 @@ def run_scoring(limit: int = 0, rescore: bool = False) -> dict:
         columns = jobs[0].keys()
         jobs = [dict(zip(columns, row)) for row in jobs]
 
+    # Pre-scoring routing & deduplication via ReferralFollowUpEngine
+    from applypilot.networking.followup_engine import ReferralFollowUpEngine
+    from applypilot.config import is_tier_1_employer
+    followup_engine = ReferralFollowUpEngine(db_path=conn)
+
+    eligible_jobs = []
+    skipped_duplicates = 0
+    for j in jobs:
+        comp_name = j.get("site") or ""
+        role_title = j.get("title") or ""
+        loc_str = j.get("location") or ""
+        is_t1 = is_tier_1_employer(comp_name)
+        route = followup_engine.register_job(
+            job_id=j["url"],
+            company=comp_name,
+            title=role_title,
+            job_url=j["url"],
+            location=loc_str,
+            is_tier_1=is_t1,
+        )
+        if route.action == "SKIP_DUPLICATE":
+            skipped_duplicates += 1
+            log.info("Skipping duplicate job before scoring: %s @ %s", role_title, comp_name)
+            continue
+        j["followup_route"] = route
+        eligible_jobs.append(j)
+
+    if skipped_duplicates > 0:
+        log.info("Deduplication: skipped %d duplicate jobs prior to scoring.", skipped_duplicates)
+
+    jobs = eligible_jobs
+    if not jobs:
+        log.info("No remaining eligible jobs after deduplication filter.")
+        return {"scored": 0, "errors": 0, "elapsed": 0.0, "distribution": []}
+
     workers = min(4, len(jobs))
     log.info("Scoring %d jobs (parallel, %d workers)...", len(jobs), workers)
     t0 = time.time()

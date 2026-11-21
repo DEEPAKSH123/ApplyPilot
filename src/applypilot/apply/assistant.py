@@ -867,6 +867,30 @@ def launch_application_assistant(identifier: str | int, headed: bool = True, aut
             "message": "Skipped: Not a LinkedIn Easy Apply job (easy_apply_only=True)",
         }
 
+    # Two-Email Guardrail & Referral Hold Pre-Check
+    try:
+        from applypilot.networking.followup_engine import ReferralFollowUpEngine
+        from applypilot.config import get_secondary_email
+        fe = ReferralFollowUpEngine(db_path=conn)
+        job_state = fe.get_job_state(str(job["url"]))
+        if job_state:
+            st = job_state.get("status")
+            due_at = job_state.get("next_due_at")
+            now_iso = datetime.now(timezone.utc).isoformat()
+            if st == "REFERRAL_HOLD" and due_at and now_iso < due_at:
+                block_msg = f"BLOCKED: Tier-1 Referral Hold active until {due_at}. Send referral via Primary Email first."
+                print(block_msg)
+                log.warning(block_msg)
+                return {
+                    "status": "BLOCKED",
+                    "submitted": False,
+                    "job_title": job.get("title", "Role"),
+                    "company": job.get("site", "Company"),
+                    "message": block_msg,
+                }
+    except Exception as fe_err:
+        log.warning("Followup engine pre-check warning: %s", fe_err)
+
     if "kadegree.in/openings" in str(apply_url):
         return {
             "status": "referral_lead",
@@ -883,6 +907,26 @@ def launch_application_assistant(identifier: str | int, headed: bool = True, aut
             apply_url = "https://job-boards.greenhouse.io/razorpaysoftwareprivatelimited"
 
     profile = load_profile()
+
+    # Determine assigned email to prevent submitting the wrong email
+    assigned_email = None
+    used_secondary = False
+    try:
+        from applypilot.networking.followup_engine import ReferralFollowUpEngine
+        from applypilot.config import get_secondary_email
+        fe = ReferralFollowUpEngine(db_path=conn)
+        jstate = fe.get_job_state(str(job["url"]))
+        if jstate and jstate.get("email_used"):
+            assigned_email = jstate["email_used"]
+            if assigned_email == get_secondary_email():
+                used_secondary = True
+    except Exception:
+        pass
+
+    if assigned_email:
+        if "personal" not in profile:
+            profile["personal"] = {}
+        profile["personal"]["email"] = assigned_email
 
     tailored_pdf = None
     if job.get("tailored_resume_path"):
@@ -992,6 +1036,17 @@ def launch_application_assistant(identifier: str | int, headed: bool = True, aut
 
             if is_submitted:
                 mark_job_applied(rowid)
+                try:
+                    from applypilot.networking.followup_engine import ReferralFollowUpEngine
+                    fe = ReferralFollowUpEngine(db_path=conn)
+                    rec_name = job.get("recruiter_name") or ""
+                    fe.mark_applied(
+                        job_id=str(job["url"]),
+                        used_secondary_email=used_secondary,
+                        recruiter_name=rec_name,
+                    )
+                except Exception as me:
+                    log.warning("Followup engine mark_applied warning: %s", me)
                 log.info("Application successfully submitted for %s @ %s! %s", role_title, company_name, submission_msg)
 
                 # Show celebration banner
