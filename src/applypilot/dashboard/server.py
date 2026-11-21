@@ -922,6 +922,9 @@ HTML_DASHBOARD = """<!DOCTYPE html>
     /* Modal Backdrop */
     .modal-backdrop {
       display: none;
+    }
+    .modal-backdrop.active {
+      display: flex !important;
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
       background: rgba(0, 0, 0, 0.75);
@@ -3620,11 +3623,15 @@ HTML_DASHBOARD = """<!DOCTYPE html>
       if (comp) document.getElementById('copilot-comp').value = comp;
       if (role) document.getElementById('copilot-role').value = role;
       document.getElementById('copilot-answer-box').style.display = 'none';
-      document.getElementById('screening-copilot-modal').classList.add('active');
+      const m = document.getElementById('screening-copilot-modal');
+      m.classList.add('active');
+      m.style.display = 'flex';
     }
 
     function closeScreeningCopilotModal() {
-      document.getElementById('screening-copilot-modal').classList.remove('active');
+      const m = document.getElementById('screening-copilot-modal');
+      m.classList.remove('active');
+      m.style.display = 'none';
     }
 
     async function submitScreeningCopilot() {
