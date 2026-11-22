@@ -578,12 +578,16 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             except Exception as dbe:
                 log.warning("Could not fetch existing company connections from db: %s", dbe)
 
-            # Check online live connections if authenticated
+            # Check online live connections
             live_results = []
-            if is_linkedin_authenticated() and comp_param:
+            auth_warning = ""
+            if comp_param:
                 try:
                     live_results = search_linkedin_connections(company=comp_param, role="backend", school="RV College of Engineering", max_results=8)
-                    # Filter out error entries if any
+                    for r in live_results:
+                        if r.get("error"):
+                            auth_warning = r.get("error")
+                            break
                     live_results = [r for r in live_results if not r.get("error")]
                 except Exception as se:
                     log.debug("Live connection search info: %s", se)
@@ -633,7 +637,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 "company": comp_param,
                 "existing_count": len([c for c in combined if c.get("is_existing")]),
                 "new_count": len([c for c in combined if not c.get("is_existing")]),
-                "connections": combined
+                "connections": combined,
+                "auth_warning": auth_warning
             }).encode("utf-8"))
             return
 

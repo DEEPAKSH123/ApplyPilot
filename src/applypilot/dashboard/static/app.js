@@ -849,10 +849,11 @@ async function checkCompanyConnectionsForDrawer() {
     const newProfiles = conns.filter(c => !c.is_existing && c.degree !== '1st');
 
     if (conns.length === 0) {
+      const authNotice = data.auth_warning ? `<div style="color: #f59e0b; font-size: 11px; margin-top: 6px;">⚠️ ${escapeHtml(data.auth_warning)}. Run <code>applypilot linkedin-login</code> to refresh session.</div>` : '';
       resultsCont.innerHTML = `
         <div style="background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 12px; font-size: 12px; color: var(--text-dim); text-align: center;">
-          <div>No recorded connections found yet at <strong>${escapeHtml(comp)}</strong>.</div>
-          <div style="font-size: 11px; margin-top: 4px; color: var(--text-muted);">Paste a LinkedIn profile below to send a verified connection request.</div>
+          <div>No connections found yet at <strong>${escapeHtml(comp)}</strong>.</div>
+          ${authNotice}
         </div>
       `;
     } else {
