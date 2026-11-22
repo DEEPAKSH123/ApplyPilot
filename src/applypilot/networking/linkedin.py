@@ -605,7 +605,8 @@ def search_linkedin_connections(
 
     # ── CRITICAL FIX: Filter to only people CURRENTLY at target company ──
     # LinkedIn keyword search matches anyone who ever mentioned the company
-    # (including past roles). We must verify the person currently works there.
+    # (including past roles, mutual connections, or education).
+    # We MUST strictly verify that the person currently works at the target company.
     comp_lower = comp_clean.lower().strip()
     filtered_results = []
     for c in results:
@@ -613,7 +614,12 @@ def search_linkedin_connections(
         current_role = (c.get("current_role") or "").lower()
         past_role = (c.get("past_role") or "").lower()
 
-        # Case 1: current_role explicitly mentions the company → definitely current
+        # Reject immediately if company only appears in past context
+        if comp_lower and comp_lower in past_role and comp_lower not in current_role and comp_lower not in headline:
+            log.info("Skipping %s — '%s' appears only in PAST role, not current company.", c.get("name"), comp_clean)
+            continue
+
+        # Case 1: current_role explicitly mentions the company → confirmed current
         if comp_lower and comp_lower in current_role:
             c["_match_type"] = "current_role"
             filtered_results.append(c)
@@ -621,38 +627,16 @@ def search_linkedin_connections(
 
         # Case 2: headline mentions the company (headline = current position)
         if comp_lower and comp_lower in headline:
-            # But exclude if headline only mentions it in a "Past:" or "Former" context
+            # But exclude if headline mentions it in a "Past:", "Former", "Ex-", "Previously" context
             if "past:" not in headline and "former" not in headline and "ex-" not in headline and "previously" not in headline:
                 c["_match_type"] = "headline"
                 filtered_results.append(c)
                 continue
 
-        # Case 3: No current_role detected but company is ONLY in past_role → SKIP
-        if comp_lower and comp_lower in past_role and not current_role:
-            log.info("Skipping %s — '%s' appears only in PAST role, not current company.", c.get("name"), comp_clean)
-            continue
-
-        # Case 4: 1st-degree connection (already connected) — keep as likely current
-        # since LinkedIn keyword search with F filter usually matches current
-        if c.get("degree") == "1st":
-            # Extra check: if past_role mentions company but headline doesn't, still skip
-            if comp_lower and comp_lower in past_role and comp_lower not in headline:
-                log.info("Skipping 1st-degree %s — '%s' in past role only.", c.get("name"), comp_clean)
-                continue
-            c["_match_type"] = "1st_degree"
-            filtered_results.append(c)
-            continue
-
-        # Case 5: If neither current nor past explicitly mention company,
-        # it may be in their overall card text (LinkedIn search matched it somewhere)
-        # Only include if there's NO past_role mentioning it
-        if comp_lower and comp_lower not in past_role:
-            c["_match_type"] = "keyword_match"
-            filtered_results.append(c)
-            continue
-
-        # Default: skip (company only appears in past context)
-        log.info("Skipping %s — could not confirm '%s' as current employer.", c.get("name"), comp_clean)
+        # Case 3: 1st-degree connection ONLY IF headline or current_role mentions target company
+        # Never assume keyword match equals employment, even for 1st-degree
+        log.info("Skipping %s — headline ('%s') and current role ('%s') do not confirm '%s' as current employer.",
+                 c.get("name"), c.get("headline"), c.get("current_role"), comp_clean)
 
     results = filtered_results
     log.info("After current-company filter: %d of %d connections for '%s'", len(results), len(raw_cards), comp_clean)
@@ -1200,10 +1184,10 @@ def send_connect_via_headless_browser(profile_url: str, note: str | None = None)
             if "Pending" in page_text and ("Withdraw" in page_text or "Invitation sent" in page_text):
                 return {"ok": True, "method": "headless_playwright", "already_pending": True}
 
-            # Locate Connect button
-            connect_btn = page.query_selector("main button:has-text('Connect'), main a:has-text('Connect')")
+            # Locate Connect button strictly inside main profile top card
+            connect_btn = page.query_selector("main a[aria-label*='to connect'], main button[aria-label*='to connect'], main button:has-text('Connect'), main a:has-text('Connect')")
             if not connect_btn:
-                # Check More actions button (often aria-label="More" or has-text('More'))
+                # Check More actions button in top section
                 more_btn = page.query_selector("main button[aria-label='More'], main button[aria-label*='More actions'], main button:has-text('More')")
                 if more_btn:
                     more_btn.click()
@@ -1212,18 +1196,19 @@ def send_connect_via_headless_browser(profile_url: str, note: str | None = None)
 
             if not connect_btn:
                 # If still not found, check if already Pending
-                if page.query_selector("button:has-text('Pending'), span:has-text('Pending')"):
+                if page.query_selector("main button:has-text('Pending'), main a:has-text('Pending'), span:has-text('Pending')"):
                     return {"ok": True, "method": "headless_playwright", "already_pending": True}
                 return {"ok": False, "error": "Connect button not found on profile page.", "method": "headless_playwright"}
 
-            connect_btn.click(force=True)
-            time.sleep(1.5)
+            connect_btn.click()
+            time.sleep(2.5)
 
+            # Wait and look for the invitation modal buttons
             if note:
                 # Click 'Add a note'
                 add_note_btn = page.query_selector("button:has-text('Add a note'), button[aria-label*='Add a note']")
                 if add_note_btn:
-                    add_note_btn.click(force=True)
+                    add_note_btn.click()
                     time.sleep(1)
 
                 textarea = page.query_selector("textarea#custom-message, textarea[name='message'], textarea")
@@ -1235,29 +1220,28 @@ def send_connect_via_headless_browser(profile_url: str, note: str | None = None)
                     "button[aria-label*='Send invitation'], button:has-text('Send invitation'), button:has-text('Send now'), button:has-text('Send')"
                 )
                 if send_btn:
-                    send_btn.click(force=True)
-                    time.sleep(2)
+                    send_btn.click()
+                    time.sleep(2.5)
             else:
                 # Send without note
                 send_without_note = page.query_selector(
-                    "button[aria-label*='Send without a note'], button:has-text('Send without a note'), button:has-text('Send now'), button:has-text('Send')"
+                    "button:has-text('Send without a note'), button[aria-label*='Send without a note'], button:has-text('Send now'), button:has-text('Send')"
                 )
                 if send_without_note:
-                    send_without_note.click(force=True)
-                    time.sleep(2)
+                    send_without_note.click()
+                    time.sleep(2.5)
                 else:
-                    # In case a simple modal appears with Send
                     gen_send = page.query_selector("button:has-text('Send')")
                     if gen_send:
-                        gen_send.click(force=True)
-                        time.sleep(2)
+                        gen_send.click()
+                        time.sleep(2.5)
 
             # Verification: check if 'Pending' appears on page
             time.sleep(2)
             verified_pending = page.evaluate("""() => {
                 const text = document.body.innerText || '';
-                if (text.includes('Pending')) return true;
-                const btns = Array.from(document.querySelectorAll('button, span, a'));
+                if (text.includes('Pending') || text.includes('Invitation sent')) return true;
+                const btns = Array.from(document.querySelectorAll('main button, main a, main span'));
                 return btns.some(b => b.innerText && b.innerText.trim() === 'Pending');
             }""")
 
@@ -1265,7 +1249,7 @@ def send_connect_via_headless_browser(profile_url: str, note: str | None = None)
                 log.info("Headless Playwright verified 'Pending' invitation for %s", clean_url)
                 return {"ok": True, "method": "headless_playwright"}
             else:
-                log.info("Headless Playwright completed submission for %s", clean_url)
+                # Re-check if Pending or Invitation sent is present
                 return {"ok": True, "method": "headless_playwright", "verified": False}
 
     except Exception as e:

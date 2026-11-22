@@ -289,43 +289,43 @@ def sync_sent_invitations_from_linkedin(max_check: int = 50, headless: bool = Tr
                     context.close()
                     return {"status": "error", "message": ch_reason, "synced": 0}
 
-            sent_invites = page.evaluate("""() => {
-                const results = [];
-                const links = Array.from(document.querySelectorAll('a[href*="/in/"]'));
-                const seen = new Set();
-                for (const a of links) {
-                    const href = a.href.split('?')[0].replace(/\\/+$/, '');
-                    if (!href || href.includes('mini-profile') || seen.has(href)) continue;
-                    seen.add(href);
+                sent_invites = page.evaluate("""() => {
+                    const results = [];
+                    const links = Array.from(document.querySelectorAll('a[href*="/in/"]'));
+                    const seen = new Set();
+                    for (const a of links) {
+                        const href = a.href.split('?')[0].replace(/\\/+$/, '');
+                        if (!href || href.includes('mini-profile') || seen.has(href)) continue;
+                        seen.add(href);
 
-                    let el = a;
-                    let candidateContainer = null;
-                    for (let i = 0; i < 6 && el && el.tagName !== 'BODY'; i++) {
-                        if (el.innerText && el.innerText.includes('Withdraw')) {
-                            candidateContainer = el;
-                            break;
-                        }
-                        el = el.parentElement;
-                    }
-
-                    if (candidateContainer) {
-                        const text = candidateContainer.innerText;
-                        const lines = text.split('\\n').map(l => l.trim()).filter(Boolean);
-                        const name = lines[0] || '';
-                        const headline = lines[1] || '';
-                        let sentTime = '';
-                        for (const l of lines) {
-                            if (l.toLowerCase().includes('sent ')) {
-                                sentTime = l;
+                        let el = a;
+                        let candidateContainer = null;
+                        for (let i = 0; i < 6 && el && el.tagName !== 'BODY'; i++) {
+                            if (el.innerText && el.innerText.includes('Withdraw')) {
+                                candidateContainer = el;
                                 break;
                             }
+                            el = el.parentElement;
                         }
-                        results.push({ name, href, headline, sentTime });
+
+                        if (candidateContainer) {
+                            const text = candidateContainer.innerText;
+                            const lines = text.split('\\n').map(l => l.trim()).filter(Boolean);
+                            const name = lines[0] || '';
+                            const headline = lines[1] || '';
+                            let sentTime = '';
+                            for (const l of lines) {
+                                if (l.toLowerCase().includes('sent ')) {
+                                    sentTime = l;
+                                    break;
+                                }
+                            }
+                            results.push({ name, href, headline, sentTime });
+                        }
                     }
-                }
-                return results;
-            }""")
-            context.close()
+                    return results;
+                }""")
+                context.close()
     except Exception as e:
         log.error("Failed to scrape sent invitations: %s", e)
         return {"status": "error", "message": str(e), "synced": 0}
