@@ -88,7 +88,22 @@ def is_linkedin_authenticated() -> bool:
 
 
 def get_stored_cookies() -> list[dict]:
-    """Retrieve stored LinkedIn cookies from storage_state.json or linkedin_session.json."""
+    """Retrieve stored LinkedIn cookies from live Brave CDP session or session files.
+    Auto-syncs from live Brave if CDP port 9222 is open, ensuring cookies never go stale.
+    """
+    # Auto-sync from running Brave instance via CDP if available
+    try:
+        from playwright.sync_api import sync_playwright
+        with sync_playwright() as p:
+            browser = p.chromium.connect_over_cdp('http://127.0.0.1:9222', timeout=2000)
+            ctx = browser.contexts[0]
+            brave_cookies = ctx.cookies(['https://www.linkedin.com'])
+            browser.close()
+            if brave_cookies and any(c.get('name') == 'li_at' for c in brave_cookies):
+                save_stored_cookies(brave_cookies)
+                return brave_cookies
+    except Exception:
+        pass
     if STORAGE_STATE_FILE.exists():
         try:
             data = json.loads(STORAGE_STATE_FILE.read_text(encoding="utf-8"))
