@@ -932,7 +932,7 @@ async function checkCompanyConnectionsForDrawer() {
                         </div>
                       </div>
                       <div style="display: flex; gap: 4px; flex-shrink: 0;">
-                        <button class="btn-micro-action primary" onclick="sendVerifiedConnectionByIndex(${idx})" title="Send Connection & Track">
+                        <button class="btn-micro-action primary" id="btn-connect-idx-${idx}" onclick="sendVerifiedConnectionByIndex(${idx})" title="Send Connection & Track">
                           <i data-lucide="user-plus" class="micro-icon"></i> Connect &amp; Track
                         </button>
                       </div>
@@ -984,7 +984,7 @@ async function sendVerifiedConnectionByIndex(index) {
   const comp = selectedJob ? selectedJob.company : '';
   const role = selectedJob ? selectedJob.title : '';
   const noteMsg = `Hi ${firstName}, I'm an SDE-I Backend Engineer at Meesho (RVCE '25, Java/Go/Kafka). Interested in the ${role} opening at ${comp}. Would love to connect!`;
-  await sendVerifiedConnection(encodeURIComponent(p.profile_url || ''), pName, encodeURIComponent(noteMsg));
+  await sendVerifiedConnection(encodeURIComponent(p.profile_url || ''), pName, encodeURIComponent(noteMsg), index);
 }
 
 async function send1ClickMessageToExisting(encodedUrl, name, encodedMsg) {
@@ -1020,13 +1020,22 @@ async function send1ClickMessageToExisting(encodedUrl, name, encodedMsg) {
   }
 }
 
-async function sendVerifiedConnection(encodedUrl, name, encodedNote) {
+async function sendVerifiedConnection(encodedUrl, name, encodedNote, btnIndex = null) {
   const url = decodeURIComponent(encodedUrl);
   const note = decodeURIComponent(encodedNote);
   const comp = selectedJob ? selectedJob.company : '';
   const role = selectedJob ? selectedJob.title : '';
 
   showToast(`Sending verified connection request to ${name}...`, 'info');
+
+  // Visual status pill on the candidate card
+  const btn = btnIndex !== null ? document.getElementById(`btn-connect-idx-${btnIndex}`) : null;
+  const originalBtnHtml = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<i data-lucide="loader" class="micro-icon spin"></i> Sending...`;
+    refreshLucideIcons();
+  }
 
   try {
     const res = await fetch('/api/linkedin/compose_dm', {
@@ -1044,15 +1053,35 @@ async function sendVerifiedConnection(encodedUrl, name, encodedNote) {
     const data = await res.json();
     if (data.status === 'ok') {
       showToast(`✓ Connection request sent to ${name} and tracked in CRM!`, 'ok');
+      if (btn) {
+        btn.className = 'btn-micro-action';
+        btn.style.background = 'rgba(16, 185, 129, 0.2)';
+        btn.style.color = '#10b981';
+        btn.style.borderColor = '#10b981';
+        btn.innerHTML = `<i data-lucide="check" class="micro-icon"></i> Sent &amp; Tracked`;
+      }
       await fetchOutreachSummary();
     } else if (data.status === 'launched') {
       showToast(`✓ Opened connection dialog for ${name} with pre-typed note!`, 'ok');
+      if (btn) {
+        btn.innerHTML = `<i data-lucide="check" class="micro-icon"></i> Sent &amp; Tracked`;
+      }
       await fetchOutreachSummary();
     } else {
       showToast(`Could not send: ${data.message || 'Error'}`, 'error');
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = originalBtnHtml;
+      }
     }
   } catch (err) {
     showToast(`Error: ${err.message}`, 'error');
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = originalBtnHtml;
+    }
+  } finally {
+    refreshLucideIcons();
   }
 }
 

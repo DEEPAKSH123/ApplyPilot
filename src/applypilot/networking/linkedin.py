@@ -1195,14 +1195,14 @@ def send_connect_via_headless_browser(profile_url: str, note: str | None = None)
                 return {"ok": True, "method": "headless_playwright", "already_pending": True}
 
             # Locate Connect button
-            connect_btn = page.query_selector("button:has-text('Connect'), a:has-text('Connect')")
+            connect_btn = page.query_selector("main button:has-text('Connect'), main a:has-text('Connect')")
             if not connect_btn:
-                # Check More actions dropdown
-                more_btn = page.query_selector("button[aria-label*='More actions'], button:has-text('More')")
+                # Check More actions button (often aria-label="More" or has-text('More'))
+                more_btn = page.query_selector("main button[aria-label='More'], main button[aria-label*='More actions'], main button:has-text('More')")
                 if more_btn:
                     more_btn.click()
-                    time.sleep(1)
-                    connect_btn = page.query_selector("div[role='button']:has-text('Connect'), button:has-text('Connect')")
+                    time.sleep(1.2)
+                    connect_btn = page.query_selector("a:has-text('Connect'), div[role='button']:has-text('Connect'), button:has-text('Connect')")
 
             if not connect_btn:
                 # If still not found, check if already Pending
@@ -1220,13 +1220,13 @@ def send_connect_via_headless_browser(profile_url: str, note: str | None = None)
                     add_note_btn.click()
                     time.sleep(1)
 
-                textarea = page.query_selector("textarea#custom-message, textarea[name='message']")
+                textarea = page.query_selector("textarea#custom-message, textarea[name='message'], textarea")
                 if textarea:
                     textarea.fill(str(note)[:200])
                     time.sleep(0.5)
 
                 send_btn = page.query_selector(
-                    "button[aria-label*='Send invitation'], button:has-text('Send'), button[aria-label*='Send now']"
+                    "button[aria-label*='Send invitation'], button:has-text('Send invitation'), button:has-text('Send now'), button:has-text('Send')"
                 )
                 if send_btn:
                     send_btn.click()
@@ -1250,7 +1250,9 @@ def send_connect_via_headless_browser(profile_url: str, note: str | None = None)
             time.sleep(2)
             verified_pending = page.evaluate("""() => {
                 const text = document.body.innerText || '';
-                return text.includes('Pending') || document.querySelector('button:has-text("Pending")') !== null;
+                if (text.includes('Pending')) return true;
+                const btns = Array.from(document.querySelectorAll('button, span, a'));
+                return btns.some(b => b.innerText && b.innerText.trim() === 'Pending');
             }""")
 
             if verified_pending:
