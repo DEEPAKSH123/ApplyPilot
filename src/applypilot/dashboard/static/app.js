@@ -678,6 +678,10 @@ function openDrawer(job, actionOverride = null) {
     resumeStatus.textContent = job.tailored_resume_path ? 'Tailored PDF ready on disk' : 'Not compiled yet (Click Tailor JIT)';
   }
 
+  // Pre-fill LinkedIn connect note
+  const comp = job.company || 'there';
+  const role = job.title || 'Software Engineer';
+
   // Reset connection checker container in drawer
   const resultsCont = document.getElementById('drawer-company-connections-results');
   if (resultsCont) {
@@ -688,10 +692,6 @@ function openDrawer(job, actionOverride = null) {
   if (checkBtnText) {
     checkBtnText.textContent = `Check Connections at ${comp}`;
   }
-
-  // Pre-fill LinkedIn connect note
-  const comp = job.company || 'there';
-  const role = job.title || 'Software Engineer';
   const liNote = document.getElementById('drawer-linkedin-note');
   if (liNote) {
     liNote.value = `Hi there, I'm an SDE-I Backend Engineer at Meesho (RVCE '25, Java/Go/Kafka/Redis). Interested in the ${role} role at ${comp}. Would love to connect!`.slice(0, 200);
