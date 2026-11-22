@@ -67,6 +67,13 @@ def test_dashboard_static_assets_and_routes(dashboard_server):
         data = json.loads(resp.read().decode("utf-8"))
         assert isinstance(data, (list, dict))
 
+    # 5b. Stats API
+    with urllib.request.urlopen(f"{dashboard_server}/api/stats") as resp:
+        assert resp.status == 200
+        data = json.loads(resp.read().decode("utf-8"))
+        assert isinstance(data, dict)
+        assert "total" in data
+
     # 6. Skills Demand API
     with urllib.request.urlopen(f"{dashboard_server}/api/skills/demand") as resp:
         assert resp.status == 200

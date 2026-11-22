@@ -185,6 +185,16 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps(AUTO_APPLY_STATE).encode("utf-8"))
             return
 
+        elif path == "/api/stats":
+            from applypilot.database import get_stats
+            conn = get_connection()
+            stats = get_stats(conn)
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(json.dumps(stats).encode("utf-8"))
+            return
+
         elif path == "/api/followups/due":
             try:
                 from applypilot.networking.followup_engine import ReferralFollowUpEngine
