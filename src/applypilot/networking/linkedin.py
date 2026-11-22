@@ -1276,14 +1276,18 @@ def send_connect_via_headless_browser(profile_url: str, note: str | None = None)
                 return {"ok": True, "method": "headless_playwright", "already_pending": True}
 
             # Locate Connect button strictly inside main profile top card
-            connect_btn = page.query_selector("main [componentkey*='ConnectButtonstate:invitation'], main a[aria-label*='to connect'], main button[aria-label*='to connect'], main button:has-text('Connect'), main a:has-text('Connect')")
+            connect_btn = (
+                page.query_selector("main a[componentkey*='ConnectButtonstate:invitation'], main button[componentkey*='ConnectButtonstate:invitation']") or
+                page.query_selector("main a[aria-label*='to connect'], main button[aria-label*='to connect']") or
+                page.query_selector("main button:has-text('Connect')")
+            )
             if not connect_btn:
                 # Check More actions button in top section
                 more_btn = page.query_selector("main button[aria-label='More'], main button[aria-label*='More actions'], main button:has-text('More')")
                 if more_btn:
                     more_btn.click()
                     time.sleep(1.2)
-                    connect_btn = page.query_selector("div[role='menu'] a:has-text('Connect'), div[role='menu'] div[role='button']:has-text('Connect'), div[role='menu'] button:has-text('Connect'), a:has-text('Connect'), button:has-text('Connect')")
+                    connect_btn = page.query_selector("div[role='menu'] a:has-text('Connect'), div[role='menu'] div[role='button']:has-text('Connect'), div[role='menu'] button:has-text('Connect'), button:has-text('Connect')")
 
             if not connect_btn:
                 # If still not found, check if already Pending
