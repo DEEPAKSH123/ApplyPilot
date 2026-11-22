@@ -1254,24 +1254,26 @@ function copyActionTemplate(jobId) {
 async function openJobInBrave() {
   if (!selectedJob) return;
   const url = selectedJob.apply_url || selectedJob.url;
-  if (url) {
-    window.open(url, '_blank', 'noopener,noreferrer');
-  } else {
-    await openBraveDirect(selectedJob.rowid);
+  if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
+    window.open(url, '_blank');
   }
+  await openBraveDirect(selectedJob.rowid);
 }
 
 async function openBraveDirect(rowid) {
+  const job = allJobs.find(j => j.rowid == rowid);
+  const url = job ? (job.apply_url || job.url) : null;
+  if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
+    window.open(url, '_blank');
+  }
   try {
     const res = await fetch(`/api/jobs/${rowid}/open_browser`, { method: 'POST' });
     const data = await res.json();
     if (data.status === 'ok') {
       showToast(data.message || 'Opened portal in browser!', 'ok');
-    } else {
-      showToast(data.message || 'No direct URL available', 'error');
     }
   } catch (err) {
-    showToast(`Browser launcher error: ${err.message}`, 'error');
+    showToast(`Browser launcher: ${err.message}`, 'error');
   }
 }
 

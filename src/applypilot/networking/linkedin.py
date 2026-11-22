@@ -808,7 +808,6 @@ def compose_referral_dm(
                 time.sleep(3)
 
             # Check if name and company are detectable on page
-            nonlocal first_name, name, company
             full_detected_name = name
             headline_text = ""
             h1 = page.query_selector("h1")
@@ -1273,12 +1272,9 @@ def connect_in_background(profile_url: str, note: str | None = None) -> dict[str
     Enforces:
     - 24-hour circuit breaker check
     - Strict daily pacing: max 15 automated connects/day
-    - 20-60s random jitter before action execution
     - Strictly sequential execution
     - Never opens a visible browser window.
     """
-    import random
-
     clean_url = (profile_url or "").strip()
     truncated_note = str(note)[:200] if note else None
 
@@ -1302,11 +1298,6 @@ def connect_in_background(profile_url: str, note: str | None = None) -> dict[str
             "status": "DAILY_LIMIT_REACHED",
             "daily_count": daily_count,
         }
-
-    # Step 0.5: Random safety jitter (20 to 60 seconds)
-    jitter_sec = random.uniform(20.0, 60.0)
-    log.info("Pacing safety shield: sleeping %.1fs jitter before connect action...", jitter_sec)
-    time.sleep(jitter_sec)
 
     # Step 1: Try Voyager API
     api_res = send_connect_via_api(clean_url, truncated_note)
