@@ -770,6 +770,7 @@ def compose_referral_dm(
     log.info("Composing LinkedIn referral DM for: %s", clean_url)
 
     def _worker():
+        nonlocal company
         with acquire_browser_lock():
             with sync_playwright() as p:
                 context = launch_isolated_playwright_context(
