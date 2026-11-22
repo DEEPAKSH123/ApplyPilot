@@ -887,7 +887,7 @@ async function checkCompanyConnectionsForDrawer() {
                         </div>
                       </div>
                       <div style="display: flex; gap: 4px; flex-shrink: 0;">
-                        <button class="btn-micro-action primary" onclick="send1ClickMessageByIndex(${idx})" title="Send 1-Click DM">
+                        <button class="btn-micro-action primary" id="btn-msg-idx-${idx}" onclick="send1ClickMessageByIndex(${idx})" title="Send 1-Click DM">
                           <i data-lucide="send" class="micro-icon"></i> 1-Click Message
                         </button>
                       </div>
@@ -972,7 +972,7 @@ async function send1ClickMessageByIndex(index) {
   const comp = selectedJob ? selectedJob.company : '';
   const role = selectedJob ? selectedJob.title : '';
   const defaultMsg = `Hi ${firstName}, I came across the ${role} opening at ${comp} and wanted to reach out. I'm currently an SDE-I Backend Engineer at Meesho (RVCE '25, Java/Go/Kafka). Would you be comfortable referring me? Happy to share my resume!`;
-  await send1ClickMessageToExisting(encodeURIComponent(p.profile_url || ''), pName, encodeURIComponent(defaultMsg));
+  await send1ClickMessageToExisting(encodeURIComponent(p.profile_url || ''), pName, encodeURIComponent(defaultMsg), index);
 }
 
 async function sendVerifiedConnectionByIndex(index) {
@@ -987,13 +987,21 @@ async function sendVerifiedConnectionByIndex(index) {
   await sendVerifiedConnection(encodeURIComponent(p.profile_url || ''), pName, encodeURIComponent(noteMsg), index);
 }
 
-async function send1ClickMessageToExisting(encodedUrl, name, encodedMsg) {
+async function send1ClickMessageToExisting(encodedUrl, name, encodedMsg, btnIndex = null) {
   const url = decodeURIComponent(encodedUrl);
   const msg = decodeURIComponent(encodedMsg);
   const comp = selectedJob ? selectedJob.company : '';
   const role = selectedJob ? selectedJob.title : '';
 
-  showToast(`Composing 1-click message for ${name}...`, 'info');
+  showToast(`Sending 1-click message to ${name}...`, 'info');
+
+  const btn = btnIndex !== null ? document.getElementById(`btn-msg-idx-${btnIndex}`) : null;
+  const originalBtnHtml = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<i data-lucide="loader" class="micro-icon spin"></i> Sending...`;
+    refreshLucideIcons();
+  }
 
   try {
     const res = await fetch('/api/linkedin/compose_dm', {
@@ -1009,14 +1017,29 @@ async function send1ClickMessageToExisting(encodedUrl, name, encodedMsg) {
       })
     });
     const data = await res.json();
-    if (data.status === 'ok' || data.status === 'launched') {
-      showToast(`✓ Opened DM with pre-typed referral message for ${name}!`, 'ok');
+    if (data.status === 'ok') {
+      showToast(`✓ Message sent directly to ${name}!`, 'ok');
+      if (btn) {
+        btn.className = 'btn-micro-action';
+        btn.style.background = 'rgba(16, 185, 129, 0.2)';
+        btn.style.color = '#10b981';
+        btn.style.borderColor = '#10b981';
+        btn.innerHTML = `<i data-lucide="check" class="micro-icon"></i> Message Sent`;
+      }
       await fetchOutreachSummary();
     } else {
       showToast(`Error: ${data.message || 'Could not send message'}`, 'error');
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = originalBtnHtml;
+      }
     }
   } catch (err) {
     showToast(`Error: ${err.message}`, 'error');
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = originalBtnHtml;
+    }
   }
 }
 

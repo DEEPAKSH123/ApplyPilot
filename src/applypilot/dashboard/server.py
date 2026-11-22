@@ -1799,7 +1799,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 template = data.get("template", "referral").strip()
                 action_type = data.get("action_type", "auto").strip()
 
-                from applypilot.networking.linkedin import compose_referral_dm, connect_in_background
+                from applypilot.networking.linkedin import compose_referral_dm, connect_in_background, send_linkedin_direct_message
                 from applypilot.networking.referral_tracker import record_connection_request
 
                 if action_type in ("connect", "connect_only"):
@@ -1876,6 +1876,35 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                         res = {
                             "status": "error",
                             "message": f"Could not send connection request: {err_msg}",
+                            "error": err_msg
+                        }
+                elif action_type == "message":
+                    # Fully send the message automatically in the background without opening a browser window
+                    msg_res = send_linkedin_direct_message(profile_url, custom_msg)
+                    if msg_res.get("ok"):
+                        is_alum = "rvce" in template.lower() or "rvce" in name_str.lower()
+                        rec_res = record_connection_request(
+                            company=company,
+                            person_name=name_str or "LinkedIn Connection",
+                            profile_url=profile_url,
+                            headline=role_str,
+                            is_alumni=is_alum,
+                            degree="1st",
+                            role_type="Engineer",
+                            notes=f"Message sent directly via background {msg_res.get('method')}",
+                            tailored_msg=custom_msg
+                        )
+                        res = {
+                            "status": "ok",
+                            "message": f"✓ Message sent directly to {name_str or 'connection'} in the background!",
+                            "method": msg_res.get("method"),
+                            "db_id": rec_res.get("id")
+                        }
+                    else:
+                        err_msg = msg_res.get("error", "Failed to send message")
+                        res = {
+                            "status": "error",
+                            "message": f"Could not send message: {err_msg}",
                             "error": err_msg
                         }
                 else:

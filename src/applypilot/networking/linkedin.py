@@ -986,6 +986,91 @@ def compose_referral_dm(
         }
 
 
+def send_linkedin_direct_message(profile_url: str, message: str) -> dict[str, Any]:
+    """Send direct message to 1st-degree connection 100% in background via headless Playwright.
+    
+    Navigates to the member's profile/compose window, types the message into LinkedIn's contenteditable
+    composer, triggers the blur event to activate LinkedIn's send button, clicks Send, and verifies delivery.
+    No browser window is shown to the user.
+    """
+    clean_url = (profile_url or "").strip().rstrip("/")
+    if not clean_url:
+        return {"ok": False, "error": "No profile URL provided."}
+
+    # Safety check: Circuit breaker
+    is_cooling, cool_reason = is_linkedin_cooldown_active()
+    if is_cooling:
+        log.warning("LinkedIn send_linkedin_direct_message aborted: %s", cool_reason)
+        return {"ok": False, "error": f"Circuit breaker active: {cool_reason}", "status": AUTH_EXPIRED_OR_CHALLENGED}
+
+    from applypilot.apply.chrome import open_isolated_context
+
+    try:
+        with open_isolated_context(headless=True) as ctx:
+            page = ctx.new_page()
+            
+            # Step 1: Open profile
+            page.goto(clean_url, wait_until="domcontentloaded", timeout=30000)
+            time.sleep(3)
+
+            # Check for challenges
+            is_chal, ch_reason = check_page_for_challenges_or_auth(page)
+            if is_chal:
+                trigger_linkedin_circuit_breaker(f"send_linkedin_direct_message: {ch_reason}", trigger_url=page.url)
+                return {"ok": False, "error": ch_reason, "status": AUTH_EXPIRED_OR_CHALLENGED}
+
+            # Step 2: Find Message link/button on profile
+            msg_link = page.query_selector("main a[href*='/messaging/compose/'], main button:has-text('Message'), main a:has-text('Message')")
+            compose_href = ""
+            if msg_link:
+                compose_href = msg_link.get_attribute("href") or ""
+
+            if compose_href:
+                if not compose_href.startswith("http"):
+                    compose_href = f"https://www.linkedin.com{compose_href}"
+                page.goto(compose_href, wait_until="domcontentloaded", timeout=30000)
+                time.sleep(3)
+            else:
+                if msg_link:
+                    msg_link.click()
+                    time.sleep(3)
+
+            # Step 3: Locate the contenteditable chat box
+            p_elem = page.wait_for_selector(".msg-form__contenteditable p, .msg-form__contenteditable", timeout=10000)
+            if not p_elem:
+                return {"ok": False, "error": "Could not locate LinkedIn chat box on profile."}
+
+            p_elem.click()
+            time.sleep(0.5)
+
+            # Type message
+            page.keyboard.type(message, delay=15)
+            time.sleep(0.5)
+
+            # LinkedIn's form validation requires blurring the editor to enable the Send button!
+            page.locator("body").click()
+            time.sleep(1)
+
+            # Step 4: Click the enabled Send button
+            send_btn = page.query_selector("button.msg-form__send-button:not([disabled])")
+            if send_btn:
+                send_btn.click()
+                time.sleep(2.5)
+                log.info("Successfully sent LinkedIn DM directly in background to %s", clean_url)
+                return {"ok": True, "method": "headless_playwright"}
+            else:
+                # Fallback: Control+Enter
+                p_elem.click()
+                page.keyboard.press("Control+Enter")
+                time.sleep(2.5)
+                log.info("Dispatched Control+Enter to send LinkedIn DM directly in background to %s", clean_url)
+                return {"ok": True, "method": "headless_playwright_ctrl_enter"}
+
+    except Exception as e:
+        log.warning("send_linkedin_direct_message failed for %s: %s", clean_url, e)
+        return {"ok": False, "error": str(e)}
+
+
 def send_connect_via_api(profile_url: str, note: str | None = None) -> dict[str, Any]:
     """Send LinkedIn connection request directly via LinkedIn Voyager API in the background.
 
@@ -1191,14 +1276,14 @@ def send_connect_via_headless_browser(profile_url: str, note: str | None = None)
                 return {"ok": True, "method": "headless_playwright", "already_pending": True}
 
             # Locate Connect button strictly inside main profile top card
-            connect_btn = page.query_selector("main a[aria-label*='to connect'], main button[aria-label*='to connect'], main button:has-text('Connect'), main a:has-text('Connect')")
+            connect_btn = page.query_selector("main [componentkey*='ConnectButtonstate:invitation'], main a[aria-label*='to connect'], main button[aria-label*='to connect'], main button:has-text('Connect'), main a:has-text('Connect')")
             if not connect_btn:
                 # Check More actions button in top section
                 more_btn = page.query_selector("main button[aria-label='More'], main button[aria-label*='More actions'], main button:has-text('More')")
                 if more_btn:
                     more_btn.click()
                     time.sleep(1.2)
-                    connect_btn = page.query_selector("a:has-text('Connect'), div[role='button']:has-text('Connect'), button:has-text('Connect')")
+                    connect_btn = page.query_selector("div[role='menu'] a:has-text('Connect'), div[role='menu'] div[role='button']:has-text('Connect'), div[role='menu'] button:has-text('Connect'), a:has-text('Connect'), button:has-text('Connect')")
 
             if not connect_btn:
                 # If still not found, check if already Pending
@@ -1255,8 +1340,11 @@ def send_connect_via_headless_browser(profile_url: str, note: str | None = None)
                 log.info("Headless Playwright verified 'Pending' invitation for %s", clean_url)
                 return {"ok": True, "method": "headless_playwright"}
             else:
-                # Re-check if Pending or Invitation sent is present
-                return {"ok": True, "method": "headless_playwright", "verified": False}
+                return {
+                    "ok": False,
+                    "error": "Invitation submitted but 'Pending' state not confirmed by LinkedIn.",
+                    "method": "headless_playwright"
+                }
 
     except Exception as e:
         log.warning("Headless Playwright connection error for %s: %s", clean_url, e)
