@@ -678,6 +678,17 @@ function openDrawer(job, actionOverride = null) {
     resumeStatus.textContent = job.tailored_resume_path ? 'Tailored PDF ready on disk' : 'Not compiled yet (Click Tailor JIT)';
   }
 
+  // Reset scanned profiles container in drawer
+  const scanCont = document.getElementById('drawer-scanned-profiles-container');
+  if (scanCont) {
+    scanCont.innerHTML = '';
+    scanCont.style.display = 'none';
+  }
+  const scanBtnText = document.getElementById('btn-drawer-scan-text');
+  if (scanBtnText) {
+    scanBtnText.textContent = `Scan 4-5 Referral Profiles at ${comp}`;
+  }
+
   // Pre-fill LinkedIn connect note
   const comp = job.company || 'there';
   const role = job.title || 'Software Engineer';
@@ -804,6 +815,253 @@ async function sendLinkedInConnectFromDrawer() {
       statusBox.textContent = err.message;
       statusBox.className = 'live-action-status error';
     }
+  }
+}
+
+// --------------------------------------------------------------------------
+// Drawer Connection Scanner (Scan 4-5 Profiles at Current Company)
+// --------------------------------------------------------------------------
+async function scanDrawerCompanyConnections() {
+  if (!selectedJob) return;
+  const comp = selectedJob.company || '';
+  const role = selectedJob.title || 'Backend Engineer';
+  const btn = document.getElementById('btn-drawer-scan-connections');
+  const btnText = document.getElementById('btn-drawer-scan-text');
+  const cont = document.getElementById('drawer-scanned-profiles-container');
+  if (!cont) return;
+
+  if (btn) btn.disabled = true;
+  if (btnText) btnText.textContent = `Scanning LinkedIn for connections @ ${comp}...`;
+  cont.style.display = 'block';
+  cont.innerHTML = `
+    <div style="text-align: center; padding: 12px; font-size: 12px; color: var(--accent-primary);">
+      <i data-lucide="loader" class="micro-icon spin"></i> Scanning 1st/2nd-degree connections &amp; RVCE alumni in background...
+    </div>
+  `;
+  refreshLucideIcons();
+  showToast(`Scanning LinkedIn connections @ ${comp}...`, 'info');
+
+  try {
+    const res = await fetch(`/api/linkedin/scan?company=${encodeURIComponent(comp)}`);
+    const data = await res.json();
+
+    if (data.status === 'not_authenticated') {
+      cont.innerHTML = `
+        <div style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: var(--radius-md); padding: 10px; font-size: 12px; color: #fca5a5;">
+          ⚠️ LinkedIn session not active. Please log in or connect session to scan.
+        </div>
+      `;
+    } else if (data.status === 'ok' && data.connections && data.connections.length > 0) {
+      const conns = data.connections.slice(0, 5);
+      showToast(`Found ${conns.length} connection(s) at ${comp}!`, 'ok');
+      cont.innerHTML = `
+        <div style="font-size: 11px; font-weight: 600; color: var(--text-dim); margin-bottom: 8px;">
+          FOUND ${conns.length} PROFILES AT ${escapeHtml(comp.toUpperCase())}:
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+          ${conns.map(p => `
+            <div style="background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 8px 10px; display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+              <div style="flex: 1; min-width: 0;">
+                <div style="font-size: 12px; font-weight: 700; color: var(--text-main); display: flex; align-items: center; gap: 6px;">
+                  <span>${escapeHtml(p.name)}</span>
+                  ${p.is_alumni ? '<span style="background: rgba(59, 130, 246, 0.2); color: #93c5fd; font-size: 9px; padding: 1px 4px; border-radius: 3px;">🎓 RVCE</span>' : ''}
+                  <span style="background: rgba(161, 161, 170, 0.15); color: var(--text-dim); font-size: 9px; padding: 1px 4px; border-radius: 3px;">${escapeHtml(p.degree || '2nd')}</span>
+                </div>
+                <div style="font-size: 10.5px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 2px;">
+                  ${escapeHtml(p.headline || p.current_role || 'Engineer')}
+                </div>
+              </div>
+              <div style="display: flex; gap: 4px; flex-shrink: 0;">
+                <button class="btn-micro-action" onclick="useProfileInDrawer('${encodeURIComponent(p.profile_url || '')}', '${escapeHtml(p.name).replace(/'/g, "\\'")}')" title="Use in Drawer Form">
+                  Select
+                </button>
+                <button class="btn-micro-action primary" onclick="sendBackgroundConnectDirect('${encodeURIComponent(p.profile_url || '')}', '${escapeHtml(p.name).replace(/'/g, "\\'")}', '${escapeHtml(comp).replace(/'/g, "\\'")}', '${escapeHtml(role).replace(/'/g, "\\'")}')" title="Send Request Now in Background">
+                  <i data-lucide="send" class="micro-icon"></i> Connect
+                </button>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    } else {
+      cont.innerHTML = `
+        <div style="background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 10px; font-size: 12px; color: var(--text-dim); text-align: center;">
+          No direct connections or alumni found in quick query for <strong>${escapeHtml(comp)}</strong>.
+        </div>
+      `;
+    }
+  } catch (err) {
+    cont.innerHTML = `
+      <div style="color: #f87171; font-size: 12px;">Error checking connections: ${escapeHtml(err.message)}</div>
+    `;
+  } finally {
+    if (btn) btn.disabled = false;
+    if (btnText) btnText.textContent = `Scan 4-5 Referral Profiles at ${comp}`;
+    refreshLucideIcons();
+  }
+}
+
+function useProfileInDrawer(encodedUrl, name) {
+  const url = decodeURIComponent(encodedUrl);
+  const input = document.getElementById('drawer-linkedin-profile');
+  if (input) input.value = url;
+  const noteBox = document.getElementById('drawer-linkedin-note');
+  if (noteBox && selectedJob) {
+    const comp = selectedJob.company || '';
+    const role = selectedJob.title || 'Software Engineer';
+    const isAlum = name.toLowerCase().includes('rvce');
+    if (isAlum) {
+      noteBox.value = `Hi ${name.split(' ')[0]}, RVCE CSE '25 junior, SDE-1 @ Meesho (Java/Go/Kafka). Interested in ${role} at ${comp} — would you be open to a referral?`.slice(0, 200);
+    } else {
+      noteBox.value = `Hi ${name.split(' ')[0]}, I'm an SDE-1 Backend Engineer at Meesho (RVCE '25, Java/Go/Kafka/Redis). Interested in the ${role} opening at ${comp}. Would love to connect!`.slice(0, 200);
+    }
+  }
+  showToast(`Selected ${name} for background outreach!`, 'ok');
+}
+
+async function sendBackgroundConnectDirect(encodedUrl, name, company, role) {
+  const profileUrl = decodeURIComponent(encodedUrl);
+  if (!profileUrl) {
+    showToast('No profile URL available for this connection.', 'error');
+    return;
+  }
+  const note = `Hi ${name.split(' ')[0]}, I'm an SDE-1 Backend Engineer at Meesho (RVCE '25, Java/Go/Kafka/Redis). Interested in the ${role} opening at ${company}. Would love to connect!`.slice(0, 200);
+  showToast(`Sending background request to ${name}...`, 'info');
+
+  try {
+    const res = await fetch('/api/referral_crm/auto_connect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        job_url: '',
+        max_people: 1,
+        send_connection: true,
+        single_profile_url: profileUrl,
+        single_name: name,
+        single_company: company,
+        single_role: role
+      })
+    });
+    const data = await res.json();
+    if (data.status === 'ok') {
+      showToast(`✓ Background connection request sent to ${name}!`, 'ok');
+      await fetchOutreachSummary();
+    } else {
+      showToast(`Error: ${data.message || 'Failed to send'}`, 'error');
+    }
+  } catch (err) {
+    showToast(`Error: ${err.message}`, 'error');
+  }
+}
+
+// --------------------------------------------------------------------------
+// Outreach View: Auto-Scan from Job URL
+// --------------------------------------------------------------------------
+async function runOutreachJobScan(sendConnection) {
+  const input = document.getElementById('outreach-job-url');
+  const jobUrl = input ? input.value.trim() : '';
+  const resultBox = document.getElementById('outreach-job-scan-result');
+  const btnScan = document.getElementById('btn-outreach-scan-only');
+  const btnConnect = document.getElementById('btn-outreach-scan-connect');
+
+  if (!jobUrl) {
+    showToast('Please paste a LinkedIn job URL first.', 'error');
+    return;
+  }
+
+  if (btnScan) btnScan.disabled = true;
+  if (btnConnect) btnConnect.disabled = true;
+  if (resultBox) {
+    resultBox.style.display = 'block';
+    resultBox.innerHTML = `
+      <div style="color: var(--accent-primary); font-size: 13px; padding: 12px;">
+        <i data-lucide="loader" class="micro-icon spin"></i> Scanning LinkedIn for 4-5 connections at this company in background...
+      </div>
+    `;
+    refreshLucideIcons();
+  }
+  showToast('Scanning LinkedIn for connections...', 'info');
+
+  try {
+    const res = await fetch('/api/referral_crm/auto_connect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        job_url: jobUrl,
+        max_people: 5,
+        send_connection: sendConnection
+      })
+    });
+    const data = await res.json();
+
+    if (data.status === 'ok') {
+      const found = data.found || [];
+      if (found.length === 0) {
+        if (resultBox) {
+          resultBox.innerHTML = `
+            <div style="color: #fbbf24; font-size: 12.5px; padding: 12px; background: rgba(251, 191, 36, 0.1); border-radius: var(--radius-md); border: 1px solid rgba(251, 191, 36, 0.2);">
+              No connections found at <strong>${escapeHtml(data.company || 'this company')}</strong>.
+            </div>
+          `;
+        }
+        showToast('No connections found at this company.', 'info');
+      } else {
+        showToast(`Found ${found.length} profiles at ${data.company}!`, 'ok');
+        const peopleHtml = found.map(p => `
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); gap: 8px;">
+            <div style="flex: 1; min-width: 0;">
+              <div style="font-size: 12.5px; font-weight: 700; color: var(--text-main); display: flex; align-items: center; gap: 6px;">
+                <span>${escapeHtml(p.person_name)}</span>
+                ${p.is_alumni ? '<span style="background: rgba(59, 130, 246, 0.2); color: #93c5fd; font-size: 9.5px; padding: 1px 5px; border-radius: 3px;">🎓 RVCE</span>' : ''}
+                <span style="background: rgba(161, 161, 170, 0.15); color: var(--text-dim); font-size: 9.5px; padding: 1px 5px; border-radius: 3px;">${escapeHtml(p.degree || '2nd')}</span>
+                ${p.existing ? '<span style="color: #34d399; font-size: 9.5px;">(In CRM)</span>' : ''}
+              </div>
+              <div style="font-size: 11px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 2px;">
+                ${escapeHtml(p.headline || '')}
+              </div>
+            </div>
+            <div style="display: flex; gap: 6px; flex-shrink: 0;">
+              ${p.profile_url ? `
+                <button class="btn-micro-action primary" onclick="sendBackgroundConnectDirect('${encodeURIComponent(p.profile_url)}', '${escapeHtml(p.person_name).replace(/'/g, "\\'")}', '${escapeHtml(data.company || '').replace(/'/g, "\\'")}', '${escapeHtml(data.role_title || '').replace(/'/g, "\\'")}')" title="Send connection in background">
+                  <i data-lucide="send" class="micro-icon"></i> Send Request
+                </button>
+                <a href="${escapeHtml(p.profile_url)}" target="_blank" class="btn-micro-action" style="text-decoration: none;">
+                  <i data-lucide="external-link" class="micro-icon"></i>
+                </a>
+              ` : ''}
+            </div>
+          </div>
+        `).join('');
+
+        if (resultBox) {
+          resultBox.innerHTML = `
+            <div style="border-top: 1px solid var(--border-subtle); padding-top: 12px;">
+              <div style="font-size: 12px; font-weight: 700; color: var(--text-main); margin-bottom: 8px;">
+                Found ${found.length} connection(s) at <span style="color: #a855f7;">${escapeHtml(data.company || '')}</span> for <em>${escapeHtml(data.role_title || '')}</em>:
+              </div>
+              <div style="display: flex; flex-direction: column; gap: 6px;">${peopleHtml}</div>
+            </div>
+          `;
+        }
+        await fetchOutreachSummary();
+        renderOutreachView();
+      }
+    } else {
+      if (resultBox) {
+        resultBox.innerHTML = `
+          <div style="color: #f87171; font-size: 12px; padding: 10px; background: rgba(239, 68, 68, 0.1); border-radius: var(--radius-md);">
+            Error: ${escapeHtml(data.message || 'Scan failed')}
+          </div>
+        `;
+      }
+      showToast(`Error: ${data.message}`, 'error');
+    }
+  } catch (err) {
+    showToast(`Error: ${err.message}`, 'error');
+  } finally {
+    if (btnScan) btnScan.disabled = false;
+    if (btnConnect) btnConnect.disabled = false;
+    refreshLucideIcons();
   }
 }
 
