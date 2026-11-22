@@ -878,7 +878,7 @@ async function checkCompanyConnectionsForDrawer() {
                     <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
                       <div style="flex: 1; min-width: 0;">
                         <div style="font-size: 12px; font-weight: 700; color: var(--text-main); display: flex; align-items: center; gap: 6px;">
-                          <span>${escapeHtml(pName)}</span>
+                          ${p.profile_url ? `<a href="${escapeHtml(p.profile_url)}" target="_blank" rel="noopener noreferrer" style="color: inherit; text-decoration: underline; text-decoration-color: var(--text-muted); cursor: pointer;" title="Open LinkedIn Profile in new tab">${escapeHtml(pName)}</a>` : `<span>${escapeHtml(pName)}</span>`}
                           <span style="background: rgba(16, 185, 129, 0.15); color: #6ee7b7; font-size: 9px; padding: 1px 5px; border-radius: 3px;">1st Degree</span>
                           ${p.is_alumni ? '<span style="background: rgba(59, 130, 246, 0.2); color: #93c5fd; font-size: 9px; padding: 1px 4px; border-radius: 3px;">🎓 RVCE</span>' : ''}
                         </div>
@@ -923,7 +923,7 @@ async function checkCompanyConnectionsForDrawer() {
                     <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
                       <div style="flex: 1; min-width: 0;">
                         <div style="font-size: 12px; font-weight: 700; color: var(--text-main); display: flex; align-items: center; gap: 6px;">
-                          <span>${escapeHtml(pName)}</span>
+                          ${p.profile_url ? `<a href="${escapeHtml(p.profile_url)}" target="_blank" rel="noopener noreferrer" style="color: inherit; text-decoration: underline; text-decoration-color: var(--text-muted); cursor: pointer;" title="Open LinkedIn Profile in new tab">${escapeHtml(pName)}</a>` : `<span>${escapeHtml(pName)}</span>`}
                           <span style="background: rgba(161, 161, 170, 0.15); color: var(--text-dim); font-size: 9px; padding: 1px 4px; border-radius: 3px;">${escapeHtml(p.degree || '2nd')}</span>
                           ${p.is_alumni ? '<span style="background: rgba(59, 130, 246, 0.2); color: #93c5fd; font-size: 9px; padding: 1px 4px; border-radius: 3px;">🎓 RVCE</span>' : ''}
                         </div>
@@ -1253,7 +1253,12 @@ function copyActionTemplate(jobId) {
 
 async function openJobInBrave() {
   if (!selectedJob) return;
-  await openBraveDirect(selectedJob.rowid);
+  const url = selectedJob.apply_url || selectedJob.url;
+  if (url) {
+    window.open(url, '_blank', 'noopener,noreferrer');
+  } else {
+    await openBraveDirect(selectedJob.rowid);
+  }
 }
 
 async function openBraveDirect(rowid) {
