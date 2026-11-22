@@ -791,98 +791,173 @@ def compose_referral_dm(
                 page.goto(clean_url, wait_until="domcontentloaded")
                 time.sleep(3)
 
-            # Check if name and company are detectable on page
-            full_detected_name = name
-            headline_text = ""
-            h1 = page.query_selector("h1")
-            if h1:
-                raw_title = h1.inner_text().strip()
-                if raw_title:
-                    full_detected_name = raw_title
-                    first_name = raw_title.split()[0]
-
-            # Try detecting current headline or company if not passed
-            head_el = page.query_selector("div.text-body-medium, h2")
-            if head_el:
-                headline_text = head_el.inner_text().strip()
-
-            if not company:
-                # Check for company in experience or top section
-                exp_comp_el = page.query_selector("div[data-view-name='profile-card'] :has-text('· Full-time'), button[aria-label*='Current company']")
-                if exp_comp_el:
-                    company = exp_comp_el.inner_text().split("\n")[0].strip()
-                elif headline_text and (" at " in headline_text or " @ " in headline_text):
-                    part = headline_text.split(" at ")[-1] if " at " in headline_text else headline_text.split(" @ ")[-1]
-                    company = part.split("|")[0].split("·")[0].strip()
+                # Check if name and company are detectable on page
+                full_detected_name = name
+                headline_text = ""
+                h1 = page.query_selector("h1")
+                if h1:
+                    raw_title = h1.inner_text().strip()
+                    if raw_title:
+                        full_detected_name = raw_title
+                        first_name = raw_title.split()[0]
+    
+                # Try detecting current headline or company if not passed
+                head_el = page.query_selector("div.text-body-medium, h2")
+                if head_el:
+                    headline_text = head_el.inner_text().strip()
+    
                 if not company:
-                    company = "Target Company"
-
-            # Auto-log to Referral Network CRM immediately so user doesn't have to type anything manually!
-            try:
-                from applypilot.networking.referral_tracker import record_connection_request
-                is_alumni_detected = "rvce" in headline_text.lower() or "rv college" in headline_text.lower() or template_type == "alumni"
-                record_connection_request(
-                    company=company,
-                    person_name=full_detected_name or first_name or "LinkedIn Connection",
-                    profile_url=clean_url,
-                    headline=headline_text or role_title,
-                    is_alumni=is_alumni_detected,
-                    degree="2nd",
-                    role_type="Engineer",
-                    notes=f"Auto-logged via 1-Click {action_type} for {role_title}"
-                )
-                log.info("Auto-recorded connection request in Referral Network CRM for: %s @ %s", full_detected_name or first_name, company)
-            except Exception as re_err:
-                log.warning("Could not auto-log to Referral Network CRM: %s", re_err)
-
-            typed = False
-
-            # If action_type is explicitly 'connect' or 'connect_only', prioritize clicking Connect
-            if action_type in ("connect", "connect_only"):
+                    # Check for company in experience or top section
+                    exp_comp_el = page.query_selector("div[data-view-name='profile-card'] :has-text('· Full-time'), button[aria-label*='Current company']")
+                    if exp_comp_el:
+                        company = exp_comp_el.inner_text().split("\n")[0].strip()
+                    elif headline_text and (" at " in headline_text or " @ " in headline_text):
+                        part = headline_text.split(" at ")[-1] if " at " in headline_text else headline_text.split(" @ ")[-1]
+                        company = part.split("|")[0].split("·")[0].strip()
+                    if not company:
+                        company = "Target Company"
+    
+                # Auto-log to Referral Network CRM immediately so user doesn't have to type anything manually!
                 try:
-                    connect_btn = page.query_selector("button:has-text('Connect'), a:has-text('Connect')")
-                    if not connect_btn:
-                        more_btn = page.query_selector("button[aria-label*='More actions'], button:has-text('More')")
-                        if more_btn:
-                            more_btn.click()
-                            time.sleep(1)
-                            connect_btn = page.query_selector("div[role='button']:has-text('Connect'), button:has-text('Connect')")
-
-                    if connect_btn:
-                        connect_btn.click()
-                        time.sleep(1.5)
-
-                        if action_type == "connect_only":
-                            # For pure Connect (no note), look for "Send without a note" or "Send now"
-                            send_without_note_btn = page.query_selector(
-                                "button[aria-label*='Send without a note'], button:has-text('Send without a note'), button:has-text('Send now')"
-                            )
-                            if send_without_note_btn:
-                                page.evaluate("""() => {
-                                    const btn = document.querySelector('button[aria-label*="Send without a note"], button:has-text("Send without a note"), button:has-text("Send now")');
-                                    if (btn) {
-                                        btn.style.outline = '3px solid #10b981';
-                                        btn.style.boxShadow = '0 0 16px #10b981';
-                                    }
-                                }""")
-                                typed = True
-                                log.info("Opened Connect modal in 'Just Connect' mode (without note).")
+                    from applypilot.networking.referral_tracker import record_connection_request
+                    is_alumni_detected = "rvce" in headline_text.lower() or "rv college" in headline_text.lower() or template_type == "alumni"
+                    record_connection_request(
+                        company=company,
+                        person_name=full_detected_name or first_name or "LinkedIn Connection",
+                        profile_url=clean_url,
+                        headline=headline_text or role_title,
+                        is_alumni=is_alumni_detected,
+                        degree="2nd",
+                        role_type="Engineer",
+                        notes=f"Auto-logged via 1-Click {action_type} for {role_title}"
+                    )
+                    log.info("Auto-recorded connection request in Referral Network CRM for: %s @ %s", full_detected_name or first_name, company)
+                except Exception as re_err:
+                    log.warning("Could not auto-log to Referral Network CRM: %s", re_err)
+    
+                typed = False
+    
+                # If action_type is explicitly 'connect' or 'connect_only', prioritize clicking Connect
+                if action_type in ("connect", "connect_only"):
+                    try:
+                        connect_btn = page.query_selector("button:has-text('Connect'), a:has-text('Connect')")
+                        if not connect_btn:
+                            more_btn = page.query_selector("button[aria-label*='More actions'], button:has-text('More')")
+                            if more_btn:
+                                more_btn.click()
+                                time.sleep(1)
+                                connect_btn = page.query_selector("div[role='button']:has-text('Connect'), button:has-text('Connect')")
+    
+                        if connect_btn:
+                            connect_btn.click()
+                            time.sleep(1.5)
+    
+                            if action_type == "connect_only":
+                                # For pure Connect (no note), look for "Send without a note" or "Send now"
+                                send_without_note_btn = page.query_selector(
+                                    "button[aria-label*='Send without a note'], button:has-text('Send without a note'), button:has-text('Send now')"
+                                )
+                                if send_without_note_btn:
+                                    page.evaluate("""() => {
+                                        const btn = document.querySelector('button[aria-label*="Send without a note"], button:has-text("Send without a note"), button:has-text("Send now")');
+                                        if (btn) {
+                                            btn.style.outline = '3px solid #10b981';
+                                            btn.style.boxShadow = '0 0 16px #10b981';
+                                        }
+                                    }""")
+                                    typed = True
+                                    log.info("Opened Connect modal in 'Just Connect' mode (without note).")
+                                else:
+                                    typed = True
                             else:
+                                # Look for "Add a note"
+                                add_note_btn = page.query_selector("button:has-text('Add a note'), button[aria-label*='Add a note']")
+                                if add_note_btn:
+                                    add_note_btn.click()
+                                    time.sleep(1)
+    
+                                textarea = page.query_selector("textarea#custom-message, textarea[name='message']")
+                                if textarea:
+                                    textarea.fill(short_note)
+                                    typed = True
+                                    log.info("Filled personalized note into connection request modal!")
+    
+                                    # Highlight the Send invitation button in green
+                                    page.evaluate("""() => {
+                                        const btn = document.querySelector('button[aria-label*="Send invitation"], button:has-text("Send"), button[aria-label*="Send now"]');
+                                        if (btn) {
+                                            btn.style.outline = '3px solid #10b981';
+                                            btn.style.boxShadow = '0 0 16px #10b981';
+                                        }
+                                    }""")
+                    except Exception as ce:
+                        log.warning("Could not fill connection note: %s", ce)
+    
+                # Otherwise, try clicking Message button (for 1st-degree connections)
+                if not typed and action_type not in ("connect", "connect_only"):
+                    msg_btn = page.query_selector("button:has-text('Message'), a:has-text('Message'), button[aria-label*='Message']")
+                    if msg_btn:
+                        try:
+                            msg_btn.click()
+                            time.sleep(2)
+                            # Locate chat box
+                            chat_box = page.wait_for_selector(
+                                "div.msg-form__contenteditable, div[role='textbox'][aria-label*='Write a message']",
+                                timeout=6000
+                            )
+                            if chat_box:
+                                chat_box.click()
+                                time.sleep(0.5)
+                                page.keyboard.insert_text(body_msg)
                                 typed = True
-                        else:
+                                log.info("Successfully typed message into LinkedIn chat box!")
+    
+                                # Auto-send message directly
+                                sent_ok = page.evaluate("""() => {
+                                    const btn = document.querySelector('button.msg-form__send-button, button[type="submit"].msg-form__send-btn, button[aria-label*="Send message"]');
+                                    if (btn && !btn.disabled) {
+                                        btn.click();
+                                        return true;
+                                    }
+                                    return false;
+                                }""")
+                                if sent_ok:
+                                    log.info("Successfully clicked Send in LinkedIn chat box!")
+                                    time.sleep(1.5)
+                                else:
+                                    page.keyboard.press("Control+Enter")
+                                    log.info("Dispatched Control+Enter to send message!")
+                                    time.sleep(1.5)
+                        except Exception as me:
+                            log.warning("Could not auto-type in inline chat: %s", me)
+    
+                # If still not typed, try "Connect" -> "Add a note"
+                if not typed:
+                    try:
+                        connect_btn = page.query_selector("button:has-text('Connect'), a:has-text('Connect')")
+                        if not connect_btn:
+                            more_btn = page.query_selector("button[aria-label*='More actions'], button:has-text('More')")
+                            if more_btn:
+                                more_btn.click()
+                                time.sleep(1)
+                                connect_btn = page.query_selector("div[role='button']:has-text('Connect'), button:has-text('Connect')")
+    
+                        if connect_btn:
+                            connect_btn.click()
+                            time.sleep(1.5)
+    
                             # Look for "Add a note"
                             add_note_btn = page.query_selector("button:has-text('Add a note'), button[aria-label*='Add a note']")
                             if add_note_btn:
                                 add_note_btn.click()
                                 time.sleep(1)
-
+    
                             textarea = page.query_selector("textarea#custom-message, textarea[name='message']")
                             if textarea:
                                 textarea.fill(short_note)
                                 typed = True
                                 log.info("Filled personalized note into connection request modal!")
-
-                                # Highlight the Send invitation button in green
+    
                                 page.evaluate("""() => {
                                     const btn = document.querySelector('button[aria-label*="Send invitation"], button:has-text("Send"), button[aria-label*="Send now"]');
                                     if (btn) {
@@ -890,100 +965,24 @@ def compose_referral_dm(
                                         btn.style.boxShadow = '0 0 16px #10b981';
                                     }
                                 }""")
-                except Exception as ce:
-                    log.warning("Could not fill connection note: %s", ce)
-
-            # Otherwise, try clicking Message button (for 1st-degree connections)
-            if not typed and action_type not in ("connect", "connect_only"):
-                msg_btn = page.query_selector("button:has-text('Message'), a:has-text('Message'), button[aria-label*='Message']")
-                if msg_btn:
-                    try:
-                        msg_btn.click()
-                        time.sleep(2)
-                        # Locate chat box
-                        chat_box = page.wait_for_selector(
-                            "div.msg-form__contenteditable, div[role='textbox'][aria-label*='Write a message']",
-                            timeout=6000
-                        )
-                        if chat_box:
-                            chat_box.click()
-                            time.sleep(0.5)
-                            page.keyboard.insert_text(body_msg)
-                            typed = True
-                            log.info("Successfully typed message into LinkedIn chat box!")
-
-                            # Auto-send message directly
-                            sent_ok = page.evaluate("""() => {
-                                const btn = document.querySelector('button.msg-form__send-button, button[type="submit"].msg-form__send-btn, button[aria-label*="Send message"]');
-                                if (btn && !btn.disabled) {
-                                    btn.click();
-                                    return true;
-                                }
-                                return false;
-                            }""")
-                            if sent_ok:
-                                log.info("Successfully clicked Send in LinkedIn chat box!")
-                                time.sleep(1.5)
-                            else:
-                                page.keyboard.press("Control+Enter")
-                                log.info("Dispatched Control+Enter to send message!")
-                                time.sleep(1.5)
-                    except Exception as me:
-                        log.warning("Could not auto-type in inline chat: %s", me)
-
-            # If still not typed, try "Connect" -> "Add a note"
-            if not typed:
+                    except Exception as ce:
+                        log.warning("Could not fill connection note: %s", ce)
+    
+                # Keep browser briefly to allow network request to flush
+                time.sleep(4)
                 try:
-                    connect_btn = page.query_selector("button:has-text('Connect'), a:has-text('Connect')")
-                    if not connect_btn:
-                        more_btn = page.query_selector("button[aria-label*='More actions'], button:has-text('More')")
-                        if more_btn:
-                            more_btn.click()
-                            time.sleep(1)
-                            connect_btn = page.query_selector("div[role='button']:has-text('Connect'), button:has-text('Connect')")
-
-                    if connect_btn:
-                        connect_btn.click()
-                        time.sleep(1.5)
-
-                        # Look for "Add a note"
-                        add_note_btn = page.query_selector("button:has-text('Add a note'), button[aria-label*='Add a note']")
-                        if add_note_btn:
-                            add_note_btn.click()
-                            time.sleep(1)
-
-                        textarea = page.query_selector("textarea#custom-message, textarea[name='message']")
-                        if textarea:
-                            textarea.fill(short_note)
-                            typed = True
-                            log.info("Filled personalized note into connection request modal!")
-
-                            page.evaluate("""() => {
-                                const btn = document.querySelector('button[aria-label*="Send invitation"], button:has-text("Send"), button[aria-label*="Send now"]');
-                                if (btn) {
-                                    btn.style.outline = '3px solid #10b981';
-                                    btn.style.boxShadow = '0 0 16px #10b981';
-                                }
-                            }""")
-                except Exception as ce:
-                    log.warning("Could not fill connection note: %s", ce)
-
-            # Keep browser briefly to allow network request to flush
-            time.sleep(4)
-            try:
-                context.close()
-            except Exception:
-                pass
+                    context.close()
+                except Exception:
+                    pass
 
     import threading
     t = threading.Thread(target=_worker, daemon=True)
     t.start()
-
     return {
         "status": "ok",
-        "message": f"✓ 1-Click DM sent to {first_name or 'connection'}!",
-        "copied_to_clipboard": True
-    }
+            "message": f"✓ 1-Click DM sent to {first_name or 'connection'}!",
+            "copied_to_clipboard": True
+        }
 
 
 def send_connect_via_api(profile_url: str, note: str | None = None) -> dict[str, Any]:
@@ -1128,17 +1127,23 @@ def send_connect_via_api(profile_url: str, note: str | None = None) -> dict[str,
     }
 
 
-MAX_DAILY_CONNECTS = 15
+MAX_DAILY_CONNECTS = 40
 
 
 def get_daily_connect_count() -> int:
-    """Return count of connection requests sent in the last 24 hours."""
+    """Return count of successful automated connection requests sent in the last 24 hours.
+
+    Excludes failed attempts (CONNECT_FAILED) and manual imports so users aren't
+    falsely locked out.
+    """
     try:
         conn = get_connection()
         c = conn.cursor()
         since_time = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
         row = c.execute(
-            "SELECT COUNT(*) FROM referral_connection_requests WHERE requested_at >= ?",
+            "SELECT COUNT(*) FROM referral_connection_requests "
+            "WHERE requested_at >= ? "
+            "AND (notes IS NULL OR (notes NOT LIKE 'CONNECT_FAILED%' AND notes NOT LIKE 'Auto-imported%'))",
             (since_time,)
         ).fetchone()
         return row[0] if row else 0
