@@ -844,6 +844,7 @@ async function checkCompanyConnectionsForDrawer() {
     const res = await fetch(`/api/linkedin/scan?company=${encodeURIComponent(comp)}`);
     const data = await res.json();
     const conns = (data && Array.isArray(data.connections)) ? data.connections : [];
+    window._lastScannedConnections = conns;
 
     const existing1st = conns.filter(c => c.is_existing || c.degree === '1st');
     const newProfiles = conns.filter(c => !c.is_existing && c.degree !== '1st');
@@ -868,7 +869,7 @@ async function checkCompanyConnectionsForDrawer() {
               <span>EXISTING CONNECTIONS (${existing1st.length}) &bull; SEND 1-CLICK MESSAGE</span>
             </div>
             <div style="display: flex; flex-direction: column; gap: 6px;">
-              ${existing1st.map(p => {
+              ${existing1st.map((p, idx) => {
                 const pName = p.name || 'Connection';
                 const firstName = pName.split(' ')[0];
                 const defaultMsg = `Hi ${firstName}, I came across the ${role} opening at ${comp} and wanted to reach out. I'm currently an SDE-I Backend Engineer at Meesho (RVCE '25, Java/Go/Kafka). Would you be comfortable referring me? Happy to share my resume!`;
@@ -886,7 +887,7 @@ async function checkCompanyConnectionsForDrawer() {
                         </div>
                       </div>
                       <div style="display: flex; gap: 4px; flex-shrink: 0;">
-                        <button class="btn-micro-action primary" onclick="send1ClickMessageToExisting('${encodeURIComponent(p.profile_url || '')}', '${escapeHtml(pName).replace(/'/g, "\\'")}', '${encodeURIComponent(defaultMsg)}')" title="Send 1-Click DM in Brave">
+                        <button class="btn-micro-action primary" onclick="send1ClickMessageByIndex(${idx})" title="Send 1-Click DM">
                           <i data-lucide="send" class="micro-icon"></i> 1-Click Message
                         </button>
                       </div>
@@ -913,7 +914,7 @@ async function checkCompanyConnectionsForDrawer() {
               <span>OTHER PROFILES AT ${escapeHtml(comp.toUpperCase())} &bull; CONNECT &amp; TRACK</span>
             </div>
             <div style="display: flex; flex-direction: column; gap: 6px;">
-              ${newProfiles.map(p => {
+              ${newProfiles.map((p, idx) => {
                 const pName = p.name || 'Contact';
                 const firstName = pName.split(' ')[0];
                 const noteMsg = `Hi ${firstName}, I'm an SDE-I Backend Engineer at Meesho (RVCE '25, Java/Go/Kafka). Interested in the ${role} opening at ${comp}. Would love to connect!`;
@@ -931,7 +932,7 @@ async function checkCompanyConnectionsForDrawer() {
                         </div>
                       </div>
                       <div style="display: flex; gap: 4px; flex-shrink: 0;">
-                        <button class="btn-micro-action primary" onclick="sendVerifiedConnection('${encodeURIComponent(p.profile_url || '')}', '${escapeHtml(pName).replace(/'/g, "\\'")}', '${encodeURIComponent(noteMsg)}')" title="Send Connection & Track">
+                        <button class="btn-micro-action primary" onclick="sendVerifiedConnectionByIndex(${idx})" title="Send Connection & Track">
                           <i data-lucide="user-plus" class="micro-icon"></i> Connect &amp; Track
                         </button>
                       </div>
@@ -960,6 +961,30 @@ async function checkCompanyConnectionsForDrawer() {
     if (btnText) btnText.textContent = `Check Connections at ${comp}`;
     refreshLucideIcons();
   }
+}
+
+async function send1ClickMessageByIndex(index) {
+  const list = (window._lastScannedConnections || []).filter(c => c.is_existing || c.degree === '1st');
+  const p = list[index];
+  if (!p) return;
+  const pName = p.name || 'Connection';
+  const firstName = pName.split(' ')[0];
+  const comp = selectedJob ? selectedJob.company : '';
+  const role = selectedJob ? selectedJob.title : '';
+  const defaultMsg = `Hi ${firstName}, I came across the ${role} opening at ${comp} and wanted to reach out. I'm currently an SDE-I Backend Engineer at Meesho (RVCE '25, Java/Go/Kafka). Would you be comfortable referring me? Happy to share my resume!`;
+  await send1ClickMessageToExisting(encodeURIComponent(p.profile_url || ''), pName, encodeURIComponent(defaultMsg));
+}
+
+async function sendVerifiedConnectionByIndex(index) {
+  const list = (window._lastScannedConnections || []).filter(c => !c.is_existing && c.degree !== '1st');
+  const p = list[index];
+  if (!p) return;
+  const pName = p.name || 'Contact';
+  const firstName = pName.split(' ')[0];
+  const comp = selectedJob ? selectedJob.company : '';
+  const role = selectedJob ? selectedJob.title : '';
+  const noteMsg = `Hi ${firstName}, I'm an SDE-I Backend Engineer at Meesho (RVCE '25, Java/Go/Kafka). Interested in the ${role} opening at ${comp}. Would love to connect!`;
+  await sendVerifiedConnection(encodeURIComponent(p.profile_url || ''), pName, encodeURIComponent(noteMsg));
 }
 
 async function send1ClickMessageToExisting(encodedUrl, name, encodedMsg) {
