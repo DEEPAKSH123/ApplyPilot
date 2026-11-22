@@ -23,7 +23,7 @@ function showApiErrorBanner(msg) {
     banner.style.transition = 'opacity 0.3s ease';
     document.body.appendChild(banner);
   }
-  banner.innerHTML = <span>⚠️ </span><button onclick="this.parentElement.remove()" style="background:none;border:none;color:#fff;cursor:pointer;font-size:16px;">✕</button>;
+  banner.innerHTML = "<span>⚠️ " + (msg || "An unexpected error occurred") + "</span><button onclick=\"this.parentElement.remove()\" style=\"background:none;border:none;color:#fff;cursor:pointer;font-size:16px;\">✕</button>";
   banner.style.opacity = '1';
   clearTimeout(banner._timer);
   banner._timer = setTimeout(() => { if (banner) banner.remove(); }, 6000);
