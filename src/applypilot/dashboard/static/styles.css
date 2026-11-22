@@ -242,6 +242,7 @@ html, body {
 
 .candidate-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
 }
 
