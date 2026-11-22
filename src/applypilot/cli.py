@@ -504,10 +504,25 @@ def linkedin_status_cmd() -> None:
 def linkedin_login_cmd(
     timeout: int = typer.Option(75, "--timeout", "-t", help="Timeout in seconds for login")
 ) -> None:
-    """Launch Brave browser to log in to LinkedIn and save session cookies."""
+    """Launch isolated Playwright profile to log in to LinkedIn and save session cookies."""
     _bootstrap()
     from applypilot.networking.linkedin import login_to_linkedin
-    console.print("[bold cyan]Launching Brave for LinkedIn login...[/bold cyan]")
+    console.print("[bold cyan]Launching isolated browser for LinkedIn login (dark mode)...[/bold cyan]")
+    res = login_to_linkedin(timeout_sec=timeout, headed=True)
+    if res.get("status") == "authenticated":
+        console.print(f"[bold green]✓ {res.get('message')}[/bold green]")
+    else:
+        console.print(f"[bold red]✗ {res.get('message')}[/bold red]")
+
+
+@app.command("linkedin-login")
+def top_level_linkedin_login_cmd(
+    timeout: int = typer.Option(75, "--timeout", "-t", help="Timeout in seconds for login")
+) -> None:
+    """Launch isolated browser profile in headed dark mode to authenticate or refresh LinkedIn session."""
+    _bootstrap()
+    from applypilot.networking.linkedin import login_to_linkedin
+    console.print("[bold cyan]Launching isolated browser for LinkedIn login (dark mode)...[/bold cyan]")
     res = login_to_linkedin(timeout_sec=timeout, headed=True)
     if res.get("status") == "authenticated":
         console.print(f"[bold green]✓ {res.get('message')}[/bold green]")

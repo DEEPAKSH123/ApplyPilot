@@ -34,6 +34,21 @@ LOG_DIR = APP_DIR / "logs"
 CHROME_WORKER_DIR = APP_DIR / "chrome-workers"
 APPLY_WORKER_DIR = APP_DIR / "apply-workers"
 
+# Isolated Playwright profile and browser lock
+PLAYWRIGHT_PROFILE_DIR = Path.home() / ".applypilot" / "playwright_profile"
+BROWSER_LOCK_FILE = Path.home() / ".applypilot" / "browser.lock"
+LINKEDIN_COOLDOWN_FILE = Path.home() / ".applypilot" / "linkedin_cooldown.json"
+DEFAULT_DESKTOP_USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
+)
+DEFAULT_STEALTH_ARGS = [
+    "--disable-blink-features=AutomationControlled",
+    "--force-dark-mode",
+    "--no-first-run",
+    "--no-default-browser-check",
+]
+
 # Package-shipped config (YAML registries)
 PACKAGE_DIR = Path(__file__).parent
 CONFIG_DIR = PACKAGE_DIR / "config"

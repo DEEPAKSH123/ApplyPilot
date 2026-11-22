@@ -23,13 +23,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from applypilot import config
 from applypilot.config import APP_DIR, DB_PATH, load_profile, load_env
 from applypilot.database import get_connection
 from applypilot.networking.outreach import generate_outreach_messages
 
 log = logging.getLogger(__name__)
 
-BRAVE_PROFILE_DIR = APP_DIR / "brave_profile"
+BRAVE_PROFILE_DIR = config.PLAYWRIGHT_PROFILE_DIR
 
 # Global progress state for dashboard monitoring
 AUTO_APPLY_STATE = {
@@ -996,228 +997,198 @@ def launch_application_assistant(identifier: str | int, headed: bool = True, aut
     submission_msg = ""
 
     with sync_playwright() as p:
-        # Check if Deepak's primary Brave is running with CDP remote debugging
-        is_cdp = False
-        try:
-            import urllib.request
-            with urllib.request.urlopen("http://127.0.0.1:9222/json/version", timeout=1.0) as resp:
-                is_cdp = (resp.status == 200)
-        except Exception:
-            is_cdp = False
-
-        if is_cdp:
-            log.info("Connecting directly to Deepak's live Brave browser on CDP port 9222...")
-            browser = p.chromium.connect_over_cdp("http://127.0.0.1:9222")
-            contexts = browser.contexts
-            context = contexts[0] if contexts else browser.new_context()
-            page = context.new_page()
-        else:
-            log.info("Launching visible Brave browser instance...")
-            browser = p.chromium.launch(
-                executable_path=exe_path if exe_path else None,
+        log.info("Launching isolated Playwright browser instance (dark mode, stealth)...")
+        from applypilot.apply.chrome import launch_isolated_playwright_context, acquire_browser_lock
+        with acquire_browser_lock():
+            context = launch_isolated_playwright_context(
+                p,
                 headless=not headed,
-                args=["--disable-blink-features=AutomationControlled"],
+                viewport={"width": 1366, "height": 850},
+                color_scheme="dark",
             )
-            context = browser.new_context(viewport={"width": 1366, "height": 850})
             inject_session_cookies(context)
-            page = context.new_page()
+            page = context.pages[0] if context.pages else context.new_page()
 
-        try:
-            log.info("Navigating to: %s", apply_url)
-            page.goto(apply_url, wait_until="domcontentloaded", timeout=45000)
-            page.wait_for_timeout(2500)
+            try:
+                log.info("Navigating to: %s", apply_url)
+                page.goto(apply_url, wait_until="domcontentloaded", timeout=45000)
+                page.wait_for_timeout(2500)
 
-            # Check if LinkedIn Easy Apply
-            if "linkedin.com" in apply_url:
-                is_submitted, submission_msg = handle_linkedin_easy_apply(page, profile, tailored_pdf, auto_submit=auto_submit, max_applicants=max_applicants)
-                if not is_submitted and "exceeds threshold" in submission_msg:
-                    conn.execute("UPDATE jobs SET apply_status = 'skipped_high_applicants', apply_error = ? WHERE rowid = ?", (submission_msg, rowid))
+                # Check if LinkedIn Easy Apply
+                if "linkedin.com" in apply_url:
+                    is_submitted, submission_msg = handle_linkedin_easy_apply(page, profile, tailored_pdf, auto_submit=auto_submit, max_applicants=max_applicants)
+                    if not is_submitted and "exceeds threshold" in submission_msg:
+                        conn.execute("UPDATE jobs SET apply_status = 'skipped_high_applicants', apply_error = ? WHERE rowid = ?", (submission_msg, rowid))
+                        conn.commit()
+                        return {
+                            "status": "skipped",
+                            "submitted": False,
+                            "job_title": role_title,
+                            "company": company_name,
+                            "message": submission_msg,
+                        }
+                    if not is_submitted and "No Easy Apply button" in submission_msg and easy_apply_only:
+                        conn.execute("UPDATE jobs SET apply_status = 'skipped_no_easy_apply', apply_error = ? WHERE rowid = ?", (submission_msg, rowid))
+                        conn.commit()
+                        return {
+                            "status": "skipped",
+                            "submitted": False,
+                            "job_title": role_title,
+                            "company": company_name,
+                            "message": "Skipped: Posting does not offer LinkedIn Easy Apply",
+                        }
+
+                # If not submitted or not LinkedIn, try portal apply
+                if not is_submitted and not easy_apply_only:
+                    is_submitted, submission_msg = handle_portal_apply(page, profile, tailored_pdf, cover_pdf, auto_submit=auto_submit)
+
+                if is_submitted:
+                    mark_job_applied(rowid)
+                    try:
+                        from applypilot.networking.followup_engine import ReferralFollowUpEngine
+                        fe = ReferralFollowUpEngine(db_path=conn)
+                        rec_name = job.get("recruiter_name")
+                        if not rec_name and job.get("recruiter_email"):
+                            rec_name = job.get("recruiter_email", "").split("@")[0].replace(".", " ").title()
+                        fe.mark_applied(
+                            job_id=str(job["url"]),
+                            used_secondary_email=used_secondary,
+                            recruiter_name=rec_name or "",
+                        )
+                    except Exception as me:
+                        log.warning("Followup engine mark_applied warning: %s", me)
+                    log.info("Application successfully submitted for %s @ %s! %s", role_title, company_name, submission_msg)
+
+                    # Show celebration banner
+                    celebration_html = f"""
+                    <div style="position:fixed;top:0;left:0;right:0;padding:16px;background:linear-gradient(90deg,#059669,#10b981);color:#fff;text-align:center;font-weight:700;font-size:16px;z-index:99999999;box-shadow:0 4px 12px rgba(0,0,0,0.4);">
+                        🎉 Application Submitted Autonomously! [{role_title} @ {company_name}] — Recorded in ApplyPilot Database & Ledger
+                    </div>
+                    """
+                    page.evaluate(f"() => {{ const d = document.createElement('div'); d.innerHTML = `{celebration_html}`; document.body.prepend(d); }}")
+                    page.wait_for_timeout(4000)
+                    try:
+                        context.close()
+                    except Exception:
+                        pass
+                    return {
+                        "status": "applied",
+                        "submitted": True,
+                        "job_title": role_title,
+                        "company": company_name,
+                        "message": submission_msg,
+                    }
+
+                # If not submitted (review mode or awaiting user action)
+                banner_html = f"""
+                <div id="applypilot-guard-banner" style="
+                    position: fixed; top: 0; left: 0; right: 0; height: 52px;
+                    background: linear-gradient(90deg, #0f172a, #1e1b4b);
+                    color: #e0e7ff; display: flex; align-items: center; justify-content: space-between;
+                    padding: 0 16px; z-index: 99999999; font-family: system-ui, sans-serif; font-size: 13px;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.5); border-bottom: 2px solid #6366f1;">
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <span style="background:#4338ca;padding:4px 8px;border-radius:4px;font-weight:700;">🛡️ ApplyPilot Active</span>
+                        <span><strong>{role_title}</strong> @ {company_name}</span>
+                        <button id="ap-fill-btn" onclick="window.applypilotFillPage()" style="
+                            background:#10b981;color:#fff;border:none;padding:5px 12px;border-radius:4px;
+                            cursor:pointer;font-weight:600;font-size:12px;box-shadow:0 2px 4px rgba(0,0,0,0.2);">
+                            ✨ Auto-Fill Current Page
+                        </button>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:12px;">
+                        <span style="font-size:12px;color:#a5b4fc;">Review fields & click Submit when ready</span>
+                    </div>
+                </div>
+                """
+                page.expose_function("triggerMultiPageFill", lambda: prefill_all_visible_fields(page, profile, tailored_pdf, cover_pdf))
+                page.evaluate(f"""() => {{
+                    const d = document.createElement('div');
+                    d.innerHTML = `{banner_html}`;
+                    document.body.prepend(d);
+                    window.applypilotFillPage = async () => {{
+                        const btn = document.getElementById('ap-fill-btn');
+                        if (btn) btn.innerText = 'Filling...';
+                        await window.triggerMultiPageFill();
+                        if (btn) {{
+                            btn.innerText = '✓ Page Filled!';
+                            setTimeout(() => btn.innerText = '✨ Auto-Fill Current Page', 2000);
+                        }}
+                    }};
+                }}""")
+
+                if "login" in submission_msg.lower():
+                    from applypilot.analytics.activity import mark_job_half_applied
+                    mark_job_half_applied(rowid, action="requires_login")
+                    conn.execute("UPDATE jobs SET apply_status = 'requires_login', apply_error = ? WHERE rowid = ?", (submission_msg, rowid))
                     conn.commit()
                     return {
-                        "status": "skipped",
+                        "status": "requires_login",
                         "submitted": False,
                         "job_title": role_title,
                         "company": company_name,
                         "message": submission_msg,
                     }
-                if not is_submitted and "No Easy Apply button" in submission_msg and easy_apply_only:
-                    conn.execute("UPDATE jobs SET apply_status = 'skipped_no_easy_apply', apply_error = ? WHERE rowid = ?", (submission_msg, rowid))
+
+                if "captcha" in submission_msg.lower() or "challenge" in submission_msg.lower():
+                    from applypilot.analytics.activity import mark_job_half_applied
+                    mark_job_half_applied(rowid, action="captcha_blocked")
+                    conn.execute("UPDATE jobs SET apply_status = 'captcha_blocked', apply_error = ? WHERE rowid = ?", (submission_msg, rowid))
                     conn.commit()
                     return {
-                        "status": "skipped",
+                        "status": "captcha_blocked",
                         "submitted": False,
                         "job_title": role_title,
                         "company": company_name,
-                        "message": "Skipped: Posting does not offer LinkedIn Easy Apply",
+                        "message": submission_msg,
                     }
 
-            # If not submitted or not LinkedIn, try portal apply
-            if not is_submitted and not easy_apply_only:
-                is_submitted, submission_msg = handle_portal_apply(page, profile, tailored_pdf, cover_pdf, auto_submit=auto_submit)
-
-            if is_submitted:
-                mark_job_applied(rowid)
-                try:
-                    from applypilot.networking.followup_engine import ReferralFollowUpEngine
-                    fe = ReferralFollowUpEngine(db_path=conn)
-                    rec_name = job.get("recruiter_name")
-                    if not rec_name and job.get("recruiter_email"):
-                        rec_name = job.get("recruiter_email", "").split("@")[0].replace(".", " ").title()
-                    fe.mark_applied(
-                        job_id=str(job["url"]),
-                        used_secondary_email=used_secondary,
-                        recruiter_name=rec_name or "",
-                    )
-                except Exception as me:
-                    log.warning("Followup engine mark_applied warning: %s", me)
-                log.info("Application successfully submitted for %s @ %s! %s", role_title, company_name, submission_msg)
-
-                # Show celebration banner
-                celebration_html = f"""
-                <div style="position:fixed;top:0;left:0;right:0;padding:16px;background:linear-gradient(90deg,#059669,#10b981);color:#fff;text-align:center;font-weight:700;font-size:16px;z-index:99999999;box-shadow:0 4px 12px rgba(0,0,0,0.4);">
-                    🎉 Application Submitted Autonomously! [{role_title} @ {company_name}] — Recorded in ApplyPilot Database & Ledger
-                </div>
-                """
-                page.evaluate(f"() => {{ const d = document.createElement('div'); d.innerHTML = `{celebration_html}`; document.body.prepend(d); }}")
-                page.wait_for_timeout(4000)
-                if not is_cdp:
+                if is_batch:
+                    log.info("Batch mode: Waiting %ds for portal processing before closing...", batch_timeout_sec)
+                    page.wait_for_timeout(min(batch_timeout_sec * 1000, 8000))
+                    from applypilot.analytics.activity import mark_job_half_applied
+                    mark_job_half_applied(rowid, action="prefilled")
+                    conn.execute("UPDATE jobs SET apply_status = 'half_applied', apply_error = ? WHERE rowid = ? AND (apply_status IS NULL OR apply_status NOT IN ('applied', 'interview'))", ("Prefilled in batch mode", rowid))
+                    conn.commit()
                     try:
                         context.close()
-                        browser.close()
                     except Exception:
                         pass
-                else:
+                    return {
+                        "status": "half_applied",
+                        "submitted": False,
+                        "job_title": role_title,
+                        "company": company_name,
+                        "message": "Prefilled and saved in batch mode",
+                    }
+
+                # Interactive review watch loop
+                if headed and not auto_submit:
+                    last_url = page.url
+                    while True:
+                        if page.is_closed():
+                            break
+                        page.wait_for_timeout(2000)
+                        if page.url != last_url:
+                            last_url = page.url
+                            page.wait_for_timeout(1500)
+                            prefill_all_visible_fields(page, profile, tailored_pdf, cover_pdf)
+                elif auto_submit and not is_submitted:
+                    log.info("Autonomous mode completed all fill actions. Waiting 10s for portal sync before closing...")
+                    page.wait_for_timeout(10000)
+
+            except Exception as e:
+                if "Target closed" not in str(e):
+                    log.error("Assistant browser error: %s", e)
                     try:
-                        page.wait_for_timeout(3000)
-                        page.close()
+                        (APP_DIR / "logs").mkdir(parents=True, exist_ok=True)
+                        with open(APP_DIR / "logs" / "auto_apply.log", "a", encoding="utf-8") as lf:
+                            lf.write(f"[{datetime.now().isoformat()}] Assistant error for {identifier} ({apply_url}): {e}\n")
                     except Exception:
                         pass
-                return {
-                    "status": "applied",
-                    "submitted": True,
-                    "job_title": role_title,
-                    "company": company_name,
-                    "message": submission_msg,
-                }
-
-            # If not submitted (review mode or awaiting user action)
-            banner_html = f"""
-            <div id="applypilot-guard-banner" style="
-                position: fixed; top: 0; left: 0; right: 0; height: 52px;
-                background: linear-gradient(90deg, #0f172a, #1e1b4b);
-                color: #e0e7ff; display: flex; align-items: center; justify-content: space-between;
-                padding: 0 16px; z-index: 99999999; font-family: system-ui, sans-serif; font-size: 13px;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.5); border-bottom: 2px solid #6366f1;">
-                <div style="display:flex;align-items:center;gap:10px;">
-                    <span style="background:#4338ca;padding:4px 8px;border-radius:4px;font-weight:700;">🛡️ ApplyPilot Active</span>
-                    <span><strong>{role_title}</strong> @ {company_name}</span>
-                    <button id="ap-fill-btn" onclick="window.applypilotFillPage()" style="
-                        background:#10b981;color:#fff;border:none;padding:5px 12px;border-radius:4px;
-                        cursor:pointer;font-weight:600;font-size:12px;box-shadow:0 2px 4px rgba(0,0,0,0.2);">
-                        ✨ Auto-Fill Current Page
-                    </button>
-                </div>
-                <div style="display:flex;align-items:center;gap:12px;">
-                    <span style="font-size:12px;color:#a5b4fc;">Review fields & click Submit when ready</span>
-                </div>
-            </div>
-            """
-            page.expose_function("triggerMultiPageFill", lambda: prefill_all_visible_fields(page, profile, tailored_pdf, cover_pdf))
-            page.evaluate(f"""() => {{
-                const d = document.createElement('div');
-                d.innerHTML = `{banner_html}`;
-                document.body.prepend(d);
-                window.applypilotFillPage = async () => {{
-                    const btn = document.getElementById('ap-fill-btn');
-                    if (btn) btn.innerText = 'Filling...';
-                    await window.triggerMultiPageFill();
-                    if (btn) {{
-                        btn.innerText = '✓ Page Filled!';
-                        setTimeout(() => btn.innerText = '✨ Auto-Fill Current Page', 2000);
-                    }}
-                }};
-            }}""")
-
-            if "login" in submission_msg.lower():
-                from applypilot.analytics.activity import mark_job_half_applied
-                mark_job_half_applied(rowid, action="requires_login")
-                conn.execute("UPDATE jobs SET apply_status = 'requires_login', apply_error = ? WHERE rowid = ?", (submission_msg, rowid))
-                conn.commit()
-                return {
-                    "status": "requires_login",
-                    "submitted": False,
-                    "job_title": role_title,
-                    "company": company_name,
-                    "message": submission_msg,
-                }
-
-            if "captcha" in submission_msg.lower() or "challenge" in submission_msg.lower():
-                from applypilot.analytics.activity import mark_job_half_applied
-                mark_job_half_applied(rowid, action="captcha_blocked")
-                conn.execute("UPDATE jobs SET apply_status = 'captcha_blocked', apply_error = ? WHERE rowid = ?", (submission_msg, rowid))
-                conn.commit()
-                return {
-                    "status": "captcha_blocked",
-                    "submitted": False,
-                    "job_title": role_title,
-                    "company": company_name,
-                    "message": submission_msg,
-                }
-
-            if is_batch:
-                log.info("Batch mode: Waiting %ds for portal processing before closing...", batch_timeout_sec)
-                page.wait_for_timeout(min(batch_timeout_sec * 1000, 8000))
-                from applypilot.analytics.activity import mark_job_half_applied
-                mark_job_half_applied(rowid, action="prefilled")
-                conn.execute("UPDATE jobs SET apply_status = 'half_applied', apply_error = ? WHERE rowid = ? AND (apply_status IS NULL OR apply_status NOT IN ('applied', 'interview'))", ("Prefilled in batch mode", rowid))
-                conn.commit()
-                try:
-                    if is_cdp:
-                        page.close()
-                    else:
-                        context.close()
-                except Exception:
-                    pass
-                return {
-                    "status": "half_applied",
-                    "submitted": False,
-                    "job_title": role_title,
-                    "company": company_name,
-                    "message": "Prefilled and saved in batch mode",
-                }
-
-            # Interactive review watch loop
-            if headed and not auto_submit:
-                last_url = page.url
-                while True:
-                    if page.is_closed():
-                        break
-                    page.wait_for_timeout(2000)
-                    if page.url != last_url:
-                        last_url = page.url
-                        page.wait_for_timeout(1500)
-                        prefill_all_visible_fields(page, profile, tailored_pdf, cover_pdf)
-            elif auto_submit and not is_submitted:
-                log.info("Autonomous mode completed all fill actions. Waiting 10s for portal sync before closing...")
-                page.wait_for_timeout(10000)
-
-        except Exception as e:
-            if "Target closed" not in str(e):
-                log.error("Assistant browser error: %s", e)
-                try:
-                    (APP_DIR / "logs").mkdir(parents=True, exist_ok=True)
-                    with open(APP_DIR / "logs" / "auto_apply.log", "a", encoding="utf-8") as lf:
-                        lf.write(f"[{datetime.now().isoformat()}] Assistant error for {identifier} ({apply_url}): {e}\n")
-                except Exception:
-                    pass
-        finally:
-            if not is_cdp:
+            finally:
                 try:
                     context.close()
-                except Exception:
-                    pass
-                try:
-                    browser.close()
                 except Exception:
                     pass
 

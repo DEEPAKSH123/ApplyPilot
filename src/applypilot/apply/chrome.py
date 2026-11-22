@@ -1,17 +1,21 @@
-"""Chrome lifecycle management for apply workers.
+"""Chrome and Playwright browser lifecycle management for apply workers and automation.
 
-Handles launching an isolated Chrome instance with remote debugging,
-worker profile setup/cloning, and cross-platform process cleanup.
+Handles launching isolated browser instances with remote debugging or Playwright contexts,
+dedicated profile setup at ~/.applypilot/playwright_profile, file locking, stealth flags,
+and dark mode enforcement.
 """
 
+from contextlib import contextmanager
 import json
 import logging
+import os
 import platform
 import shutil
 import subprocess
 import threading
 import time
 from pathlib import Path
+from typing import Generator
 
 from applypilot import config
 
@@ -23,6 +27,153 @@ BASE_CDP_PORT = 9222
 # Track Chrome processes per worker for cleanup
 _chrome_procs: dict[int, subprocess.Popen] = {}
 _chrome_lock = threading.Lock()
+
+# Lock configuration
+LOCK_TIMEOUT_SECONDS = 900  # 15 minutes stale-lock timeout
+
+
+# ---------------------------------------------------------------------------
+# Cross-platform file locking
+# ---------------------------------------------------------------------------
+
+def _is_process_alive(pid: int) -> bool:
+    """Check if process with given PID is still alive."""
+    if pid <= 0:
+        return False
+    if platform.system() == "Windows":
+        try:
+            import ctypes
+            kernel32 = ctypes.windll.kernel32
+            # PROCESS_QUERY_LIMITED_INFORMATION = 0x1000 or SYNCHRONIZE = 0x00100000
+            handle = kernel32.OpenProcess(0x1000, False, pid)
+            if handle:
+                kernel32.CloseHandle(handle)
+                return True
+            return False
+        except Exception:
+            return True  # If check fails, don't prematurely kill
+    else:
+        try:
+            os.kill(pid, 0)
+            return True
+        except (ProcessLookupError, PermissionError):
+            return False
+
+
+@contextmanager
+def acquire_browser_lock(timeout: float = 30.0, stale_age: float = LOCK_TIMEOUT_SECONDS) -> Generator[Path, None, None]:
+    """Context manager acquiring ~/.applypilot/browser.lock with stale-lock protection.
+
+    Args:
+        timeout: Maximum seconds to wait to acquire the lock before raising TimeoutError.
+        stale_age: Stale lock timeout in seconds (defaults to 15 minutes = 900s).
+    """
+    lock_file = config.BROWSER_LOCK_FILE
+    lock_file.parent.mkdir(parents=True, exist_ok=True)
+    start_time = time.time()
+    acquired = False
+
+    while not acquired:
+        # Check if existing lock is stale
+        if lock_file.exists():
+            try:
+                data = json.loads(lock_file.read_text(encoding="utf-8"))
+                lock_time = float(data.get("timestamp", 0))
+                lock_pid = int(data.get("pid", 0))
+                age = time.time() - lock_time
+
+                if age > stale_age or not _is_process_alive(lock_pid):
+                    logger.warning(
+                        "Clearing stale browser lock (PID: %s, age: %.1fs > %.1fs)",
+                        lock_pid, age, stale_age
+                    )
+                    try:
+                        lock_file.unlink(missing_ok=True)
+                    except Exception:
+                        pass
+            except Exception:
+                # Corrupted lock file
+                try:
+                    lock_file.unlink(missing_ok=True)
+                except Exception:
+                    pass
+
+        # Try to acquire lock via atomic exclusive file creation
+        try:
+            # O_CREAT | O_EXCL is atomic across OSes
+            fd = os.open(str(lock_file), os.O_CREAT | os.O_EXCL | os.O_RDWR)
+            payload = json.dumps({
+                "pid": os.getpid(),
+                "timestamp": time.time(),
+                "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            })
+            os.write(fd, payload.encode("utf-8"))
+            os.close(fd)
+            acquired = True
+            break
+        except FileExistsError:
+            if time.time() - start_time > timeout:
+                raise TimeoutError(
+                    f"Timed out waiting for browser profile lock at {lock_file} after {timeout}s"
+                )
+            time.sleep(0.5)
+
+    try:
+        yield lock_file
+    finally:
+        try:
+            if lock_file.exists():
+                # Only remove lock if it belongs to this process
+                try:
+                    data = json.loads(lock_file.read_text(encoding="utf-8"))
+                    if data.get("pid") == os.getpid():
+                        lock_file.unlink(missing_ok=True)
+                except Exception:
+                    lock_file.unlink(missing_ok=True)
+        except Exception:
+            pass
+
+
+# ---------------------------------------------------------------------------
+# Playwright Isolated Context Launcher
+# ---------------------------------------------------------------------------
+
+def launch_isolated_playwright_context(
+    playwright_instance,
+    headless: bool = True,
+    viewport: dict | None = None,
+    color_scheme: str = "dark",
+    user_agent: str | None = None,
+    extra_args: list[str] | None = None,
+):
+    """Launch Playwright persistent context using the dedicated ~/.applypilot/playwright_profile.
+
+    Enforces:
+    - Dedicated profile directory ~/.applypilot/playwright_profile
+    - Playwright's own bundled Chromium (no executable_path set to brave or external browser)
+    - color_scheme="dark"
+    - Standard desktop stealth flags and consistent Windows Chrome user agent
+    """
+    profile_dir = config.PLAYWRIGHT_PROFILE_DIR
+    profile_dir.mkdir(parents=True, exist_ok=True)
+
+    args = list(config.DEFAULT_STEALTH_ARGS)
+    if extra_args:
+        for arg in extra_args:
+            if arg not in args:
+                args.append(arg)
+
+    ua = user_agent or config.DEFAULT_DESKTOP_USER_AGENT
+    vp = viewport if viewport is not None else {"width": 1280, "height": 850}
+
+    return playwright_instance.chromium.launch_persistent_context(
+        user_data_dir=str(profile_dir.resolve()),
+        headless=headless,
+        args=args,
+        color_scheme=color_scheme,
+        user_agent=ua,
+        viewport=vp,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -216,8 +367,11 @@ def launch_chrome(worker_id: int, port: int | None = None,
         f"--remote-debugging-port={port}",
         f"--user-data-dir={profile_dir}",
         "--profile-directory=Default",
+        "--disable-blink-features=AutomationControlled",
+        "--force-dark-mode",
         "--no-first-run",
         "--no-default-browser-check",
+        f"--user-agent={config.DEFAULT_DESKTOP_USER_AGENT}",
         "--window-size=1024,768",
         "--disable-session-crashed-bubble",
         "--disable-features=InfiniteSessionRestore,PasswordManagerOnboarding",

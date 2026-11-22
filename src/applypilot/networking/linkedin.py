@@ -18,7 +18,11 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any
 
-from applypilot.apply.assistant import BRAVE_PROFILE_DIR, get_browser_executable
+from applypilot import config
+from applypilot.apply.chrome import (
+    acquire_browser_lock,
+    launch_isolated_playwright_context,
+)
 from applypilot.config import APP_DIR, load_profile
 from applypilot.database import get_connection
 
@@ -26,7 +30,89 @@ log = logging.getLogger(__name__)
 
 SESSION_FILE = APP_DIR / "linkedin_session.json"
 STORAGE_STATE_FILE = APP_DIR / "storage_state.json"
+COOLDOWN_FILE = config.LINKEDIN_COOLDOWN_FILE
 EMAIL_REGEX = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,7}\b")
+
+# Circuit breaker constants
+AUTH_EXPIRED_OR_CHALLENGED = "AUTH_EXPIRED_OR_CHALLENGED"
+COOLDOWN_DURATION_HOURS = 24
+
+
+def is_linkedin_cooldown_active() -> tuple[bool, str]:
+    """Check if LinkedIn automation is paused by the circuit breaker."""
+    cooldown_file = getattr(config, "LINKEDIN_COOLDOWN_FILE", Path.home() / ".applypilot" / "linkedin_cooldown.json")
+    if not cooldown_file.exists():
+        return False, ""
+    try:
+        data = json.loads(cooldown_file.read_text(encoding="utf-8"))
+        cooldown_until_str = data.get("cooldown_until")
+        if not cooldown_until_str:
+            return False, ""
+        cooldown_until = datetime.fromisoformat(cooldown_until_str)
+        now = datetime.now(timezone.utc)
+        if now < cooldown_until:
+            reason = data.get("reason", "LinkedIn circuit breaker active")
+            remaining = (cooldown_until - now).total_seconds() / 3600
+            return True, f"{reason} (cooldown remaining: {remaining:.1f}h)"
+    except Exception as e:
+        log.warning("Could not read LinkedIn cooldown file: %s", e)
+    return False, ""
+
+
+def trigger_linkedin_circuit_breaker(reason: str, trigger_url: str = "") -> dict[str, Any]:
+    """Immediately trigger 24-hour circuit breaker and write cooldown file."""
+    now = datetime.now(timezone.utc)
+    cooldown_until = now + timedelta(hours=COOLDOWN_DURATION_HOURS)
+    payload = {
+        "triggered_at": now.isoformat(),
+        "cooldown_until": cooldown_until.isoformat(),
+        "reason": reason,
+        "trigger_url": trigger_url,
+        "status": AUTH_EXPIRED_OR_CHALLENGED,
+    }
+    cooldown_file = getattr(config, "LINKEDIN_COOLDOWN_FILE", Path.home() / ".applypilot" / "linkedin_cooldown.json")
+    try:
+        cooldown_file.parent.mkdir(parents=True, exist_ok=True)
+        cooldown_file.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    except Exception as e:
+        log.error("Failed to write LinkedIn cooldown file: %s", e)
+
+    log.error(
+        "CRITICAL: %s triggered for LinkedIn automation! Cooldown activated for %d hours until %s. Reason: %s (URL: %s)",
+        AUTH_EXPIRED_OR_CHALLENGED,
+        COOLDOWN_DURATION_HOURS,
+        cooldown_until.isoformat(),
+        reason,
+        trigger_url,
+    )
+    return payload
+
+
+def check_page_for_challenges_or_auth(page_or_url: Any, status_code: int | None = None) -> tuple[bool, str]:
+    """Check if response or page hit login, challenge, or auth errors."""
+    if status_code in (401, 403, 429):
+        return True, f"HTTP {status_code} Auth/Rate-limit error"
+
+    url_str = ""
+    if hasattr(page_or_url, "url"):
+        url_str = str(page_or_url.url).lower()
+    elif isinstance(page_or_url, str):
+        url_str = page_or_url.lower()
+
+    if "/checkpoint/challenge" in url_str or "checkpoint/challenge" in url_str:
+        return True, "Encountered checkpoint challenge verification"
+    if "/login" in url_str or "/uas/login" in url_str:
+        return True, "Redirected to login page"
+
+    if hasattr(page_or_url, "title"):
+        try:
+            title = page_or_url.title().lower()
+            if "security verification" in title or "checkpoint" in title or "sign in" in title:
+                return True, f"Challenge title detected: {title}"
+        except Exception:
+            pass
+
+    return False, ""
 
 # Regex patterns to detect years of experience required
 EXP_PATTERNS = [
@@ -88,22 +174,7 @@ def is_linkedin_authenticated() -> bool:
 
 
 def get_stored_cookies() -> list[dict]:
-    """Retrieve stored LinkedIn cookies from live Brave CDP session or session files.
-    Auto-syncs from live Brave if CDP port 9222 is open, ensuring cookies never go stale.
-    """
-    # Auto-sync from running Brave instance via CDP if available
-    try:
-        from playwright.sync_api import sync_playwright
-        with sync_playwright() as p:
-            browser = p.chromium.connect_over_cdp('http://127.0.0.1:9222', timeout=2000)
-            ctx = browser.contexts[0]
-            brave_cookies = ctx.cookies(['https://www.linkedin.com'])
-            browser.close()
-            if brave_cookies and any(c.get('name') == 'li_at' for c in brave_cookies):
-                save_stored_cookies(brave_cookies)
-                return brave_cookies
-    except Exception:
-        pass
+    """Retrieve stored LinkedIn cookies from session files."""
     if STORAGE_STATE_FILE.exists():
         try:
             data = json.loads(STORAGE_STATE_FILE.read_text(encoding="utf-8"))
@@ -166,85 +237,77 @@ def set_li_at_cookie(li_at_token: str) -> bool:
 
 
 def login_to_linkedin(timeout_sec: int = 75, headed: bool = True) -> dict[str, Any]:
-    """Launch Brave browser for Deepak to log in to LinkedIn or verify active session."""
+    """Launch isolated Playwright profile for user to log in to LinkedIn or verify active session."""
     from playwright.sync_api import sync_playwright
 
-    exe_path, browser_type = get_browser_executable()
-    BRAVE_PROFILE_DIR.mkdir(parents=True, exist_ok=True)
+    log.info("Launching isolated Playwright browser for LinkedIn authentication (headed=%s)...", headed)
 
-    log.info("Launching browser (%s) for LinkedIn authentication...", browser_type)
+    with acquire_browser_lock():
+        with sync_playwright() as p:
+            context = launch_isolated_playwright_context(
+                p,
+                headless=not headed,
+                color_scheme="dark",
+                viewport={"width": 1280, "height": 850},
+            )
 
-    with sync_playwright() as p:
-        launch_args = [
-            "--disable-blink-features=AutomationControlled",
-            "--no-first-run",
-            "--no-default-browser-check",
-        ]
-        context = p.chromium.launch_persistent_context(
-            user_data_dir=str(BRAVE_PROFILE_DIR.resolve()),
-            executable_path=exe_path if exe_path else None,
-            headless=not headed,
-            args=launch_args,
-            viewport={"width": 1280, "height": 850},
-        )
+            page = context.pages[0] if context.pages else context.new_page()
 
-        page = context.pages[0] if context.pages else context.new_page()
+            # Inject existing cookies if available
+            existing_cookies = get_stored_cookies()
+            if existing_cookies:
+                try:
+                    context.add_cookies(existing_cookies)
+                except Exception as ce:
+                    log.warning("Could not pre-load cookies: %s", ce)
 
-        # Inject existing cookies if available
-        existing_cookies = get_stored_cookies()
-        if existing_cookies:
-            try:
-                context.add_cookies(existing_cookies)
-            except Exception as ce:
-                log.warning("Could not pre-load cookies: %s", ce)
+            page.goto("https://www.linkedin.com/feed/", wait_until="domcontentloaded")
+            time.sleep(2)
 
-        page.goto("https://www.linkedin.com/feed/", wait_until="domcontentloaded")
-        time.sleep(2)
+            # Check if actually logged in by inspecting cookies for 'li_at'
+            initial_cookies = context.cookies()
+            if any(c.get("name") == "li_at" for c in initial_cookies):
+                log.info("Already logged in to LinkedIn with valid session cookie!")
+                save_stored_cookies(initial_cookies)
+                context.close()
+                return {
+                    "status": "authenticated",
+                    "message": "Already logged in to LinkedIn successfully!",
+                    "session_saved": True
+                }
 
-        # Check if actually logged in by inspecting cookies for 'li_at'
-        initial_cookies = context.cookies()
-        if any(c.get("name") == "li_at" for c in initial_cookies):
-            log.info("Already logged in to LinkedIn with valid session cookie!")
-            save_stored_cookies(initial_cookies)
-            context.close()
-            return {
-                "status": "authenticated",
-                "message": "Already logged in to LinkedIn successfully!",
-                "session_saved": True
-            }
+            # Otherwise navigate to login page so Deepak can enter credentials
+            log.info("Navigating to LinkedIn login page for user authentication...")
+            page.goto("https://www.linkedin.com/login", wait_until="domcontentloaded")
 
-        # Otherwise navigate to login page so Deepak can enter credentials
-        log.info("Navigating to LinkedIn login page for user authentication...")
-        page.goto("https://www.linkedin.com/login", wait_until="domcontentloaded")
+            # Wait for user to complete login (cookies will contain 'li_at')
+            start_time = time.time()
+            authenticated = False
 
-        # Wait for user to complete login (cookies will contain 'li_at')
-        start_time = time.time()
-        authenticated = False
+            while time.time() - start_time < timeout_sec:
+                current_cookies = context.cookies()
+                if any(c.get("name") == "li_at" for c in current_cookies):
+                    authenticated = True
+                    break
+                time.sleep(1.5)
 
-        while time.time() - start_time < timeout_sec:
-            current_cookies = context.cookies()
-            if any(c.get("name") == "li_at" for c in current_cookies):
-                authenticated = True
-                break
-            time.sleep(1.5)
-
-        if authenticated:
-            time.sleep(1)
-            final_cookies = context.cookies()
-            save_stored_cookies(final_cookies)
-            context.close()
-            return {
-                "status": "authenticated",
-                "message": "Successfully logged in and saved LinkedIn session!",
-                "session_saved": True
-            }
-        else:
-            context.close()
-            return {
-                "status": "timeout",
-                "message": f"Login timed out after {timeout_sec}s. Please try again.",
-                "session_saved": False
-            }
+            if authenticated:
+                time.sleep(1)
+                final_cookies = context.cookies()
+                save_stored_cookies(final_cookies)
+                context.close()
+                return {
+                    "status": "authenticated",
+                    "message": "Successfully logged in and saved LinkedIn session!",
+                    "session_saved": True
+                }
+            else:
+                context.close()
+                return {
+                    "status": "timeout",
+                    "message": f"Login timed out after {timeout_sec}s. Please try again.",
+                    "session_saved": False
+                }
 
 
 def search_linkedin_posts(
@@ -255,40 +318,44 @@ def search_linkedin_posts(
     """Search LinkedIn for recent hiring posts matching keywords and extract leads."""
     from playwright.sync_api import sync_playwright
 
-    exe_path, _ = get_browser_executable()
-    BRAVE_PROFILE_DIR.mkdir(parents=True, exist_ok=True)
+    # Safety check: Circuit breaker
+    is_cooling, cool_reason = is_linkedin_cooldown_active()
+    if is_cooling:
+        log.warning("LinkedIn search_linkedin_posts aborted: %s", cool_reason)
+        return [{"error": f"Circuit breaker active: {cool_reason}", "status": AUTH_EXPIRED_OR_CHALLENGED}]
 
     encoded_kw = urllib.parse.quote(keywords)
     search_url = f"https://www.linkedin.com/search/results/content/?keywords={encoded_kw}&sortBy=%22date_posted%22"
 
     results = []
 
-    with sync_playwright() as p:
-        context = p.chromium.launch_persistent_context(
-            user_data_dir=str(BRAVE_PROFILE_DIR.resolve()),
-            executable_path=exe_path if exe_path else None,
-            headless=True,
-            args=["--disable-blink-features=AutomationControlled"],
-        )
+    with acquire_browser_lock():
+        with sync_playwright() as p:
+            context = launch_isolated_playwright_context(
+                p,
+                headless=True,
+                color_scheme="dark",
+            )
 
-        existing_cookies = get_stored_cookies()
-        if existing_cookies:
-            try:
-                context.add_cookies(existing_cookies)
-            except Exception:
-                pass
+            existing_cookies = get_stored_cookies()
+            if existing_cookies:
+                try:
+                    context.add_cookies(existing_cookies)
+                except Exception:
+                    pass
 
-        page = context.pages[0] if context.pages else context.new_page()
-        page.goto(search_url, wait_until="domcontentloaded")
-        time.sleep(4)
+            page = context.pages[0] if context.pages else context.new_page()
+            response = page.goto(search_url, wait_until="domcontentloaded")
+            time.sleep(4)
 
-        # Check if redirected to login
-        if "login" in page.url:
-            log.warning("LinkedIn session expired or not authenticated.")
-            context.close()
-            return [{"error": "Not authenticated. Run 'applypilot linkedin login' first."}]
+            status_code = response.status if response else None
+            is_challenged, ch_reason = check_page_for_challenges_or_auth(page, status_code=status_code)
+            if is_challenged:
+                trigger_linkedin_circuit_breaker(f"search_linkedin_posts: {ch_reason}", trigger_url=page.url)
+                context.close()
+                return [{"error": ch_reason, "status": AUTH_EXPIRED_OR_CHALLENGED}]
 
-        # Scroll down to load posts
+            # Scroll down to load posts
         for _ in range(3):
             page.evaluate("window.scrollBy(0, 1000);")
             time.sleep(1.5)
@@ -394,12 +461,15 @@ def search_linkedin_connections(
     from playwright.sync_api import sync_playwright
     from applypilot.networking.outreach import clean_company_name
 
+    # Safety check: Circuit breaker
+    is_cooling, cool_reason = is_linkedin_cooldown_active()
+    if is_cooling:
+        log.warning("LinkedIn search_linkedin_connections aborted: %s", cool_reason)
+        return [{"error": f"Circuit breaker active: {cool_reason}", "status": AUTH_EXPIRED_OR_CHALLENGED}]
+
     comp_clean = clean_company_name(company)
     if not comp_clean:
         comp_clean = company.strip()
-
-    exe_path, _ = get_browser_executable()
-    BRAVE_PROFILE_DIR.mkdir(parents=True, exist_ok=True)
 
     if comp_clean:
         comp_enc = urllib.parse.quote(f'"{comp_clean}"')
@@ -409,39 +479,46 @@ def search_linkedin_connections(
 
     results = []
 
-    with sync_playwright() as p:
-        browser = None
-        context = None
+    with acquire_browser_lock():
+        with sync_playwright() as p:
+            browser = None
+            context = None
 
-        # Always run in isolated headless browser in the background (never open visible windows/tabs)
-        try:
-            browser = p.chromium.launch(
-                executable_path=exe_path if (exe_path and Path(exe_path).exists()) else None,
-                headless=True,
-                args=["--disable-blink-features=AutomationControlled"]
-            )
-            context = browser.new_context(viewport={"width": 1280, "height": 850})
-            page = context.new_page()
-        except Exception as le:
-            log.warning("Could not launch headless browser for connection scan: %s", le)
-            return [{"error": f"Browser launch error: {le}"}]
-
-        existing_cookies = get_stored_cookies()
-        if existing_cookies:
+            # Always run in isolated headless browser in the background (never open visible windows/tabs)
             try:
-                context.add_cookies(existing_cookies)
-            except Exception:
-                pass
+                browser = p.chromium.launch(
+                    headless=True,
+                    args=config.DEFAULT_STEALTH_ARGS,
+                )
+                context = browser.new_context(
+                    viewport={"width": 1280, "height": 850},
+                    color_scheme="dark",
+                    user_agent=config.DEFAULT_DESKTOP_USER_AGENT,
+                )
+                page = context.new_page()
+            except Exception as le:
+                log.warning("Could not launch headless browser for connection scan: %s", le)
+                return [{"error": f"Browser launch error: {le}"}]
 
-        page.goto(search_url, wait_until="domcontentloaded", timeout=30000)
-        time.sleep(4)
+            existing_cookies = get_stored_cookies()
+            if existing_cookies:
+                try:
+                    context.add_cookies(existing_cookies)
+                except Exception:
+                    pass
 
-        if "login" in page.url:
-            try: browser.close()
-            except Exception: pass
-            return [{"error": "Not authenticated. Run 'applypilot linkedin login' first."}]
+            response = page.goto(search_url, wait_until="domcontentloaded", timeout=30000)
+            time.sleep(4)
 
-        # Robust extraction supporting modern LinkedIn DOM
+            status_code = response.status if response else None
+            is_challenged, ch_reason = check_page_for_challenges_or_auth(page, status_code=status_code)
+            if is_challenged:
+                trigger_linkedin_circuit_breaker(f"search_linkedin_connections: {ch_reason}", trigger_url=page.url)
+                try: browser.close()
+                except Exception: pass
+                return [{"error": ch_reason, "status": AUTH_EXPIRED_OR_CHALLENGED}]
+
+            # Robust extraction supporting modern LinkedIn DOM
         raw_cards = page.evaluate("""
             () => {
                 const results = [];
@@ -716,37 +793,29 @@ def compose_referral_dm(
     except Exception:
         pass
 
-    exe_path, _ = get_browser_executable()
-    BRAVE_PROFILE_DIR.mkdir(parents=True, exist_ok=True)
-
     log.info("Composing LinkedIn referral DM for: %s", clean_url)
 
     def _worker():
-        with sync_playwright() as p:
-            launch_args = [
-                "--disable-blink-features=AutomationControlled",
-                "--no-first-run",
-                "--no-default-browser-check",
-            ]
-            context = p.chromium.launch_persistent_context(
-                user_data_dir=str(BRAVE_PROFILE_DIR.resolve()),
-                executable_path=exe_path if exe_path else None,
-                headless=not headed,
-                args=launch_args,
-                viewport={"width": 1280, "height": 850},
-            )
+        with acquire_browser_lock():
+            with sync_playwright() as p:
+                context = launch_isolated_playwright_context(
+                    p,
+                    headless=not headed,
+                    color_scheme="dark",
+                    viewport={"width": 1280, "height": 850},
+                )
 
-            # Pre-load cookies
-            existing_cookies = get_stored_cookies()
-            if existing_cookies:
-                try:
-                    context.add_cookies(existing_cookies)
-                except Exception:
-                    pass
+                # Pre-load cookies
+                existing_cookies = get_stored_cookies()
+                if existing_cookies:
+                    try:
+                        context.add_cookies(existing_cookies)
+                    except Exception:
+                        pass
 
-            page = context.pages[0] if context.pages else context.new_page()
-            page.goto(clean_url, wait_until="domcontentloaded")
-            time.sleep(3)
+                page = context.pages[0] if context.pages else context.new_page()
+                page.goto(clean_url, wait_until="domcontentloaded")
+                time.sleep(3)
 
             # Check if name and company are detectable on page
             nonlocal first_name, name, company
@@ -946,6 +1015,12 @@ def send_connect_via_api(profile_url: str, note: str | None = None) -> dict[str,
     """
     import requests
 
+    # Pre-flight cooldown check
+    is_cooling, cool_reason = is_linkedin_cooldown_active()
+    if is_cooling:
+        log.warning("LinkedIn send_connect_via_api aborted: %s", cool_reason)
+        return {"ok": False, "error": f"Circuit breaker active: {cool_reason}", "status": AUTH_EXPIRED_OR_CHALLENGED}
+
     cookies = get_stored_cookies()
     cookie_dict = {}
     for c in cookies:
@@ -995,6 +1070,14 @@ def send_connect_via_api(profile_url: str, note: str | None = None) -> dict[str,
         return {"ok": False, "error": f"Voyager profile lookup failed: {e}", "method": "voyager_api"}
 
     if resp.status_code != 200:
+        if resp.status_code in (401, 403, 429):
+            trigger_linkedin_circuit_breaker(f"Voyager profile lookup returned {resp.status_code}", trigger_url=profile_api_url)
+            return {
+                "ok": False,
+                "error": f"Voyager profile lookup returned status {resp.status_code}: {resp.text[:200]}",
+                "method": "voyager_api",
+                "status": AUTH_EXPIRED_OR_CHALLENGED,
+            }
         return {
             "ok": False,
             "error": f"Voyager profile lookup returned status {resp.status_code}: {resp.text[:200]}",
@@ -1050,6 +1133,16 @@ def send_connect_via_api(profile_url: str, note: str | None = None) -> dict[str,
         log.info("Invitation to %s already pending or recently sent (CANT_RESEND_YET)", slug)
         return {"ok": True, "method": "voyager_api", "target_urn": target_urn, "note": "CANT_RESEND_YET"}
 
+    if inv_resp.status_code in (401, 403, 429):
+        trigger_linkedin_circuit_breaker(f"Voyager invite POST returned {inv_resp.status_code}", trigger_url=invite_url)
+        return {
+            "ok": False,
+            "error": f"Voyager invitation POST returned {inv_resp.status_code}: {inv_resp.text[:250]}",
+            "method": "voyager_api",
+            "status_code": inv_resp.status_code,
+            "status": AUTH_EXPIRED_OR_CHALLENGED,
+        }
+
     return {
         "ok": False,
         "error": f"Voyager invitation POST returned {inv_resp.status_code}: {inv_resp.text[:250]}",
@@ -1067,141 +1160,147 @@ def send_connect_via_headless_browser(profile_url: str, note: str | None = None)
     """
     from playwright.sync_api import sync_playwright
 
+    # Safety check: Circuit breaker
+    is_cooling, cool_reason = is_linkedin_cooldown_active()
+    if is_cooling:
+        log.warning("LinkedIn send_connect_via_headless_browser aborted: %s", cool_reason)
+        return {"ok": False, "error": f"Circuit breaker active: {cool_reason}", "status": AUTH_EXPIRED_OR_CHALLENGED, "method": "headless_playwright"}
+
     clean_url = (profile_url or "").strip()
     if not clean_url:
         return {"ok": False, "error": "No profile URL provided.", "method": "headless_playwright"}
     if not clean_url.startswith("http"):
         clean_url = f"https://www.linkedin.com/in/{clean_url.lstrip('/')}"
 
-    exe_path, _ = get_browser_executable()
-    BRAVE_PROFILE_DIR.mkdir(parents=True, exist_ok=True)
+    with acquire_browser_lock():
+        with sync_playwright() as p:
+            browser = None
+            context = None
 
-    with sync_playwright() as p:
-        browser = None
-        context = None
+            # Check if storage_state.json exists
+            storage_state_arg = str(STORAGE_STATE_FILE.resolve()) if STORAGE_STATE_FILE.exists() else None
 
-        # Check if storage_state.json exists
-        storage_state_arg = str(STORAGE_STATE_FILE.resolve()) if STORAGE_STATE_FILE.exists() else None
-
-        try:
-            # Run strictly headless
-            if exe_path and Path(exe_path).exists():
-                browser = p.chromium.launch(
-                    executable_path=exe_path,
-                    headless=True,
-                    args=["--disable-blink-features=AutomationControlled"]
-                )
-            else:
+            try:
+                # Run strictly headless with dark mode and stealth
                 browser = p.chromium.launch(
                     headless=True,
-                    args=["--disable-blink-features=AutomationControlled"]
+                    args=config.DEFAULT_STEALTH_ARGS,
                 )
 
-            if storage_state_arg:
-                context = browser.new_context(
-                    storage_state=storage_state_arg,
-                    viewport={"width": 1280, "height": 850}
-                )
-            else:
-                context = browser.new_context(viewport={"width": 1280, "height": 850})
+                if storage_state_arg:
+                    context = browser.new_context(
+                        storage_state=storage_state_arg,
+                        viewport={"width": 1280, "height": 850},
+                        color_scheme="dark",
+                        user_agent=config.DEFAULT_DESKTOP_USER_AGENT,
+                    )
+                else:
+                    context = browser.new_context(
+                        viewport={"width": 1280, "height": 850},
+                        color_scheme="dark",
+                        user_agent=config.DEFAULT_DESKTOP_USER_AGENT,
+                    )
 
-            # Add cookies if available
-            existing_cookies = get_stored_cookies()
-            if existing_cookies:
-                try:
-                    context.add_cookies(existing_cookies)
-                except Exception:
-                    pass
+                # Add cookies if available
+                existing_cookies = get_stored_cookies()
+                if existing_cookies:
+                    try:
+                        context.add_cookies(existing_cookies)
+                    except Exception:
+                        pass
 
-            page = context.new_page()
-            page.goto(clean_url, wait_until="domcontentloaded", timeout=30000)
-            time.sleep(3)
+                page = context.new_page()
+                response = page.goto(clean_url, wait_until="domcontentloaded", timeout=30000)
+                time.sleep(3)
 
-            if "login" in page.url:
-                browser.close()
-                return {"ok": False, "error": "Not authenticated on LinkedIn.", "method": "headless_playwright"}
+                status_code = response.status if response else None
+                is_challenged, ch_reason = check_page_for_challenges_or_auth(page, status_code=status_code)
+                if is_challenged:
+                    trigger_linkedin_circuit_breaker(f"send_connect_via_headless_browser: {ch_reason}", trigger_url=page.url)
+                    browser.close()
+                    return {"ok": False, "error": ch_reason, "status": AUTH_EXPIRED_OR_CHALLENGED, "method": "headless_playwright"}
 
-            # Check if already pending or connected
-            page_text = page.evaluate("() => document.body.innerText || ''")
-            if "Pending" in page_text and ("Withdraw" in page_text or "Invitation sent" in page_text):
-                browser.close()
-                return {"ok": True, "method": "headless_playwright", "already_pending": True}
-
-            # Locate Connect button
-            connect_btn = page.query_selector("button:has-text('Connect'), a:has-text('Connect')")
-            if not connect_btn:
-                # Check More actions dropdown
-                more_btn = page.query_selector("button[aria-label*='More actions'], button:has-text('More')")
-                if more_btn:
-                    more_btn.click()
-                    time.sleep(1)
-                    connect_btn = page.query_selector("div[role='button']:has-text('Connect'), button:has-text('Connect')")
-
-            if not connect_btn:
-                # If still not found, check if already Pending
-                if page.query_selector("button:has-text('Pending'), span:has-text('Pending')"):
+                # Check if already pending or connected
+                page_text = page.evaluate("() => document.body.innerText || ''")
+                if "Pending" in page_text and ("Withdraw" in page_text or "Invitation sent" in page_text):
                     browser.close()
                     return {"ok": True, "method": "headless_playwright", "already_pending": True}
-                browser.close()
-                return {"ok": False, "error": "Connect button not found on profile page.", "method": "headless_playwright"}
 
-            connect_btn.click()
-            time.sleep(1.5)
+                # Locate Connect button
+                connect_btn = page.query_selector("button:has-text('Connect'), a:has-text('Connect')")
+                if not connect_btn:
+                    # Check More actions dropdown
+                    more_btn = page.query_selector("button[aria-label*='More actions'], button:has-text('More')")
+                    if more_btn:
+                        more_btn.click()
+                        time.sleep(1)
+                        connect_btn = page.query_selector("div[role='button']:has-text('Connect'), button:has-text('Connect')")
 
-            if note:
-                # Click 'Add a note'
-                add_note_btn = page.query_selector("button:has-text('Add a note'), button[aria-label*='Add a note']")
-                if add_note_btn:
-                    add_note_btn.click()
-                    time.sleep(1)
+                if not connect_btn:
+                    # If still not found, check if already Pending
+                    if page.query_selector("button:has-text('Pending'), span:has-text('Pending')"):
+                        browser.close()
+                        return {"ok": True, "method": "headless_playwright", "already_pending": True}
+                    browser.close()
+                    return {"ok": False, "error": "Connect button not found on profile page.", "method": "headless_playwright"}
 
-                textarea = page.query_selector("textarea#custom-message, textarea[name='message']")
-                if textarea:
-                    textarea.fill(str(note)[:200])
-                    time.sleep(0.5)
+                connect_btn.click()
+                time.sleep(1.5)
 
-                send_btn = page.query_selector(
-                    "button[aria-label*='Send invitation'], button:has-text('Send'), button[aria-label*='Send now']"
-                )
-                if send_btn:
-                    send_btn.click()
-                    time.sleep(2)
-            else:
-                # Send without note
-                send_without_note = page.query_selector(
-                    "button[aria-label*='Send without a note'], button:has-text('Send without a note'), button:has-text('Send now'), button:has-text('Send')"
-                )
-                if send_without_note:
-                    send_without_note.click()
-                    time.sleep(2)
-                else:
-                    # In case a simple modal appears with Send
-                    gen_send = page.query_selector("button:has-text('Send')")
-                    if gen_send:
-                        gen_send.click()
+                if note:
+                    # Click 'Add a note'
+                    add_note_btn = page.query_selector("button:has-text('Add a note'), button[aria-label*='Add a note']")
+                    if add_note_btn:
+                        add_note_btn.click()
+                        time.sleep(1)
+
+                    textarea = page.query_selector("textarea#custom-message, textarea[name='message']")
+                    if textarea:
+                        textarea.fill(str(note)[:200])
+                        time.sleep(0.5)
+
+                    send_btn = page.query_selector(
+                        "button[aria-label*='Send invitation'], button:has-text('Send'), button[aria-label*='Send now']"
+                    )
+                    if send_btn:
+                        send_btn.click()
                         time.sleep(2)
+                else:
+                    # Send without note
+                    send_without_note = page.query_selector(
+                        "button[aria-label*='Send without a note'], button:has-text('Send without a note'), button:has-text('Send now'), button:has-text('Send')"
+                    )
+                    if send_without_note:
+                        send_without_note.click()
+                        time.sleep(2)
+                    else:
+                        # In case a simple modal appears with Send
+                        gen_send = page.query_selector("button:has-text('Send')")
+                        if gen_send:
+                            gen_send.click()
+                            time.sleep(2)
 
-            # Verification: check if 'Pending' appears on page
-            time.sleep(2)
-            verified_pending = page.evaluate("""() => {
-                const text = document.body.innerText || '';
-                return text.includes('Pending') || document.querySelector('button:has-text("Pending")') !== null;
-            }""")
+                # Verification: check if 'Pending' appears on page
+                time.sleep(2)
+                verified_pending = page.evaluate("""() => {
+                    const text = document.body.innerText || '';
+                    return text.includes('Pending') || document.querySelector('button:has-text("Pending")') !== null;
+                }""")
 
-            browser.close()
-            if verified_pending:
-                log.info("Headless Playwright verified 'Pending' invitation for %s", clean_url)
-                return {"ok": True, "method": "headless_playwright"}
-            else:
-                log.info("Headless Playwright completed submission for %s", clean_url)
-                return {"ok": True, "method": "headless_playwright", "verified": False}
+                browser.close()
+                if verified_pending:
+                    log.info("Headless Playwright verified 'Pending' invitation for %s", clean_url)
+                    return {"ok": True, "method": "headless_playwright"}
+                else:
+                    log.info("Headless Playwright completed submission for %s", clean_url)
+                    return {"ok": True, "method": "headless_playwright", "verified": False}
 
-        except Exception as e:
-            if browser:
-                try: browser.close()
-                except Exception: pass
-            log.warning("Headless Playwright connection error for %s: %s", clean_url, e)
-            return {"ok": False, "error": str(e), "method": "headless_playwright"}
+            except Exception as e:
+                if browser:
+                    try: browser.close()
+                    except Exception: pass
+                log.warning("Headless Playwright connection error for %s: %s", clean_url, e)
+                return {"ok": False, "error": str(e), "method": "headless_playwright"}
 
 
 def connect_in_background(profile_url: str, note: str | None = None) -> dict[str, Any]:
@@ -1438,10 +1537,11 @@ def scan_linkedin_incognito_recent_jobs(
         with sync_playwright() as p:
             browser = p.chromium.launch(
                 headless=True,
-                args=["--disable-blink-features=AutomationControlled", "--incognito"]
+                args=config.DEFAULT_STEALTH_ARGS + ["--incognito"],
             )
             context = browser.new_context(
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+                user_agent=config.DEFAULT_DESKTOP_USER_AGENT,
+                color_scheme="dark",
                 viewport={"width": 1280, "height": 800}
             )
             page = context.new_page()

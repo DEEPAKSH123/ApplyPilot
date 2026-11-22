@@ -22,7 +22,10 @@ from typing import Any
 
 from bs4 import BeautifulSoup
 
-from applypilot.apply.assistant import BRAVE_PROFILE_DIR, get_browser_executable
+from applypilot.apply.chrome import (
+    acquire_browser_lock,
+    launch_isolated_playwright_context,
+)
 from applypilot.apply.quick_tailor import process_job_link
 from applypilot.config import APP_DIR, RESUME_PATH, TAILORED_DIR, COVER_LETTER_DIR, load_env, load_profile
 from applypilot.database import get_connection
@@ -73,35 +76,27 @@ def fetch_linkedin_post_content(post_url: str) -> dict[str, Any]:
         "error": None
     }
 
-    exe_path, browser_type = get_browser_executable()
-    BRAVE_PROFILE_DIR.mkdir(parents=True, exist_ok=True)
-
     try:
-        with sync_playwright() as p:
-            launch_args = [
-                "--disable-blink-features=AutomationControlled",
-                "--no-first-run",
-                "--no-default-browser-check",
-            ]
-            context = p.chromium.launch_persistent_context(
-                user_data_dir=str(BRAVE_PROFILE_DIR.resolve()),
-                executable_path=exe_path if exe_path else None,
-                headless=True,
-                args=launch_args,
-                viewport={"width": 1280, "height": 850},
-            )
+        with acquire_browser_lock():
+            with sync_playwright() as p:
+                context = launch_isolated_playwright_context(
+                    p,
+                    headless=True,
+                    color_scheme="dark",
+                    viewport={"width": 1280, "height": 850},
+                )
 
-            existing_cookies = get_stored_cookies()
-            if existing_cookies:
-                try:
-                    context.add_cookies(existing_cookies)
-                except Exception as ce:
-                    log.warning("Could not pre-load cookies: %s", ce)
+                existing_cookies = get_stored_cookies()
+                if existing_cookies:
+                    try:
+                        context.add_cookies(existing_cookies)
+                    except Exception as ce:
+                        log.warning("Could not pre-load cookies: %s", ce)
 
-            page = context.pages[0] if context.pages else context.new_page()
-            log.info("Navigating to LinkedIn post: %s", clean_url)
-            page.goto(clean_url, wait_until="domcontentloaded", timeout=25000)
-            page.wait_for_timeout(2500)
+                page = context.pages[0] if context.pages else context.new_page()
+                log.info("Navigating to LinkedIn post: %s", clean_url)
+                page.goto(clean_url, wait_until="domcontentloaded", timeout=25000)
+                page.wait_for_timeout(2500)
 
             # Click 'see more' button if post text is truncated
             try:

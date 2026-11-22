@@ -133,7 +133,8 @@ def execute_polling_cycle(headless: bool = True) -> dict[str, Any]:
     try:
         log.info("[6/6] Syncing accepted LinkedIn referral requests...")
         from applypilot.networking.referral_tracker import sync_accepted_connections_from_linkedin
-        ref_sync = sync_accepted_connections_from_linkedin(max_check=30, headless=headless)
+        # Background sync must strictly run headless=True to avoid stealing focus
+        ref_sync = sync_accepted_connections_from_linkedin(max_check=30, headless=True)
         results["referral_accepted_new"] = ref_sync.get("matched_count", 0)
     except Exception as e:
         log.warning("Referral acceptance sync error: %s", e)

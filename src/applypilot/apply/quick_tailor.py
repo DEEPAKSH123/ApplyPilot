@@ -48,35 +48,34 @@ def fetch_job_page(url: str) -> tuple[str, str]:
         if m:
             clean_target_url = f"https://www.linkedin.com/jobs/view/{m.group(1)}/"
 
-    # Strategy 1: For LinkedIn URLs, directly use Brave profile with stored cookies
+    # Strategy 1: For LinkedIn URLs, directly use isolated Playwright profile with stored cookies
     if is_linkedin:
         try:
             from playwright.sync_api import sync_playwright
-            from applypilot.apply.assistant import BRAVE_PROFILE_DIR, get_browser_executable
+            from applypilot.apply.chrome import launch_isolated_playwright_context, acquire_browser_lock
             from applypilot.networking.linkedin import get_stored_cookies
 
-            exe_path, _ = get_browser_executable()
-            with sync_playwright() as p:
-                context = p.chromium.launch_persistent_context(
-                    user_data_dir=str(BRAVE_PROFILE_DIR.resolve()),
-                    executable_path=exe_path if exe_path else None,
-                    headless=True,
-                    args=["--disable-blink-features=AutomationControlled"]
-                )
-                cookies = get_stored_cookies()
-                if cookies:
-                    try:
-                        context.add_cookies(cookies)
-                    except Exception:
-                        pass
-                page = context.pages[0] if context.pages else context.new_page()
-                page.goto(clean_target_url, timeout=25000, wait_until="domcontentloaded")
-                time.sleep(4)
-                title_tag = page.title()
-                body_text = page.inner_text("body")
-                context.close()
-                if body_text and len(body_text) > 200:
-                    return body_text[:15000], title_tag
+            with acquire_browser_lock():
+                with sync_playwright() as p:
+                    context = launch_isolated_playwright_context(
+                        p,
+                        headless=True,
+                        color_scheme="dark",
+                    )
+                    cookies = get_stored_cookies()
+                    if cookies:
+                        try:
+                            context.add_cookies(cookies)
+                        except Exception:
+                            pass
+                    page = context.pages[0] if context.pages else context.new_page()
+                    page.goto(clean_target_url, timeout=25000, wait_until="domcontentloaded")
+                    time.sleep(4)
+                    title_tag = page.title()
+                    body_text = page.inner_text("body")
+                    context.close()
+                    if body_text and len(body_text) > 200:
+                        return body_text[:15000], title_tag
         except Exception as le:
             log.warning("LinkedIn authenticated fetch failed: %s", le)
 

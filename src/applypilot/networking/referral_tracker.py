@@ -241,46 +241,53 @@ def sync_sent_invitations_from_linkedin(max_check: int = 50, headless: bool = Tr
     This eliminates ANY manual typing or logging!
     """
     from playwright.sync_api import sync_playwright
-    from applypilot.apply.assistant import BRAVE_PROFILE_DIR, get_browser_executable
-    from applypilot.networking.linkedin import get_stored_cookies
+    from applypilot.apply.chrome import launch_isolated_playwright_context, acquire_browser_lock
+    from applypilot.networking.linkedin import (
+        get_stored_cookies,
+        is_linkedin_cooldown_active,
+        trigger_linkedin_circuit_breaker,
+        check_page_for_challenges_or_auth,
+        AUTH_EXPIRED_OR_CHALLENGED,
+    )
+
+    # Safety check: Circuit breaker
+    is_cooling, cool_reason = is_linkedin_cooldown_active()
+    if is_cooling:
+        log.warning("LinkedIn sync_sent_invitations_from_linkedin aborted: %s", cool_reason)
+        return {"status": "error", "message": f"Circuit breaker active: {cool_reason}", "synced": 0}
 
     conn = get_connection()
     init_referral_connection_tables(conn)
 
-    exe_path, _ = get_browser_executable()
-    BRAVE_PROFILE_DIR.mkdir(parents=True, exist_ok=True)
-
     sent_invites = []
     try:
-        with sync_playwright() as p:
-            launch_args = [
-                "--disable-blink-features=AutomationControlled",
-                "--no-first-run",
-                "--no-default-browser-check",
-            ]
-            context = p.chromium.launch_persistent_context(
-                user_data_dir=str(BRAVE_PROFILE_DIR.resolve()),
-                executable_path=exe_path if exe_path else None,
-                headless=headless,
-                args=launch_args,
-                viewport={"width": 1280, "height": 850},
-            )
+        with acquire_browser_lock():
+            with sync_playwright() as p:
+                context = launch_isolated_playwright_context(
+                    p,
+                    headless=headless,
+                    color_scheme="dark",
+                    viewport={"width": 1280, "height": 850},
+                )
 
-            existing_cookies = get_stored_cookies()
-            if existing_cookies:
-                try:
-                    context.add_cookies(existing_cookies)
-                except Exception:
-                    pass
+                existing_cookies = get_stored_cookies()
+                if existing_cookies:
+                    try:
+                        context.add_cookies(existing_cookies)
+                    except Exception:
+                        pass
 
-            page = context.pages[0] if context.pages else context.new_page()
-            url = "https://www.linkedin.com/mynetwork/invitation-manager/sent/"
-            page.goto(url, wait_until="domcontentloaded")
-            time.sleep(5)
+                page = context.pages[0] if context.pages else context.new_page()
+                url = "https://www.linkedin.com/mynetwork/invitation-manager/sent/"
+                response = page.goto(url, wait_until="domcontentloaded")
+                time.sleep(5)
 
-            if "login" in page.url:
-                context.close()
-                return {"status": "error", "message": "LinkedIn authentication required.", "synced": 0}
+                status_code = response.status if response else None
+                is_challenged, ch_reason = check_page_for_challenges_or_auth(page, status_code=status_code)
+                if is_challenged:
+                    trigger_linkedin_circuit_breaker(f"sync_sent_invitations: {ch_reason}", trigger_url=page.url)
+                    context.close()
+                    return {"status": "error", "message": ch_reason, "synced": 0}
 
             sent_invites = page.evaluate("""() => {
                 const results = [];
@@ -376,8 +383,20 @@ def sync_accepted_connections_from_linkedin(max_check: int = 50, headless: bool 
     and dispatches an alert (Telegram / WhatsApp).
     """
     from playwright.sync_api import sync_playwright
-    from applypilot.apply.assistant import BRAVE_PROFILE_DIR, get_browser_executable
-    from applypilot.networking.linkedin import get_stored_cookies
+    from applypilot.apply.chrome import launch_isolated_playwright_context, acquire_browser_lock
+    from applypilot.networking.linkedin import (
+        get_stored_cookies,
+        is_linkedin_cooldown_active,
+        trigger_linkedin_circuit_breaker,
+        check_page_for_challenges_or_auth,
+        AUTH_EXPIRED_OR_CHALLENGED,
+    )
+
+    # Safety check: Circuit breaker
+    is_cooling, cool_reason = is_linkedin_cooldown_active()
+    if is_cooling:
+        log.warning("LinkedIn sync_accepted_connections_from_linkedin aborted: %s", cool_reason)
+        return {"status": "error", "message": f"Circuit breaker active: {cool_reason}", "matched_count": 0, "connections_scraped": 0}
 
     conn = get_connection()
     init_referral_connection_tables(conn)
@@ -391,43 +410,40 @@ def sync_accepted_connections_from_linkedin(max_check: int = 50, headless: bool 
 
     pending_requests = [dict(r) for r in pending_rows]
 
-    exe_path, _ = get_browser_executable()
-    BRAVE_PROFILE_DIR.mkdir(parents=True, exist_ok=True)
-
     recent_connections = []
     matched = []
 
     try:
-        with sync_playwright() as p:
-            launch_args = [
-                "--disable-blink-features=AutomationControlled",
-                "--no-first-run",
-                "--no-default-browser-check",
-            ]
-            context = p.chromium.launch_persistent_context(
-                user_data_dir=str(BRAVE_PROFILE_DIR.resolve()),
-                executable_path=exe_path if exe_path else None,
-                headless=headless,
-                args=launch_args,
-                viewport={"width": 1280, "height": 850},
-            )
+        with acquire_browser_lock():
+            with sync_playwright() as p:
+                context = launch_isolated_playwright_context(
+                    p,
+                    headless=headless,
+                    color_scheme="dark",
+                    viewport={"width": 1280, "height": 850},
+                )
 
-            existing_cookies = get_stored_cookies()
-            if existing_cookies:
-                try:
-                    context.add_cookies(existing_cookies)
-                except Exception:
-                    pass
+                existing_cookies = get_stored_cookies()
+                if existing_cookies:
+                    try:
+                        context.add_cookies(existing_cookies)
+                    except Exception:
+                        pass
 
-            page = context.pages[0] if context.pages else context.new_page()
-            url = "https://www.linkedin.com/mynetwork/invite-connect/connections/"
-            page.goto(url, wait_until="domcontentloaded")
-            time_waited = 0
-            while time_waited < 6:
-                page.wait_for_timeout(1000)
-                time_waited += 1
+                page = context.pages[0] if context.pages else context.new_page()
+                url = "https://www.linkedin.com/mynetwork/invite-connect/connections/"
+                response = page.goto(url, wait_until="domcontentloaded")
+                time_waited = 0
+                while time_waited < 6:
+                    page.wait_for_timeout(1000)
+                    time_waited += 1
 
-            if "login" in page.url:
+                status_code = response.status if response else None
+                is_challenged, ch_reason = check_page_for_challenges_or_auth(page, status_code=status_code)
+                if is_challenged:
+                    trigger_linkedin_circuit_breaker(f"sync_accepted_connections: {ch_reason}", trigger_url=page.url)
+                    context.close()
+                    return {"status": "error", "message": ch_reason, "matched_count": 0, "connections_scraped": 0}
                 context.close()
                 return {"status": "error", "message": "LinkedIn authentication expired. Please sign in via Brave.", "matched_count": 0}
 
@@ -690,29 +706,27 @@ def auto_connect_referral_from_job_url(
     if not company:
         try:
             from playwright.sync_api import sync_playwright
-            from applypilot.networking.linkedin import get_stored_cookies, BRAVE_PROFILE_DIR, get_browser_executable
+            from applypilot.apply.chrome import launch_isolated_playwright_context, acquire_browser_lock
+            from applypilot.networking.linkedin import get_stored_cookies
 
-            exe_path, _ = get_browser_executable()
-            BRAVE_PROFILE_DIR.mkdir(parents=True, exist_ok=True)
+            with acquire_browser_lock():
+                with sync_playwright() as p:
+                    ctx = launch_isolated_playwright_context(
+                        p,
+                        headless=True,
+                        color_scheme="dark",
+                        viewport={"width": 1280, "height": 850},
+                    )
+                    cookies = get_stored_cookies()
+                    if cookies:
+                        try:
+                            ctx.add_cookies(cookies)
+                        except Exception:
+                            pass
 
-            with sync_playwright() as p:
-                ctx = p.chromium.launch_persistent_context(
-                    user_data_dir=str(BRAVE_PROFILE_DIR.resolve()),
-                    executable_path=exe_path if exe_path else None,
-                    headless=True,
-                    args=["--disable-blink-features=AutomationControlled"],
-                    viewport={"width": 1280, "height": 850},
-                )
-                cookies = get_stored_cookies()
-                if cookies:
-                    try:
-                        ctx.add_cookies(cookies)
-                    except Exception:
-                        pass
-
-                page = ctx.pages[0] if ctx.pages else ctx.new_page()
-                page.goto(job_url, wait_until="domcontentloaded")
-                time.sleep(4)
+                    page = ctx.pages[0] if ctx.pages else ctx.new_page()
+                    page.goto(job_url, wait_until="domcontentloaded")
+                    time.sleep(4)
 
                 extracted = page.evaluate("""() => {
                     const compEl = document.querySelector(
