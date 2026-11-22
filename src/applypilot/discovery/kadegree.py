@@ -386,9 +386,15 @@ def sync_my_referral_requests(token: str | None = None, conn=None) -> dict:
             created_at = req.get("created_at") or datetime.now(timezone.utc).isoformat()
 
             # Map KaDegree referral request status:
-            # requested -> applied (sent outreach / waiting for referrer)
-            # accepted -> interview / referral accepted
-            mapped_status = "applied" if req_status == "requested" else ("interview" if req_status == "accepted" else req_status)
+            # requested -> asked_referral (waiting for referrer)
+            # accepted  -> applied (referrer accepted referral request and submitted to internal portal)
+            # declined  -> declined
+            if req_status == "accepted":
+                mapped_status = "applied"
+            elif req_status == "requested":
+                mapped_status = "asked_referral"
+            else:
+                mapped_status = req_status
 
             cur.execute(
                 "SELECT rowid, apply_status FROM jobs WHERE (url LIKE ? OR (site LIKE ? AND title LIKE ?))",
@@ -397,7 +403,7 @@ def sync_my_referral_requests(token: str | None = None, conn=None) -> dict:
             row = cur.fetchone()
             if row:
                 rowid, cur_status = row[0], row[1]
-                if cur_status != mapped_status and cur_status != "interview":
+                if cur_status != mapped_status and cur_status not in ("interview", "oa", "rejected"):
                     cur.execute(
                         "UPDATE jobs SET apply_status = ?, application_stage = ?, applied_at = COALESCE(applied_at, ?) WHERE rowid = ?",
                         (mapped_status, mapped_status, created_at, rowid)

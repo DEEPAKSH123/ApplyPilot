@@ -581,12 +581,26 @@ def sync_gmail_job_responses(max_results: int = 20) -> list[dict[str, Any]]:
         ))
 
         # Update matching jobs status
-        if category in ("oa", "interview_selected", "referral_or_recruiter_reply"):
+        if category == "interview_selected":
             c.execute("""
                 UPDATE jobs 
                 SET apply_status = 'interview',
                     application_stage = 'interview'
                 WHERE (site LIKE ? OR url LIKE ?)
+            """, (f"%{company}%", f"%{company.lower()}%"))
+        elif category == "oa":
+            c.execute("""
+                UPDATE jobs 
+                SET apply_status = 'oa',
+                    application_stage = 'oa'
+                WHERE (site LIKE ? OR url LIKE ?)
+            """, (f"%{company}%", f"%{company.lower()}%"))
+        elif category in ("referral_or_recruiter_reply", "replied_active"):
+            c.execute("""
+                UPDATE jobs 
+                SET apply_status = 'replied_active',
+                    application_stage = 'replied_active'
+                WHERE (site LIKE ? OR url LIKE ?) AND (apply_status IS NULL OR apply_status NOT IN ('interview', 'oa', 'rejected'))
             """, (f"%{company}%", f"%{company.lower()}%"))
         elif category in ("rejected", "rejection"):
             c.execute("""
