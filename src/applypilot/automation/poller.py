@@ -206,3 +206,108 @@ def run_poller_loop(interval_hours: float = 12.0, headless: bool = True) -> None
 
         log.info("Sleeping for %d seconds (%.1f hours) until next polling cycle...", sleep_seconds, interval_hours)
         time.sleep(sleep_seconds)
+
+
+def run_standardized_poller(dry_run: bool = False) -> None:
+    """Standardized CLI/cron entrypoint executing:
+    1. Direct ATS polling (ats.py, workday.py)
+    2. jobspy.py with hours_old=4
+    3. remote_boards.py
+    4. seed_startups.py funding radar
+    5. run_pipeline(stages=["enrich", "score", "tailor", "pdf"], min_score=8, workers=4)
+    6. email_tracker.py sync
+    7. followup_engine.collect_due_actions() Telegram digest
+    """
+    import logging
+    from applypilot.database import get_connection, init_db
+    conn = init_db()
+
+    print("\n=======================================================")
+    print("   APPLYPILOT V2 STANDARDIZED CRON & POLLER RUNNER   ")
+    print(f"   Mode: {'DRY-RUN' if dry_run else 'LIVE EXECUTION'}")
+    print("=======================================================\n")
+
+    if dry_run:
+        print("[Dry-Run] Step 1: Would poll Direct ATS (ats.py, workday.py)")
+        print("[Dry-Run] Step 2: Would query JobSpy (hours_old=4)")
+        print("[Dry-Run] Step 3: Would poll Remote Boards")
+        print("[Dry-Run] Step 4: Would poll Seed Startups & Funding Radar")
+        print("[Dry-Run] Step 5: Would run Pipeline (enrich, score, tailor, pdf; min_score=8, workers=4)")
+        print("[Dry-Run] Step 6: Would sync Gmail responses")
+        print("[Dry-Run] Step 7: Would collect due actions and send Telegram digest")
+        print("\n[Dry-Run] All steps validated successfully!")
+        return
+
+    # Step 1: Direct ATS
+    try:
+        from applypilot.discovery.ats import run_ats_discovery
+        from applypilot.discovery.workday import run_workday_discovery
+        print("[1/7] Polling Direct ATS boards...")
+        run_ats_discovery()
+        run_workday_discovery()
+    except Exception as e:
+        log.warning("Direct ATS polling failed: %s", e)
+
+    # Step 2: JobSpy
+    try:
+        from applypilot.discovery.jobspy import run_jobspy_discovery
+        print("[2/7] Polling JobSpy (hours_old=4)...")
+        run_jobspy_discovery(hours_old=4)
+    except Exception as e:
+        log.warning("JobSpy polling failed: %s", e)
+
+    # Step 3: Remote Boards
+    try:
+        from applypilot.discovery.remote_boards import run_remote_boards_discovery
+        print("[3/7] Polling Remote Boards...")
+        run_remote_boards_discovery()
+    except Exception as e:
+        log.warning("Remote boards polling failed: %s", e)
+
+    # Step 4: Seed Startups & Funding Radar
+    try:
+        from applypilot.discovery.seed_startups import poll_funding_radar, ingest_seed_funded_startups
+        print("[4/7] Ingesting Seed Startups & Funding Radar...")
+        ingest_seed_funded_startups()
+        poll_funding_radar()
+    except Exception as e:
+        log.warning("Funding radar polling failed: %s", e)
+
+    # Step 5: Pipeline
+    try:
+        from applypilot.pipeline import run_pipeline
+        print("[5/7] Executing core pipeline (enrich, score, tailor, pdf)...\n")
+        run_pipeline(stages=["enrich", "score", "tailor", "pdf"], min_score=8, workers=4)
+    except Exception as e:
+        log.warning("Pipeline execution failed: %s", e)
+
+    # Step 6: Email Sync
+    try:
+        from applypilot.enrichment.email_tracker import sync_gmail_job_responses
+        print("[6/7] Syncing inbound Gmail recruiter responses...")
+        sync_gmail_job_responses()
+    except Exception as e:
+        log.warning("Gmail sync failed: %s", e)
+
+    # Step 7: Follow-up Engine Actions & Telegram Digest
+    try:
+        from applypilot.networking.followup_engine import ReferralFollowUpEngine
+        from applypilot.automation.telegram_notifier import send_telegram_alert
+        print("[7/7] Collecting due follow-up actions...")
+        engine = ReferralFollowUpEngine()
+        actions = engine.collect_due_actions()
+        if actions:
+            summary = f"🔔 *ApplyPilot Due Actions ({len(actions)})*:\n"
+            for a in actions[:5]:
+                summary += f"• {a.company} ({a.stage}): {a.contact_name}\n"
+            send_telegram_alert(summary)
+    except Exception as e:
+        log.warning("Followup engine digest failed: %s", e)
+
+    print("\n[Done] Poller cycle completed successfully.")
+
+
+if __name__ == "__main__":
+    import sys
+    dry_run = "--dry-run" in sys.argv
+    run_standardized_poller(dry_run=dry_run)

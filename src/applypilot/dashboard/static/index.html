@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ApplyPilot - Command & Review Dashboard</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <i class="fa-solid fa-plane brand-logo"></i>
+      <div>
+        <div class="brand-title">ApplyPilot</div>
+      </div>
+      <div class="status-pill">
+        <div class="pulse-dot"></div>
+        <span>Active</span>
+      </div>
+    </div>
+
+    <!-- Candidate Quick Bar -->
+    <div class="quick-bar">
+      <div class="quick-pill" onclick="copyText('8431433659', 'Phone Number')"><i class="fa-solid fa-phone"></i> 8431433659</div>
+      <div class="quick-pill" onclick="copyText('20 LPA', 'Current CTC')"><i class="fa-solid fa-indian-rupee-sign"></i> 20 LPA</div>
+      <div class="quick-pill" onclick="copyText('Immediate', 'Notice Period')"><i class="fa-solid fa-bolt"></i> Immediate</div>
+      <div class="quick-pill" onclick="triggerLinkedInIncognitoScan()" style="background: linear-gradient(135deg, #4f46e5, #3730a3); color: #fff; font-weight: 800; border: 1px solid #a5b4fc; cursor: pointer;"><i class="fa-solid fa-bolt"></i> Scan Fresh Jobs ⚡</div>
+      <div class="quick-pill" onclick="triggerBatchAutoApply()" style="background: linear-gradient(135deg, #059669, #10b981); color: #fff; font-weight: 800; cursor: pointer;"><i class="fa-solid fa-play"></i> Auto-Apply</div>
+      <div class="quick-pill" onclick="syncGmailNow()" style="cursor: pointer;"><i class="fa-solid fa-envelope-open-text"></i> Sync Gmail</div>
+      <div class="quick-pill" onclick="openScreeningCopilotModal()" style="background: linear-gradient(135deg, #4f46e5, #7c3aed); color: #fff; font-weight: 700; cursor: pointer;"><i class="fa-solid fa-robot"></i> Copilot 🤖</div>
+    </div>
+  </header>
+
+  <div class="container">
+    <!-- Hidden container preserving stat/tracker elements for JS updates to avoid console errors -->
+    <div style="display: none;">
+      <span id="stat-total">0</span>
+      <span id="stat-nine">0</span>
+      <span id="stat-high">0</span>
+      <span id="stat-approved">0</span>
+      <span id="stat-tailored">0</span>
+      <span id="stat-oa">0</span>
+      <span id="stat-responses">0</span>
+      <span id="stat-kadegree">0</span>
+      <span id="stat-applied">0</span>
+      <div id="daily-target-tracker"></div>
+      <span id="daily-streak-badge"></span>
+      <span id="tracker-resume-status"></span>
+      <div id="tracker-resume-bar"></div>
+      <span id="tracker-resume-note"></span>
+      <span id="tracker-applied-status"></span>
+      <div id="tracker-applied-bar"></div>
+      <span id="tracker-applied-note"></span>
+    </div>
+
+    <!-- Urgent OA Alert Bar -->
+    <div id="urgent-oa-alert" class="queue-banner" style="display: none; border-left: 4px solid #f59e0b;">
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <i class="fa-solid fa-triangle-exclamation" style="color: #f59e0b; font-size: 18px;"></i>
+        <div>
+          <span style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #f59e0b; font-weight: 700;">Action Required: Online Assessment Due</span>
+          <div id="urgent-oa-title" style="font-size: 14px; font-weight: 600; color: #fff; margin-top: 2px;"></div>
+        </div>
+      </div>
+      <div style="display: flex; gap: 8px; align-items: center;">
+        <a id="urgent-oa-link" href="#" target="_blank" rel="noopener noreferrer" class="btn btn-brave" style="text-decoration: none;">
+          <i class="fa-solid fa-arrow-up-right-from-square"></i> Open Assessment
+        </a>
+        <button class="btn btn-preview" onclick="setTab('responses'); filterResponsesCategory('oa');">
+          <i class="fa-solid fa-list-check"></i> View in Dashboard
+        </button>
+      </div>
+    </div>
+
+    <!-- Incognito Fresh Announcement Banner -->
+    <div id="incognito-banner" class="queue-banner" style="display: flex; background: rgba(99, 102, 241, 0.12); border-left: 4px solid #818cf8; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+      <div class="queue-banner-title" style="color: #e0e7ff;">
+        <i class="fa-solid fa-bolt" style="color: #818cf8; font-size: 16px;"></i>
+        <span><strong>Multi-Source Fresh Incognito Pipeline:</strong> Live openings from LinkedIn (< 4h & < 200 applicants), Indeed India (past 24h), and Direct ATS Fast Sweeps (PhonePe, Razorpay, Zeta, Slice, Datadog, etc.). Zero login required, strict 0-3 YOE Backend & Bengaluru filters!</span>
+      </div>
+      <button onclick="triggerLinkedInIncognitoScan()" style="background: linear-gradient(135deg, #4f46e5, #4338ca); color: #fff; border: 1px solid #818cf8; border-radius: 9999px; padding: 5px 14px; font-size: 12px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+        <i class="fa-solid fa-arrows-rotate"></i> Trigger Incognito Scan Now
+      </button>
+    </div>
+
+    <!-- Yet to Apply Announcement Banner -->
+    <div id="yet-to-apply-banner" class="queue-banner" style="display: none; background: rgba(56, 189, 248, 0.08); border-left: 4px solid #38bdf8;">
+      <div class="queue-banner-title">
+        <i class="fa-solid fa-clock-rotate-left" style="color: #38bdf8; font-size: 16px;"></i>
+        <span><strong>Yet to Apply Pipeline:</strong> High-fit roles (Score ≥ 7 & tailored resumes ready) awaiting submission, cold email, or KA referral.</span>
+      </div>
+    </div>
+
+    <!-- Fresh Posts Announcement Banner (Apply within 4 hours) -->
+    <div id="fresh-banner" class="queue-banner" style="display: none; background: rgba(245, 158, 11, 0.12); border-left: 4px solid #f59e0b;">
+      <div class="queue-banner-title" style="color: #fef08a;">
+        <i class="fa-solid fa-fire-flame-curved" style="color: #f59e0b; font-size: 16px;"></i>
+        <span><strong>Urgent Pipeline: Posted Within 4 Hours ⚡</strong> Applying within the first 4 hours gives a 4x higher recruiter view rate before ATS queues fill up!</span>
+      </div>
+    </div>
+
+    <!-- Applied Announcement Banner -->
+    <div id="applied-banner" class="queue-banner" style="display: none; background: rgba(16, 185, 129, 0.08); border-left: 4px solid #10b981;">
+      <div class="queue-banner-title">
+        <i class="fa-solid fa-circle-check" style="color: #10b981; font-size: 16px;"></i>
+        <span><strong>Applied Roles:</strong> Confirmed submissions, cold emails sent, and Gmail-acknowledged applications.</span>
+      </div>
+    </div>
+
+    <!-- Active Tab Announcement Banner -->
+    <div id="queue-banner" class="queue-banner" style="display: none;">
+      <div class="queue-banner-title">
+        <i class="fa-solid fa-check-circle" style="color: #2563eb; font-size: 16px;"></i>
+        <span><strong>Approved Queue:</strong> Qualified roles queued for submission.</span>
+      </div>
+    </div>
+
+    <!-- Gmail Response Announcement Banner -->
+    <div id="responses-banner" class="queue-banner" style="display: none;">
+      <div class="queue-banner-title">
+        <i class="fa-solid fa-envelope" style="color: #10b981; font-size: 16px;"></i>
+        <span><strong>Gmail Tracker:</strong> Monitoring interview invitations, coding tests, and recruiter responses for <code>deepakshkarkala@gmail.com</code>.</span>
+      </div>
+      <button class="btn btn-preview" onclick="syncGmailNow()">
+        <i class="fa-solid fa-arrows-rotate"></i> Sync Inbox
+      </button>
+    </div>
+
+    <!-- Tabs & Search -->
+    <div class="controls">
+      <div class="tabs">
+        <button class="tab-btn active" onclick="setTab('incognito_fresh')" style="color: #c7d2fe; font-weight: 700;">
+          <i class="fa-solid fa-bolt" style="margin-right: 5px; color: #818cf8;"></i> Fresh < 4h (< 200 Apps) ⚡
+          <span class="tab-badge" id="badge-incognito-fresh">0</span>
+        </button>
+        <button class="tab-btn" onclick="setTab('easy_apply')" style="color: #60a5fa;">
+          <i class="fa-brands fa-linkedin" style="margin-right: 5px; color: #3b82f6;"></i> Easy Apply
+          <span class="tab-badge" id="badge-easy-apply">0</span>
+        </button>
+        <button class="tab-btn" onclick="setTab('asked_referral')" style="color: #c084fc;">
+          <i class="fa-solid fa-people-arrows" style="margin-right: 5px; color: #a855f7;"></i> Asked Referral
+          <span class="tab-badge" id="badge-asked-referral">0</span>
+        </button>
+        <button class="tab-btn" onclick="setTab('applied')">
+          <i class="fa-solid fa-circle-check" style="margin-right: 5px; color: #10b981;"></i> Applied
+          <span class="tab-badge" id="badge-applied">0</span>
+        </button>
+        <button class="tab-btn" onclick="setTab('responses')">
+          <i class="fa-solid fa-envelope" style="margin-right: 5px; color: #38bdf8;"></i> Gmail Replies & OAs
+          <span class="tab-badge" id="badge-responses">0</span>
+        </button>
+        <!-- Hidden badges for unrendered tabs to avoid JS errors -->
+        <div style="display: none;">
+          <span class="tab-badge" id="badge-fresh-24h">0</span>
+          <span class="tab-badge" id="badge-yet-to-apply">0</span>
+          <span class="tab-badge" id="badge-fresh">0</span>
+          <span class="tab-badge" id="badge-ignored">0</span>
+          <span class="tab-badge" id="badge-high">0</span>
+          <span class="tab-badge" id="badge-top">0</span>
+          <span class="tab-badge" id="badge-approved">0</span>
+          <span class="tab-badge" id="badge-kadegree">0</span>
+          <span class="tab-badge" id="badge-daily-tracker">0</span>
+          <span class="tab-badge" id="badge-referral-crm">0</span>
+          <span class="tab-badge" id="badge-remote-portals">0</span>
+          <span class="tab-badge" id="badge-cold-crm">0</span>
+          <span class="tab-badge" id="badge-analytics">0</span>
+        </div>
+      </div>
+
+      <div class="search-box">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input type="text" id="search-input" placeholder="Search company, skills (Java, Go, Kafka)..." oninput="renderJobs()">
+      </div>
+
+      <!-- Sort Controls -->
+      <div style="display: flex; align-items: center; gap: 8px; margin-left: 8px;">
+        <label for="sort-select" style="font-size: 12px; font-weight: 700; color: #94a3b8; display: flex; align-items: center; gap: 4px; white-space: nowrap;">
+          <i class="fa-solid fa-arrow-down-wide-short" style="color: #38bdf8;"></i> Sort by:
+        </label>
+        <select id="sort-select" onchange="changeSort(this.value)" style="background: #1e293b; border: 1px solid #334155; color: #f1f5f9; padding: 7px 12px; border-radius: 8px; font-size: 12.5px; font-weight: 600; cursor: pointer; outline: none;">
+          <option value="recent">⚡ Most Recent First (Date/Time)</option>
+          <option value="fit">🎯 High Fit Score (10 → 1)</option>
+          <option value="oldest">⏳ Oldest / Needs Immediate Action</option>
+          <option value="company">🏢 Company Name (A-Z)</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Injected Cards -->
+    <!-- Sub-category filter pills for Gmail Tracker -->
+    <div id="resp-filter-bar" class="resp-filter-bar" style="display: none;">
+      <div class="resp-pill active" id="rp-all" onclick="filterResponsesCategory('all')"><i class="fa-solid fa-list-check"></i> All Updates (<span id="cnt-resp-all">0</span>)</div>
+      <div class="resp-pill pill-oa" id="rp-oa" onclick="filterResponsesCategory('oa')"><i class="fa-solid fa-laptop-code"></i> ⚡ Online Assessments / OAs (<span id="cnt-resp-oa">0</span>)</div>
+      <div class="resp-pill pill-interview" id="rp-interview" onclick="filterResponsesCategory('interview_selected')"><i class="fa-solid fa-trophy"></i> 🎯 Selected & Next Rounds (<span id="cnt-resp-interview">0</span>)</div>
+      <div class="resp-pill pill-rejected" id="rp-rejected" onclick="filterResponsesCategory('rejected')"><i class="fa-solid fa-circle-xmark"></i> ❌ Rejections (<span id="cnt-resp-rejected">0</span>)</div>
+      <div class="resp-pill pill-apply" id="rp-apply" onclick="filterResponsesCategory('apply_link')"><i class="fa-solid fa-link"></i> 🔗 Direct Apply Links (<span id="cnt-resp-apply">0</span>)</div>
+      <div class="resp-pill" id="rp-ack" onclick="filterResponsesCategory('acknowledged')"><i class="fa-regular fa-envelope"></i> 📬 Acknowledged (<span id="cnt-resp-ack">0</span>)</div>
+    </div>
+
+    <!-- Source Filter Bar for Job Opportunities -->
+    <div id="source-filter-bar" class="source-filter-bar">
+      <div class="source-pill active" id="src-all" onclick="filterBySource('all')">
+        <i class="fa-solid fa-layer-group"></i> All Sources (<span id="cnt-src-all">0</span>)
+      </div>
+      <div class="source-pill pill-kadegree" id="src-kadegree" onclick="filterBySource('kadegree')">
+        <i class="fa-solid fa-users-rays"></i> 🌟 KaDegree Community (<span id="cnt-src-kadegree">0</span>)
+      </div>
+      <div class="source-pill pill-linkedin" id="src-linkedin" onclick="filterBySource('linkedin')">
+        <i class="fa-brands fa-linkedin"></i> 💼 LinkedIn (<span id="cnt-src-linkedin">0</span>)
+      </div>
+      <div class="source-pill pill-whatsapp" id="src-whatsapp" onclick="filterBySource('whatsapp')">
+        <i class="fa-brands fa-whatsapp"></i> 💬 WhatsApp (<span id="cnt-src-whatsapp">0</span>)
+      </div>
+      <div class="source-pill pill-ats" id="src-ats" onclick="filterBySource('ats')">
+        <i class="fa-solid fa-building-circle-check"></i> 🏢 Direct ATS (<span id="cnt-src-ats">0</span>)
+      </div>
+      <div class="source-pill pill-seed" id="src-seed" onclick="filterBySource('seed_funded')" style="border-color: #ec4899; color: #f472b6;">
+        <i class="fa-solid fa-seedling"></i> 🚀 YC & Seed Startups (<span id="cnt-src-seed">0</span>)
+      </div>
+      <button class="btn btn-sm" id="btn-sync-ats" onclick="triggerAtsSync()" style="margin-left: auto; background: linear-gradient(135deg, #065f46, #059669); color: #fff; font-weight: 700; border-radius: 9999px; padding: 6px 14px; font-size: 11.5px; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+        <i class="fa-solid fa-arrows-rotate" id="icon-sync-ats"></i> Sync Direct ATS
+      </button>
+      <button class="btn btn-sm" id="btn-sync-kadegree" onclick="triggerKaDegreeSync()" style="background: linear-gradient(135deg, #b45309, #d97706); color: #fff; font-weight: 700; border-radius: 9999px; padding: 6px 14px; font-size: 11.5px; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+        <i class="fa-solid fa-arrows-rotate" id="icon-sync-kadegree"></i> Sync KaDegree
+      </button>
+    </div>
+
+    <!-- KaDegree Community Info Banner -->
+    <div id="kadegree-info-banner" style="display: none; background: linear-gradient(90deg, rgba(180, 83, 9, 0.35), rgba(15, 23, 42, 0.95)); border: 1.5px solid #d97706; border-radius: 12px; padding: 14px 20px; margin-bottom: 20px; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+      <div style="display: flex; align-items: center; gap: 14px;">
+        <span style="font-size: 26px;">🟡</span>
+        <div>
+          <div style="color: #fbbf24; font-weight: 800; font-size: 15px;">KaDegree (ಕನ್ನಡ Referral Community - 17k+ Tech Members)</div>
+          <div style="color: #cbd5e1; font-size: 12.5px; margin-top: 2px;">Vetted internal referrals and walk-ins shared by fellow Kannadiga engineers & verified referrers. Direct access to hiring teams.</div>
+        </div>
+      </div>
+      <div style="display: flex; gap: 10px;">
+        <button class="btn btn-sm" onclick="triggerKaDegreeSync()" style="background: linear-gradient(135deg, #b45309, #d97706); color: #fff; font-weight: 700; border-radius: 8px; padding: 8px 16px; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+          <i class="fa-solid fa-arrows-rotate" id="icon-sync-kadegree-banner"></i> Sync Live Openings ⚡
+        </button>
+        <a href="https://referral-community.kadegree.in/get" target="_blank" rel="noopener noreferrer" class="btn btn-sm" style="background: rgba(245, 158, 11, 0.2); border: 1px solid #d97706; color: #fbbf24; font-weight: 700; border-radius: 8px; padding: 8px 16px; text-decoration: none; display: flex; align-items: center; gap: 6px;">
+          <i class="fa-solid fa-arrow-up-right-from-square"></i> Open KaDegree Web
+        </a>
+      </div>
+    </div>
+
+    <!-- LinkedIn Easy Apply Info Banner -->
+    <div id="easy-apply-info-banner" style="display: none; background: linear-gradient(90deg, rgba(30, 58, 138, 0.4), rgba(15, 23, 42, 0.95)); border: 1.5px solid #3b82f6; border-radius: 12px; padding: 14px 20px; margin-bottom: 20px; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+      <div style="display: flex; align-items: center; gap: 14px;">
+        <span style="font-size: 26px;"><i class="fa-brands fa-linkedin" style="color: #60a5fa;"></i></span>
+        <div>
+          <div style="color: #93c5fd; font-weight: 800; font-size: 15px;">LinkedIn 1-Click Easy Apply Openings</div>
+          <div style="color: #cbd5e1; font-size: 12.5px; margin-top: 2px;">Direct 1-click applications via your connected Brave browser. Click "Auto-Apply (Easy Apply)" on any card to automatically fill fields, screening answers, attach your tailored resume, and submit!</div>
+        </div>
+      </div>
+      <div style="display: flex; gap: 10px;">
+        <button class="btn btn-sm" onclick="triggerLinkedInEasyApplyScan()" style="background: linear-gradient(135deg, #1d4ed8, #2563eb); color: #fff; font-weight: 700; border-radius: 8px; padding: 8px 16px; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+          <i class="fa-solid fa-arrows-rotate"></i> Scan LinkedIn Easy Apply Now ⚡
+        </button>
+      </div>
+    </div>
+
+    <div id="jobs-container" class="jobs-grid"></div>
+    <!-- Application Analytics & Lifecycle Ledger View -->
+    <div id="analytics-container" style="display: none;"></div>
+    <!-- ⚡ 30-Day Conversion Funnel, Everyday Active Time & Gemini Strategy Container -->
+    <div id="strategy-container" style="display: none;"></div>
+    <div id="daily-tracker-container" style="display: none;"></div>
+    <div id="referral-crm-container" style="display: none;"></div>
+    <div id="remote-portals-container" style="display: none;"></div>
+    <div id="cold-crm-container" style="display: none;"></div>
+  </div>
+
+  <!-- PDF Preview Modal -->
+  <div id="pdf-modal" class="modal-backdrop" onclick="if(event.target===this) closeModal()">
+    <div class="modal-content" style="max-width: 960px; width: 92%; height: 90vh;">
+      <div class="modal-header">
+        <h3 id="modal-title" style="margin: 0; font-size: 16px; font-weight: 700; color: #38bdf8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 70%;">PDF Preview</h3>
+        <div style="display: flex; gap: 10px; align-items: center;">
+          <a id="modal-open-newtab" href="#" target="_blank" rel="noopener noreferrer" class="btn" style="padding: 6px 12px; font-size: 12px; background: rgba(56, 189, 248, 0.15); border: 1px solid #38bdf8; color: #38bdf8; text-decoration: none; border-radius: 6px; display: inline-flex; align-items: center; gap: 6px;">
+            <i class="fa-solid fa-arrow-up-right-from-square"></i> Open in New Tab
+          </a>
+          <button class="modal-close" onclick="closeModal()"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+      </div>
+      <div class="modal-body" style="flex: 1; padding: 0; background: #090d16;">
+        <iframe id="pdf-frame" src="" style="width: 100%; height: 100%; border: none;"></iframe>
+      </div>
+    </div>
+  </div>
+
+  <!-- Referral & LinkedIn Outreach Modal -->
+  <div id="referral-modal" class="modal-backdrop" onclick="if(event.target===this) closeReferralModal()">
+    <div class="modal-content" style="max-width: 820px; max-height: 90vh; overflow-y: auto;">
+      <div class="modal-header" style="background: linear-gradient(90deg, #0f172a, #1e1b4b);">
+        <h3 id="referral-modal-title" style="color:#38bdf8;"><i class="fa-solid fa-people-arrows"></i> LinkedIn Referrals & Outreach</h3>
+        <button class="modal-close" onclick="closeReferralModal()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div id="referral-modal-body" style="padding: 24px; color: #cbd5e1; font-size: 14px; line-height: 1.6;"></div>
+    </div>
+  </div>
+
+    <!-- Recruiter Phone Call & Offline Response Intake Modal -->
+  <div id="log-call-modal" class="modal-backdrop" onclick="if(event.target===this) closeLogCallModal()">
+    <div class="modal-content" style="max-width: 620px;">
+      <div class="modal-header" style="background: linear-gradient(90deg, #064e3b, #0f172a);">
+        <h3 style="color:#6ee7b7;"><i class="fa-solid fa-phone"></i> Log Recruiter Call / Interview Update</h3>
+        <button class="modal-close" onclick="closeLogCallModal()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div style="padding: 24px; color: #cbd5e1; font-size: 13.5px; line-height: 1.6;">
+        <p style="margin-top:0; color: #94a3b8; font-size: 13px;">
+          Log offline recruiter phone screens, WhatsApp messages, scheduled interview rounds, or test deadlines.
+          Automatically updates the 30-day funnel, syncs to your central sheet, and blocks calendar time.
+        </p>
+        <div style="display:flex; flex-direction:column; gap: 12px; margin-bottom: 16px;">
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <div>
+              <label style="display:block; font-size: 12px; font-weight:700; color: #6ee7b7; margin-bottom: 4px;">Company *</label>
+              <input type="text" id="log-call-comp" placeholder="e.g. PhonePe / Zepto / Razorpay" style="width:100%; background:#0f172a; border:1px solid #059669; color:#fff; padding:9px 12px; border-radius:8px; font-size:13px;">
+            </div>
+            <div>
+              <label style="display:block; font-size: 12px; font-weight:700; color: #cbd5e1; margin-bottom: 4px;">Role Title</label>
+              <input type="text" id="log-call-role" placeholder="e.g. SDE-I Backend Engineer" value="SDE-I Backend Engineer" style="width:100%; background:#0f172a; border:1px solid #334155; color:#fff; padding:9px 12px; border-radius:8px; font-size:13px;">
+            </div>
+          </div>
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <div>
+              <label style="display:block; font-size: 12px; font-weight:700; color: #cbd5e1; margin-bottom: 4px;">Response / Call Type *</label>
+              <select id="log-call-type" style="width:100%; background:#0f172a; border:1px solid #334155; color:#fff; padding:9px 12px; border-radius:8px; font-size:13px;">
+                <option value="phone_screen">📞 Phone Screen / Recruiter Call</option>
+                <option value="technical_interview">🎯 Technical Interview Scheduled</option>
+                <option value="oa">⚡ Online Assessment (OA) Received</option>
+                <option value="hr_followup">🤝 HR Discussion / CTC Discussion</option>
+                <option value="offer">🏆 Offer Received</option>
+                <option value="rejection">❌ Not Selected / Rejected</option>
+              </select>
+            </div>
+            <div>
+              <label style="display:block; font-size: 12px; font-weight:700; color: #cbd5e1; margin-bottom: 4px;">Scheduled Slot / Due Date</label>
+              <input type="text" id="log-call-scheduled" placeholder="e.g. Tomorrow 4:00 PM or Nov 15" style="width:100%; background:#0f172a; border:1px solid #334155; color:#fff; padding:9px 12px; border-radius:8px; font-size:13px;">
+            </div>
+          </div>
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <div>
+              <label style="display:block; font-size: 12px; font-weight:700; color: #cbd5e1; margin-bottom: 4px;">Recruiter Name (Optional)</label>
+              <input type="text" id="log-call-recruiter" placeholder="e.g. Ananya Sen" style="width:100%; background:#0f172a; border:1px solid #334155; color:#fff; padding:9px 12px; border-radius:8px; font-size:13px;">
+            </div>
+            <div>
+              <label style="display:block; font-size: 12px; font-weight:700; color: #cbd5e1; margin-bottom: 4px;">Contact (Phone / Email)</label>
+              <input type="text" id="log-call-contact" placeholder="Phone or Email" style="width:100%; background:#0f172a; border:1px solid #334155; color:#fff; padding:9px 12px; border-radius:8px; font-size:13px;">
+            </div>
+          </div>
+          <div>
+            <label style="display:block; font-size: 12px; font-weight:700; color: #cbd5e1; margin-bottom: 4px;">Notes / Discussion Summary</label>
+            <textarea id="log-call-notes" rows="3" placeholder="What did they discuss? E.g. Notice period (Immediate), CTC (20 LPA discussed), round will focus on System Design & Concurrency in Java/Go..." style="width:100%; background:#0f172a; border:1px solid #334155; color:#fff; padding:9px 12px; border-radius:8px; font-size:13px; resize:vertical;"></textarea>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px; margin-top:4px;">
+            <input type="checkbox" id="log-call-calendar" checked style="accent-color:#10b981; width:16px; height:16px;">
+            <label for="log-call-calendar" style="font-size:12px; color:#cbd5e1; font-weight:600;">📅 Auto-block focus time on Google Calendar (remind me so I don't forget)</label>
+          </div>
+        </div>
+        <div id="log-call-status" style="display:none; margin-bottom: 14px; padding: 10px; border-radius: 8px; font-size: 12px;"></div>
+        <div style="display:flex; justify-content: flex-end; gap: 10px;">
+          <button class="btn" style="background:#334155; color:#cbd5e1;" onclick="closeLogCallModal()">Cancel</button>
+          <button class="btn" id="btn-submit-log-call" style="background: linear-gradient(135deg, #059669, #10b981); color:white; font-weight:700; padding: 9px 18px;" onclick="submitLogCall()">
+            <i class="fa-solid fa-check"></i> Save & Sync
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Application & Screening Question Copilot Modal -->
+  <div id="screening-copilot-modal" class="modal-backdrop" onclick="if(event.target===this) closeScreeningCopilotModal()">
+    <div class="modal-content" style="max-width: 720px; border: 1px solid #6366f1;">
+      <div class="modal-header" style="background: linear-gradient(90deg, #1e1b4b, #312e81);">
+        <h3 style="color:#c7d2fe; display: flex; align-items: center; gap: 8px;">
+          <i class="fa-solid fa-robot" style="color: #818cf8;"></i> Gemini Application & Screening Copilot
+        </h3>
+        <button class="modal-close" onclick="closeScreeningCopilotModal()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div style="padding: 24px; color: #cbd5e1; font-size: 13.5px; line-height: 1.6;">
+        <p style="margin-top:0; color: #94a3b8; font-size: 13px;">
+          Paste any question from an application form, ATS portal, or screening questionnaire. The copilot answers in your authentic voice using your Meesho metrics (50K+ orders/day, 95% latency reduction), RVCE background, and curated system design stories.
+        </p>
+
+        <div style="display:flex; flex-direction:column; gap: 12px; margin-bottom: 16px;">
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <div>
+              <label style="display:block; font-size: 12px; font-weight:700; color: #cbd5e1; margin-bottom: 4px;">Company Name</label>
+              <input type="text" id="copilot-comp" placeholder="e.g. Razorpay, Stripe, Cisco..." style="width:100%; background:#0f172a; border:1px solid #334155; color:#fff; padding:9px 12px; border-radius:8px; font-size:13px;">
+            </div>
+            <div>
+              <label style="display:block; font-size: 12px; font-weight:700; color: #cbd5e1; margin-bottom: 4px;">Role Title</label>
+              <input type="text" id="copilot-role" placeholder="e.g. SDE-I Backend / Software Engineer" value="SDE-I Backend Engineer" style="width:100%; background:#0f172a; border:1px solid #334155; color:#fff; padding:9px 12px; border-radius:8px; font-size:13px;">
+            </div>
+          </div>
+
+          <div>
+            <label style="display:block; font-size: 12px; font-weight:700; color: #818cf8; margin-bottom: 4px;">Screening Question Asked *</label>
+            <textarea id="copilot-question" rows="3" placeholder="e.g. 'Why do you want to work at our company?' or 'Describe a complex technical challenge you solved.' or 'What is your current notice period and YOE?'" style="width:100%; background:#0f172a; border:1px solid #4f46e5; color:#fff; padding:10px 12px; border-radius:8px; font-size:13.5px; resize:vertical; font-family:inherit;"></textarea>
+          </div>
+
+          <div>
+            <button id="copilot-submit-btn" class="btn" style="background: linear-gradient(135deg, #4f46e5, #7c3aed); color:white; font-weight:700; padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 14px rgba(79, 70, 229, 0.4);" onclick="submitScreeningCopilot()">
+              <i class="fa-solid fa-wand-magic-sparkles"></i> Generate Personalized Human Answer (Gemini)
+            </button>
+          </div>
+
+          <!-- Answer Container -->
+          <div id="copilot-answer-box" style="display: none; margin-top: 10px; background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(129, 140, 248, 0.3); border-radius: 8px; padding: 16px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <span style="font-weight: 700; font-size: 13px; color: #818cf8;">
+                <i class="fa-solid fa-sparkles"></i> Tailored Answer Ready to Paste:
+              </span>
+              <button onclick="copyCopilotAnswer()" class="btn" style="background: rgba(99, 102, 241, 0.2); border: 1px solid #6366f1; color: #c7d2fe; padding: 4px 10px; font-size: 12px; border-radius: 4px; cursor: pointer;">
+                <i class="fa-regular fa-copy"></i> Copy to Clipboard
+              </button>
+            </div>
+            <div id="copilot-answer-text" style="white-space: pre-wrap; font-size: 13.5px; color: #f8fafc; line-height: 1.6; max-height: 320px; overflow-y: auto; background: #090d16; padding: 14px; border-radius: 6px; border: 1px solid #1e293b;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ignore Reason Feedback Modal -->
+  <div id="ignore-reason-modal" class="modal-backdrop" onclick="if(event.target===this) closeIgnoreModal()">
+    <div class="modal-content" style="max-width: 520px; border: 1px solid #ef4444; box-shadow: 0 20px 40px rgba(0,0,0,0.6);">
+      <div class="modal-header" style="background: linear-gradient(90deg, #450a0a, #7f1d1d);">
+        <h3 style="color:#fecaca; display: flex; align-items: center; gap: 8px;">
+          <i class="fa-solid fa-ban" style="color: #f87171;"></i> Ignore Opportunity & Search Engine Feedback
+        </h3>
+        <button class="modal-close" onclick="closeIgnoreModal()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div style="padding: 22px; color: #cbd5e1; font-size: 13.5px; line-height: 1.5;">
+        <p style="margin-top:0; color: #94a3b8; font-size: 12.5px; margin-bottom: 14px;">
+          Why are you ignoring <strong id="ignore-job-title" style="color:#fff;">this position</strong> at <strong id="ignore-job-company" style="color:#38bdf8;">Company</strong>?
+          This feedback is logged to refine crawler filters and search rankings.
+        </p>
+        <input type="hidden" id="ignore-target-rowid" value="">
+
+        <div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px;">
+          <label style="display: flex; align-items: center; gap: 10px; background: #1e293b; padding: 10px 14px; border-radius: 8px; cursor: pointer; border: 1px solid #334155; font-size: 13px;">
+            <input type="radio" name="ignore-reason-option" value="link_broken" checked onchange="toggleCustomIgnoreInput(false)">
+            <span><i class="fa-solid fa-link-slash" style="color:#f87171; width: 18px;"></i> Link not working / Expired job</span>
+          </label>
+          <label style="display: flex; align-items: center; gap: 10px; background: #1e293b; padding: 10px 14px; border-radius: 8px; cursor: pointer; border: 1px solid #334155; font-size: 13px;">
+            <input type="radio" name="ignore-reason-option" value="experience_mismatch" onchange="toggleCustomIgnoreInput(false)">
+            <span><i class="fa-solid fa-user-clock" style="color:#fbbf24; width: 18px;"></i> Asking for more experience (Senior/Lead/Over 3 YOE)</span>
+          </label>
+          <label style="display: flex; align-items: center; gap: 10px; background: #1e293b; padding: 10px 14px; border-radius: 8px; cursor: pointer; border: 1px solid #334155; font-size: 13px;">
+            <input type="radio" name="ignore-reason-option" value="salary_low" onchange="toggleCustomIgnoreInput(false)">
+            <span><i class="fa-solid fa-indian-rupee-sign" style="color:#34d399; width: 18px;"></i> Salary below expectations (< 20 LPA)</span>
+          </label>
+          <label style="display: flex; align-items: center; gap: 10px; background: #1e293b; padding: 10px 14px; border-radius: 8px; cursor: pointer; border: 1px solid #334155; font-size: 13px;">
+            <input type="radio" name="ignore-reason-option" value="location_unrelocatable" onchange="toggleCustomIgnoreInput(false)">
+            <span><i class="fa-solid fa-location-dot" style="color:#60a5fa; width: 18px;"></i> Location not possible / Cannot relocate (Not BLR/Remote)</span>
+          </label>
+          <label style="display: flex; align-items: center; gap: 10px; background: #1e293b; padding: 10px 14px; border-radius: 8px; cursor: pointer; border: 1px solid #334155; font-size: 13px;">
+            <input type="radio" name="ignore-reason-option" value="tech_stack_mismatch" onchange="toggleCustomIgnoreInput(false)">
+            <span><i class="fa-solid fa-code" style="color:#c084fc; width: 18px;"></i> Tech stack mismatch (Not Backend / Java / Go)</span>
+          </label>
+          <label style="display: flex; align-items: center; gap: 10px; background: #1e293b; padding: 10px 14px; border-radius: 8px; cursor: pointer; border: 1px solid #334155; font-size: 13px;">
+            <input type="radio" name="ignore-reason-option" value="other" onchange="toggleCustomIgnoreInput(true)">
+            <span><i class="fa-solid fa-ellipsis" style="color:#94a3b8; width: 18px;"></i> Other reason</span>
+          </label>
+        </div>
+
+        <div id="ignore-custom-box" style="display: none; margin-bottom: 16px;">
+          <input type="text" id="ignore-custom-reason" placeholder="Type custom reason..." style="width: 100%; background: #0f172a; border: 1px solid #ef4444; color: #fff; padding: 9px 12px; border-radius: 8px; font-size: 13px;">
+        </div>
+
+        <div style="display: flex; gap: 10px; justify-content: flex-end;">
+          <button class="btn" onclick="closeIgnoreModal()" style="background: #334155; color: #fff; padding: 8px 16px; border-radius: 8px; border:none; cursor: pointer;">Cancel</button>
+          <button class="btn" onclick="confirmIgnoreWithReason()" style="background: linear-gradient(135deg, #dc2626, #991b1b); color: #fff; font-weight: 700; padding: 8px 18px; border-radius: 8px; border:none; cursor: pointer; box-shadow: 0 4px 12px rgba(220, 38, 38, 0.4);">
+            <i class="fa-solid fa-ban"></i> Confirm Ignore & Save Feedback
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Standalone Custom Recruiter Draft Modal -->
+  <div id="custom-draft-modal" class="modal-backdrop" onclick="if(event.target===this) closeCustomDraftModal()">
+    <div class="modal-content" style="max-width: 620px;">
+      <div class="modal-header" style="background: linear-gradient(90deg, #1e1b4b, #7f1d1d);">
+        <h3 style="color:#fca5a5;"><i class="fa-solid fa-envelope-circle-check"></i> Draft Recruiter Cold Email (Gmail)</h3>
+        <button class="modal-close" onclick="closeCustomDraftModal()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div style="padding: 24px; color: #cbd5e1; font-size: 13.5px; line-height: 1.6;">
+        <p style="margin-top:0; color: #94a3b8; font-size: 13px;">
+          Compose a personalized cold outreach email directly as a draft in your Gmail (<code>deepakshkarkala@gmail.com</code>) with your tailored resume attached.
+        </p>
+        <div style="display:flex; flex-direction:column; gap: 12px; margin-bottom: 16px;">
+          <div>
+            <label style="display:block; font-size: 12px; font-weight:700; color: #f87171; margin-bottom: 4px;">Recruiter / HR Email *</label>
+            <input type="email" id="custom-draft-email" placeholder="e.g. rohit.referrals@phonepe.com or careers@target.com" style="width:100%; background:#0f172a; border:1px solid #dc2626; color:#fff; padding:9px 12px; border-radius:8px; font-size:13px;">
+          </div>
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <div>
+              <label style="display:block; font-size: 12px; font-weight:700; color: #cbd5e1; margin-bottom: 4px;">Target Company</label>
+              <input type="text" id="custom-draft-comp" placeholder="e.g. PhonePe / Razorpay" style="width:100%; background:#0f172a; border:1px solid #334155; color:#fff; padding:9px 12px; border-radius:8px; font-size:13px;">
+            </div>
+            <div>
+              <label style="display:block; font-size: 12px; font-weight:700; color: #cbd5e1; margin-bottom: 4px;">Role Title</label>
+              <input type="text" id="custom-draft-role" placeholder="e.g. SDE-I Backend Engineer" style="width:100%; background:#0f172a; border:1px solid #334155; color:#fff; padding:9px 12px; border-radius:8px; font-size:13px;">
+            </div>
+          </div>
+          <div>
+            <label style="display:block; font-size: 12px; font-weight:700; color: #cbd5e1; margin-bottom: 4px;">Job / Application URL (Optional)</label>
+            <input type="url" id="custom-draft-url" placeholder="https://..." style="width:100%; background:#0f172a; border:1px solid #334155; color:#fff; padding:9px 12px; border-radius:8px; font-size:13px;">
+          </div>
+        </div>
+        <div id="custom-draft-status" style="display:none; margin-bottom: 14px; padding: 10px; border-radius: 8px; font-size: 12px;"></div>
+        <div style="display:flex; justify-content: flex-end; gap: 10px;">
+          <button class="btn" style="background:#334155; color:#cbd5e1;" onclick="closeCustomDraftModal()">Cancel</button>
+          <button class="btn" id="btn-submit-custom-draft" style="background: linear-gradient(135deg, #ea4335, #dc2626); color:white; font-weight:700; padding: 9px 16px;" onclick="submitCustomDraft('draft')">
+            <i class="fa-solid fa-file-pen"></i> Save Draft in Gmail
+          </button>
+          <button class="btn" id="btn-submit-custom-send" style="background: linear-gradient(135deg, #10b981, #059669); color:white; font-weight:700; padding: 9px 16px;" onclick="submitCustomDraft('send')">
+            <i class="fa-solid fa-paper-plane"></i> Send Email Directly
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Standalone Technical Interview Strategy & Cheat-Sheet Modal -->
+  <div id="job-link-tailor-modal" class="modal-backdrop" onclick="if(event.target===this) closeJobLinkTailorModal()">
+    <div class="modal-content" style="max-width: 860px; max-height: 92vh; overflow-y: auto;">
+      <div class="modal-header" style="background: linear-gradient(90deg, #0284c7, #1d4ed8);">
+        <h3 style="color:#ffffff;"><i class="fa-solid fa-wand-magic-sparkles"></i> Instant Job Link Intake & Tailor</h3>
+        <button class="modal-close" onclick="closeJobLinkTailorModal()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div style="padding: 24px; color: #cbd5e1; font-size: 13.5px; line-height: 1.6;">
+        <p style="margin-top:0; color: #94a3b8; font-size: 13px;">
+          Paste any external job link (LinkedIn, Greenhouse, Lever, Workday, Naukri, or Company Careers page).
+          ApplyPilot reads the JD, generates targeted referral messages, and instantly compiles an ATS-optimized tailored resume PDF.
+        </p>
+
+        <div style="display: flex; flex-direction: column; gap: 14px; margin-bottom: 18px;">
+          <div>
+            <label style="display:block; font-size: 12px; font-weight:700; color: #38bdf8; margin-bottom: 5px;">
+              Job Link (URL) *
+            </label>
+            <div style="display: flex; gap: 8px;">
+              <input type="url" id="jlink-url" placeholder="https://www.linkedin.com/jobs/view/... or careers page URL" style="flex: 1; background: #0f172a; border: 1px solid #0284c7; color: #fff; padding: 10px 14px; border-radius: 8px; font-size: 13px;">
+              <button class="btn" id="btn-jlink-process" onclick="submitJobLinkIntake()" style="background: linear-gradient(135deg, #0284c7, #2563eb); color: white; font-weight: 700; padding: 10px 20px; font-size: 13px; border-radius: 8px; border: none; cursor: pointer; white-space: nowrap;">
+                <i class="fa-solid fa-bolt"></i> Analyze & Generate
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label style="display:block; font-size: 12px; font-weight:700; color: #94a3b8; margin-bottom: 5px;">
+              Or Paste Job Description Directly (Optional fallback if page is behind login)
+            </label>
+            <textarea id="jlink-jd" placeholder="Paste JD text here (optional if URL is public)..." style="width: 100%; height: 80px; background: #0f172a; border: 1px solid #334155; color: #fff; padding: 10px; border-radius: 8px; font-size: 12px; resize: vertical;"></textarea>
+          </div>
+        </div>
+
+        <div id="jlink-loading" style="display: none; text-align: center; padding: 30px 0;">
+          <i class="fa-solid fa-spinner fa-spin fa-2x" style="color: #38bdf8;"></i>
+          <p id="jlink-loading-text" style="margin-top: 12px; color: #94a3b8; font-size: 13.5px;">Extracting Job Description from URL & tailoring resume...</p>
+        </div>
+
+        <!-- Result Box -->
+        <div id="jlink-result" style="display: none; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 20px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dedicated LinkedIn Post Intake Modal -->
+  <div id="linkedin-post-modal" class="modal-backdrop" onclick="if(event.target===this) closeLinkedInPostModal()">
+    <div class="modal-content" style="max-width: 880px; max-height: 92vh; overflow-y: auto;">
+      <div class="modal-header" style="background: linear-gradient(90deg, #0a66c2, #1e3a8a);">
+        <h3 style="color:#ffffff;"><i class="fa-brands fa-linkedin"></i> LinkedIn Hiring Post Intake & Action Engine</h3>
+        <button class="modal-close" onclick="closeLinkedInPostModal()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div style="padding: 24px; color: #cbd5e1; font-size: 13.5px; line-height: 1.6;">
+        <p style="margin-top:0; color: #94a3b8; font-size: 13px;">
+          Give any LinkedIn post link (or paste recruiter post text). ApplyPilot inspects the post, extracts recruiter emails or Google Forms / apply links, compiles a tailored resume PDF, and prepares a ready-to-send cold email draft in Gmail.
+        </p>
+
+        <div style="display: flex; flex-direction: column; gap: 14px; margin-bottom: 18px;">
+          <div>
+            <label style="display:block; font-size: 12px; font-weight:700; color: #38bdf8; margin-bottom: 5px;">
+              LinkedIn Post Link (URL) *
+            </label>
+            <div style="display: flex; gap: 8px;">
+              <input type="url" id="lpost-url" placeholder="https://www.linkedin.com/feed/update/urn:li:activity:... or /posts/..." style="flex: 1; background: #0f172a; border: 1px solid #0a66c2; color: #fff; padding: 10px 14px; border-radius: 8px; font-size: 13px;">
+              <button class="btn" id="btn-lpost-process" onclick="submitLinkedInPostIntake()" style="background: linear-gradient(135deg, #0a66c2, #2563eb); color: white; font-weight: 700; padding: 10px 20px; font-size: 13px; border-radius: 8px; border: none; cursor: pointer; white-space: nowrap;">
+                <i class="fa-solid fa-bolt"></i> Inspect Post & Tailor
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label style="display:block; font-size: 12px; font-weight:700; color: #94a3b8; margin-bottom: 5px;">
+              Or Paste Post Text (Optional fallback if post is private or login-restricted)
+            </label>
+            <textarea id="lpost-text" placeholder="e.g. 'We are hiring for SDE-1 Backend at Swiggy! Fill this form: https://forms.gle/... or email resume to careers@swiggy.com'..." style="width: 100%; height: 80px; background: #0f172a; border: 1px solid #334155; color: #fff; padding: 10px; border-radius: 8px; font-size: 12px; resize: vertical;"></textarea>
+          </div>
+        </div>
+
+        <div id="lpost-loading" style="display: none; text-align: center; padding: 30px 0;">
+          <i class="fa-solid fa-spinner fa-spin fa-2x" style="color: #38bdf8;"></i>
+          <p id="lpost-loading-text" style="margin-top: 12px; color: #94a3b8; font-size: 13.5px;">Navigating to LinkedIn post, extracting recruiter contacts & compiling tailored resume...</p>
+        </div>
+
+        <!-- Result Box -->
+        <div id="lpost-result" style="display: none; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 20px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="cheatsheet-modal" class="modal-backdrop" onclick="if(event.target===this) closeCheatsheetModal()">
+    <div class="modal-content" style="max-width: 820px; max-height: 90vh; overflow-y: auto;">
+      <div class="modal-header" style="background: linear-gradient(90deg, #3b0764, #1e1b4b);">
+        <h3 style="color:#d8b4fe;"><i class="fa-solid fa-bolt"></i> <span id="cheatsheet-modal-title">Technical Interview Cheat-Sheet</span></h3>
+        <button class="modal-close" onclick="closeCheatsheetModal()"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div id="cheatsheet-content" style="padding: 24px; color: #cbd5e1; font-size: 13.5px; line-height: 1.6;">
+        <div style="text-align: center; padding: 40px 0;">
+          <i class="fa-solid fa-spinner fa-spin fa-2x" style="color: #a855f7;"></i>
+          <p style="margin-top: 12px; color: #94a3b8;">Synthesizing deep system design questions and Deepak's Meesho silver-bullet talking points...</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<div id="toast" class="toast"></div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

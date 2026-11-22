@@ -76,6 +76,36 @@ You speak in Deepak's authentic, first-person voice ('I', 'my').
 """
 
 
+
+QA_MEMORY_FILE = APP_DIR / "data" / "qa_memory.json"
+
+def _get_qa_memory() -> dict:
+    if QA_MEMORY_FILE.exists():
+        try:
+            return json.loads(QA_MEMORY_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            return {}
+    return {}
+
+def _save_qa_memory(data: dict) -> None:
+    try:
+        QA_MEMORY_FILE.parent.mkdir(parents=True, exist_ok=True)
+        QA_MEMORY_FILE.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    except Exception as e:
+        log.warning("Could not save qa_memory.json: %s", e)
+
+# Hardcoded common patterns for instant 0ms resolution
+DEFAULT_QA_PATTERNS = {
+    r"notice\s*period": "Immediate to 15 days (negotiable)",
+    r"current\s*ctc": "Confidential / As per industry standards",
+    r"expected\s*ctc": "Market standard for SDE-1 / Competitive",
+    r"current\s*location": "Bengaluru, India",
+    r"preferred\s*location": "Bengaluru / Remote",
+    r"years\s*of\s*experience|yoe": "1.5+ years of production experience (Backend / SDE-I)",
+    r"willing\s*to\s*relocate": "Yes, open to Bengaluru or Remote roles",
+    r"work\s*authorization": "Authorized to work in India (Citizen)",
+}
+
 def answer_screening_question(
     question: str,
     company: str = "",
@@ -86,6 +116,17 @@ def answer_screening_question(
     """Generate a highly personalized, human answer to any application form question using Gemini."""
     if not question or not question.strip():
         return {"status": "error", "message": "Question is required."}
+
+    q_clean = question.strip().lower()
+    mem = _get_qa_memory()
+    # Check exact cached questions
+    if q_clean in mem:
+        return {"status": "ok", "answer": mem[q_clean], "source": "qa_memory_cache", "model": "local_0ms"}
+
+    # Check common regex patterns
+    for pat, ans in DEFAULT_QA_PATTERNS.items():
+        if re.search(pat, q_clean):
+            return {"status": "ok", "answer": ans, "source": "qa_memory_heuristic", "model": "local_0ms"}
 
     # Enrich with curated company cheat sheet if available
     company_context = ""

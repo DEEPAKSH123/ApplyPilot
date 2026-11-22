@@ -4,10 +4,12 @@ Directly queries official public job board APIs for verified employers.
 Zero browser automation, pure HTTP/JSON.
 """
 
+import html
 import logging
 import re
 import sqlite3
 import time
+import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
@@ -63,6 +65,8 @@ def _scrape_greenhouse(employer_key: str, emp: dict, accept_locs: list[str], rej
 
     matched = []
     for j in raw_jobs:
+        if j.get("isListed") is False:
+            continue
         title = j.get("title", "")
         if not _title_ok(title, exclude_titles):
             continue
@@ -78,7 +82,11 @@ def _scrape_greenhouse(employer_key: str, emp: dict, accept_locs: list[str], rej
 
         apply_url = j.get("absolute_url", "")
         raw_content = j.get("content", "")
-        full_desc = strip_html(raw_content) if raw_content else ""
+        if raw_content:
+            raw_content = html.unescape(raw_content)
+            full_desc = strip_html(raw_content)
+        else:
+            full_desc = ""
 
         is_over_exp, exp_reason = check_experience_exceeds(f"{title} {full_desc}", max_years=3)
         if is_over_exp:
@@ -111,6 +119,9 @@ def _scrape_lever(employer_key: str, emp: dict, accept_locs: list[str], reject_l
     try:
         with httpx.Client(headers=HEADERS, timeout=6) as client:
             r = client.get(api_url)
+            if r.status_code == 404:
+                eu_url = f"https://api.eu.lever.co/v0/postings/{slug}?mode=json"
+                r = client.get(eu_url)
         if r.status_code != 200:
             log.warning("Lever [%s] HTTP %d", name, r.status_code)
             return []
@@ -222,7 +233,7 @@ def _scrape_ashby(employer_key: str, emp: dict, accept_locs: list[str], reject_l
     is_exc, _ = is_company_excluded(name)
     if is_exc or is_company_excluded(slug)[0]:
         return []
-    api_url = emp.get("api_url") or f"https://api.ashbyhq.com/posting-api/job-board/{slug}"
+    api_url = emp.get("api_url") or f"https://api.ashbyhq.com/posting-api/job-board/{slug}?includeCompensation=true"
 
     try:
         with httpx.Client(headers=HEADERS, timeout=8) as client:
@@ -238,6 +249,8 @@ def _scrape_ashby(employer_key: str, emp: dict, accept_locs: list[str], reject_l
 
     matched = []
     for j in raw_jobs:
+        if j.get("isListed") is False:
+            continue
         title = j.get("title", "")
         if not _title_ok(title, exclude_titles):
             continue
@@ -274,6 +287,147 @@ def _scrape_ashby(employer_key: str, emp: dict, accept_locs: list[str], reject_l
 
     return matched
 
+
+
+
+def _scrape_personio(employer_key: str, emp: dict, accept_locs: list[str], reject_locs: list[str],
+                      max_days_old: int, exclude_titles: list[str]) -> list[dict]:
+    """Fetch and filter jobs from Personio XML feed."""
+    slug = emp.get("slug")
+    name = emp.get("name", employer_key)
+    is_exc, _ = is_company_excluded(name)
+    if is_exc or is_company_excluded(slug)[0]:
+        return []
+    api_url = emp.get("api_url") or f"https://{slug}.jobs.personio.de/xml"
+
+    try:
+        with httpx.Client(headers=HEADERS, timeout=8) as client:
+            r = client.get(api_url)
+        if r.status_code != 200:
+            log.warning("Personio [%s] HTTP %d", name, r.status_code)
+            return []
+        root = ET.fromstring(r.content)
+    except Exception as e:
+        log.error("Personio [%s] error: %s", name, e)
+        return []
+
+    matched = []
+    for pos in root.findall(".//position"):
+        title_el = pos.find("name")
+        title = title_el.text if title_el is not None and title_el.text else ""
+        if not _title_ok(title, exclude_titles):
+            continue
+
+        office_el = pos.find("office")
+        loc = office_el.text if office_el is not None and office_el.text else ""
+        if not _location_ok(loc, accept_locs, reject_locs):
+            continue
+
+        job_id_el = pos.find("id")
+        job_id = job_id_el.text if job_id_el is not None else ""
+        apply_url = f"https://{slug}.jobs.personio.de/job/{job_id}"
+
+        matched.append({
+            "title": title,
+            "site": name,
+            "location": loc,
+            "url": apply_url,
+            "application_url": apply_url,
+            "full_description": None,
+            "description": title,
+            "strategy": "personio_xml",
+        })
+    return matched
+
+
+def _scrape_recruitee(employer_key: str, emp: dict, accept_locs: list[str], reject_locs: list[str],
+                       max_days_old: int, exclude_titles: list[str]) -> list[dict]:
+    """Fetch and filter jobs from Recruitee JSON API."""
+    slug = emp.get("slug")
+    name = emp.get("name", employer_key)
+    is_exc, _ = is_company_excluded(name)
+    if is_exc or is_company_excluded(slug)[0]:
+        return []
+    api_url = emp.get("api_url") or f"https://{slug}.recruitee.com/api/offers/"
+
+    try:
+        with httpx.Client(headers=HEADERS, timeout=8) as client:
+            r = client.get(api_url)
+        if r.status_code != 200:
+            log.warning("Recruitee [%s] HTTP %d", name, r.status_code)
+            return []
+        data = r.json()
+        offers = data.get("offers", []) if isinstance(data, dict) else (data if isinstance(data, list) else [])
+    except Exception as e:
+        log.error("Recruitee [%s] error: %s", name, e)
+        return []
+
+    matched = []
+    for o in offers:
+        title = o.get("title", "")
+        if not _title_ok(title, exclude_titles):
+            continue
+
+        loc = o.get("location", "") or o.get("city", "")
+        if not _location_ok(loc, accept_locs, reject_locs):
+            continue
+
+        apply_url = o.get("careers_url") or f"https://{slug}.recruitee.com/o/{o.get('slug')}"
+        desc = strip_html(o.get("description", ""))
+
+        matched.append({
+            "title": title,
+            "site": name,
+            "location": loc,
+            "url": apply_url,
+            "application_url": apply_url,
+            "full_description": desc if desc else None,
+            "description": desc[:500] if desc else title,
+            "strategy": "recruitee_api",
+        })
+    return matched
+
+
+def detect_ats_board(company_slug: str) -> dict | None:
+    """Probe Greenhouse, Lever, and Ashby in order for a company slug.
+    Returns dict like {'provider': 'greenhouse', 'slug': slug, 'url': ...} or None.
+    """
+    slug = company_slug.strip().lower()
+    if not slug:
+        return None
+
+    try:
+        with httpx.Client(headers=HEADERS, timeout=5) as client:
+            # 1. Greenhouse
+            gh_url = f"https://boards-api.greenhouse.io/v1/boards/{slug}/jobs?content=false"
+            try:
+                r = client.get(gh_url)
+                if r.status_code == 200 and len(r.json().get("jobs", [])) > 0:
+                    return {"provider": "greenhouse", "slug": slug, "url": gh_url}
+            except Exception:
+                pass
+
+            # 2. Lever
+            lever_url = f"https://api.lever.co/v0/postings/{slug}?mode=json"
+            try:
+                r = client.get(lever_url)
+                if r.status_code == 200 and isinstance(r.json(), list) and len(r.json()) > 0:
+                    return {"provider": "lever", "slug": slug, "url": lever_url}
+            except Exception:
+                pass
+
+            # 3. Ashby
+            ashby_url = f"https://api.ashbyhq.com/posting-api/job-board/{slug}"
+            try:
+                r = client.get(ashby_url)
+                if r.status_code == 200 and len(r.json().get("jobs", [])) > 0:
+                    return {"provider": "ashby", "slug": slug, "url": ashby_url}
+            except Exception:
+                pass
+    except Exception as e:
+        log.debug("detect_ats_board probe error for %s: %s", slug, e)
+
+    return None
 
 # ── Main ATS Runner ───────────────────────────────────────────────────────
 

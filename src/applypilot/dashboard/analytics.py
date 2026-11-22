@@ -347,3 +347,74 @@ def get_application_analytics() -> dict[str, Any]:
         "timeline": unified_entries,
         "csv_data": csv_output.getvalue()
     }
+
+
+def get_skills_demand(conn=None) -> list[dict]:
+    """Query top recurring required backend skills from Score 8+ jobs over trailing 7 days."""
+    import json
+    from collections import Counter
+    from datetime import datetime, timedelta, timezone
+    from applypilot.database import get_connection
+
+    if conn is None:
+        conn = get_connection()
+
+    # Canonical backend tags to track
+    canonical = ["Java", "Golang", "Kafka", "Redis", "PostgreSQL", "MySQL", "Kubernetes", "Docker", "System Design", "Microservices"]
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+
+    c = conn.cursor()
+    # Check if required_skills column exists
+    c.execute("PRAGMA table_info(jobs)")
+    cols = [r[1] for r in c.fetchall()]
+    
+    counts = Counter()
+    
+    if "required_skills" in cols:
+        query = """
+            SELECT required_skills, description, title
+            FROM jobs
+            WHERE fit_score >= 8 AND (discovered_at >= ? OR updated_at >= ?)
+        """
+        try:
+            c.execute(query, (cutoff, cutoff))
+            rows = c.fetchall()
+        except Exception:
+            rows = []
+    else:
+        query = """
+            SELECT description, title
+            FROM jobs
+            WHERE fit_score >= 8
+        """
+        try:
+            c.execute(query)
+            rows = c.fetchall()
+        except Exception:
+            rows = []
+
+    for row in rows:
+        req = None
+        if "required_skills" in cols and row[0]:
+            try:
+                req = json.loads(row[0])
+            except Exception:
+                req = None
+        if req and isinstance(req, list):
+            for s in req:
+                counts[s] += 1
+        else:
+            text = ((row["description"] or "") + " " + (row["title"] or "")).lower()
+            for s in canonical:
+                if s.lower() in text:
+                    counts[s] += 1
+
+    top3 = counts.most_common(3)
+    if not top3:
+        # Defaults for display
+        return [
+            {"skill": "Golang", "count": 0},
+            {"skill": "Java", "count": 0},
+            {"skill": "Kafka", "count": 0}
+        ]
+    return [{"skill": skill, "count": count} for skill, count in top3]

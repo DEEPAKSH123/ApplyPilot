@@ -148,6 +148,18 @@ def parse_entries(text: str) -> list[dict]:
 
 # ── HTML Template ────────────────────────────────────────────────────────
 
+
+def bold_key_metrics(text: str) -> str:
+    """Wrap key numeric metrics (e.g. 95%, 150K+, 1,000 RPS, 40%, 300 ms, 35%) in <strong> tags."""
+    if not text:
+        return ""
+    pattern = r'(\b\d+(?:,\d+)*(?:\.\d+)?(?:%|\+|\s*RPS|\s*ms|\s*K\+)?\b)'
+    # Bold specific high-impact patterns
+    metrics = [r'95%', r'150K\+', r'1,000\s*RPS', r'40%', r'300\s*ms', r'35%', r'2-3h', r'50-60h']
+    for m in metrics:
+        text = re.sub(f'\\b({m})\\b', r'<strong>\\1</strong>', text, flags=re.IGNORECASE)
+    return text
+
 def build_html(resume: dict) -> str:
     """Build professional resume HTML from parsed data.
 
@@ -174,7 +186,7 @@ def build_html(resume: dict) -> str:
         entries = parse_entries(sections["EXPERIENCE"])
         items = ""
         for e in entries:
-            bullets = "".join(f"<li>{b}</li>" for b in e["bullets"])
+            bullets = "".join(f"<li>{bold_key_metrics(b)}</li>" for b in e["bullets"])
             subtitle = f'<div class="entry-subtitle">{e["subtitle"]}</div>' if e["subtitle"] else ""
             items += f'<div class="entry"><div class="entry-title">{e["title"]}</div>{subtitle}<ul>{bullets}</ul></div>'
         exp_html = f'<div class="section"><div class="section-title">Experience</div>{items}</div>'
@@ -185,7 +197,7 @@ def build_html(resume: dict) -> str:
         entries = parse_entries(sections["PROJECTS"])
         items = ""
         for e in entries:
-            bullets = "".join(f"<li>{b}</li>" for b in e["bullets"])
+            bullets = "".join(f"<li>{bold_key_metrics(b)}</li>" for b in e["bullets"])
             subtitle = f'<div class="entry-subtitle">{e["subtitle"]}</div>' if e["subtitle"] else ""
             items += f'<div class="entry"><div class="entry-title">{e["title"]}</div>{subtitle}<ul>{bullets}</ul></div>'
         proj_html = f'<div class="section"><div class="section-title">Projects</div>{items}</div>'
@@ -204,6 +216,8 @@ def build_html(resume: dict) -> str:
     # Contact line parsing
     contact = resume["contact"]
     contact_parts = [p.strip() for p in contact.split("|")] if contact else []
+    if not any("github.com/DEEPAKSH123" in p.lower() for p in contact_parts):
+        contact_parts.append('<a href="https://github.com/DEEPAKSH123">github.com/DEEPAKSH123</a>')
     contact_html = " &nbsp;|&nbsp; ".join(contact_parts)
 
     # Location line (may be empty)

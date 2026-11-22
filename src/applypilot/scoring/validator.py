@@ -262,6 +262,12 @@ def validate_tailored_resume(text: str, profile: dict, original_text: str = "") 
             if fake in text_lower and fake not in original_lower:
                 warnings.append(f"New tool/skill appeared: '{fake}' (not in original)")
 
+    # 8b. Conciseness check: warn or auto-condense any tailored bullet exceeding 220 characters (~2 lines)
+    for line in text.splitlines():
+        line_s = line.strip()
+        if (line_s.startswith("-") or line_s.startswith("*") or line_s.startswith("•")) and len(line_s) > 220:
+            warnings.append(f"Bullet exceeds 220 chars ({len(line_s)} chars): '{line_s[:40]}...' - may hurt 7.4s scannability")
+
     # 9. Em dashes (should be auto-fixed by sanitize_text, but safety net)
     if "\u2014" in text or "\u2013" in text:
         errors.append("Contains em dash or en dash.")

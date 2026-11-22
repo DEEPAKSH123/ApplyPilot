@@ -550,3 +550,47 @@ def draft_for_job(rowid: int, custom_recipient: str | None = None, pitch_style: 
         body_markdown=email_data["body_markdown"],
         attachment_path=tailored_path,
     )
+
+
+GENERIC_EMAIL_PREFIXES = {"jobs@", "careers@", "hr@", "info@", "talent@", "hiring@", "recruiting@"}
+
+def generate_founder_pitch(
+    recipient_email: str,
+    recipient_name: str,
+    company: str,
+    product_focus: str = "",
+    tech_stack: str = "Golang / Distributed Systems",
+) -> dict:
+    """Generate a sub-80-word direct pitch to a Founder/CTO/EM.
+    Strict structure:
+    1. Hook referencing product focus or engineering challenge
+    2. Concrete Meesho backend proof point (e.g., Go concurrency & adaptive RPS 50-60h to 2-3h, or 150K+ orders/day at 1000 RPS)
+    3. Live link (github.com/DEEPAKSH123) and single ask for a 15-minute technical chat.
+    Rejects generic prefixes (jobs@, careers@, hr@, info@, talent@).
+    Strictly <= 80 words.
+    """
+    email_clean = recipient_email.strip().lower()
+    for prefix in GENERIC_EMAIL_PREFIXES:
+        if email_clean.startswith(prefix):
+            raise ValueError(f"Rejected generic email prefix '{prefix}' - founder pitches must target a named person.")
+
+    first_name = recipient_name.strip().split()[0] if recipient_name.strip() else "there"
+    hook = f"Noticed {company}'s work on {product_focus}." if product_focus else f"Following {company}'s engineering journey closely."
+
+    # Verifiable Meesho proof point
+    proof = "At Meesho, I built Go microservices with adaptive RPS handling 150K+ daily orders (~1,000 RPS) and cut reconciliation from 50+ hours to 2 hours with 40% fewer DB lookups."
+
+    body = f"Hi {first_name},\n\n{hook} {proof}\n\nCode & architecture: https://github.com/DEEPAKSH123\n\nOpen to a 15-min technical chat next week?"
+
+    words = body.split()
+    if len(words) > 80:
+        # Condense if needed
+        body = f"Hi {first_name},\n\n{hook} At Meesho, I scaled Go services handling 150K+ daily orders (~1,000 RPS) and cut DB queries by 40%.\n\nProjects: https://github.com/DEEPAKSH123\n\nOpen for a 15-min chat next week?"
+        words = body.split()
+
+    return {
+        "subject": f"Backend Engineer for {company} / Deepak Karkala",
+        "body": body,
+        "word_count": len(words),
+        "recipient": recipient_email,
+    }

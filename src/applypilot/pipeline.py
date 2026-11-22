@@ -221,11 +221,44 @@ def _run_enrich(workers: int = 1) -> dict:
         return {"status": f"error: {e}"}
 
 
+
+import json
+CANONICAL_SKILLS = ["Java", "Golang", "Kafka", "Redis", "PostgreSQL", "MySQL", "Kubernetes", "Docker", "System Design", "Microservices"]
+
+def extract_required_skills(description: str) -> list[str]:
+    """Extract canonical backend skills from a job description."""
+    if not description:
+        return []
+    desc_lower = description.lower()
+    matched = []
+    for skill in CANONICAL_SKILLS:
+        if skill.lower() in desc_lower:
+            matched.append(skill)
+    return matched
+
+
 def _run_score() -> dict:
     """Stage: LLM scoring — assign fit scores 1-10."""
     try:
         from applypilot.scoring.scorer import run_scoring
-        return run_scoring()
+        res = run_scoring()
+        # Populate required_skills on scored jobs
+        try:
+            from applypilot.database import get_connection, ensure_columns
+            conn = get_connection()
+            ensure_columns(conn)
+            c = conn.cursor()
+            c.execute("SELECT url, description, full_description FROM jobs WHERE required_skills IS NULL OR required_skills = ''")
+            rows = c.fetchall()
+            for r in rows:
+                full_desc = (r["full_description"] or "") + " " + (r["description"] or "")
+                skills = extract_required_skills(full_desc)
+                if skills:
+                    c.execute("UPDATE jobs SET required_skills = ? WHERE url = ?", (json.dumps(skills), r["url"]))
+            conn.commit()
+        except Exception as e:
+            log.warning("Error populating required_skills: %s", e)
+        return res
     except Exception as e:
         log.error("Scoring failed: %s", e)
         return {"status": f"error: {e}"}

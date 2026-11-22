@@ -426,6 +426,10 @@ def get_full_email_body(payload: dict) -> str:
 def sync_gmail_job_responses(max_results: int = 20) -> list[dict[str, Any]]:
     """Query Gmail for recent job application emails, classify them, and update SQLite."""
     init_email_responses_table()
+    # Dual-Email Sync Safety check
+    sync_accounts = os.environ.get("GMAIL_SYNC_ACCOUNTS", "").strip()
+    if not sync_accounts:
+        log.info("Dual-Email Sync Guardrail: Polling primary account. Ensure auto-forwarding from deepaksh.apply@gmail.com -> deepakshkarkala@gmail.com is configured.")
 
     gmail_bin = find_gmail_cli()
     if not gmail_bin:

@@ -33,6 +33,61 @@ from applypilot.config import APP_DIR, LOG_DIR
 
 # Logging configuration
 LOG_FILE = LOG_DIR / "naukri_updater.log"
+
+LOCK_FILE = APP_DIR / "data" / "naukri.lock"
+
+def acquire_naukri_lock() -> bool:
+    """Acquire lockfile with PID and timestamp.
+    If stale (< 30 min old or PID dead), clears stale lock automatically.
+    """
+    try:
+        LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
+        if LOCK_FILE.exists():
+            try:
+                data = json.loads(LOCK_FILE.read_text(encoding="utf-8"))
+                lock_pid = data.get("pid")
+                lock_time = data.get("timestamp", 0)
+                # Check age
+                age_minutes = (time.time() - lock_time) / 60
+                pid_alive = False
+                if lock_pid:
+                    try:
+                        import psutil
+                        pid_alive = psutil.pid_exists(lock_pid)
+                    except Exception:
+                        # Fallback for Windows
+                        try:
+                            import ctypes
+                            kernel32 = ctypes.windll.kernel32
+                            handle = kernel32.OpenProcess(1, False, lock_pid)
+                            if handle != 0:
+                                kernel32.CloseHandle(handle)
+                                pid_alive = True
+                        except Exception:
+                            pid_alive = False
+
+                if age_minutes > 30 or not pid_alive:
+                    log.warning("Clearing stale Naukri lock (PID %s, age %.1f min)", lock_pid, age_minutes)
+                    LOCK_FILE.unlink(missing_ok=True)
+                else:
+                    log.info("Naukri updater already running (PID %s, age %.1f min). Skipping.", lock_pid, age_minutes)
+                    return False
+            except Exception as e:
+                log.warning("Error inspecting lockfile: %s. Overwriting.", e)
+
+        LOCK_FILE.write_text(json.dumps({"pid": os.getpid(), "timestamp": time.time()}), encoding="utf-8")
+        return True
+    except Exception as e:
+        log.warning("Could not acquire lock: %s", e)
+        return True
+
+def release_naukri_lock() -> None:
+    """Release Naukri lockfile."""
+    try:
+        LOCK_FILE.unlink(missing_ok=True)
+    except Exception:
+        pass
+
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 logger = logging.getLogger("naukri_updater")

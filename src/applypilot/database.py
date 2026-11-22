@@ -46,9 +46,10 @@ def get_connection(db_path: Path | str | None = None) -> sqlite3.Connection:
         except sqlite3.ProgrammingError:
             pass
 
-    conn = sqlite3.connect(path, timeout=30)
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA busy_timeout=10000")
+    conn = sqlite3.connect(path, timeout=30.0)
+    conn.execute("PRAGMA journal_mode = WAL;")
+    conn.execute("PRAGMA synchronous = NORMAL;")
+    conn.execute("PRAGMA busy_timeout = 30000;")
     conn.row_factory = sqlite3.Row
     _local.connections[path] = conn
     return conn
@@ -143,6 +144,7 @@ def init_db(db_path: Path | str | None = None) -> sqlite3.Connection:
     ensure_columns(conn)
     init_auxiliary_tables(conn)
     init_referral_followup_state(conn)
+    init_funding_leads_table(conn)
     try:
         from applypilot.networking.cold_email_tracker import init_cold_email_tables
         init_cold_email_tables(conn)
@@ -279,6 +281,7 @@ _ALL_COLUMNS: dict[str, str] = {
     "calendar_event_link": "TEXT",
     "num_applicants": "INTEGER",
     "ignore_reason": "TEXT",
+    "required_skills": "TEXT",
 }
 
 
@@ -769,3 +772,25 @@ def prune_old_jobs(days: int = 15, conn: "sqlite3.Connection | None" = None) -> 
     deleted = result.rowcount
     log.info("prune_old_jobs: removed %d stale jobs older than %d days (cutoff=%s)", deleted, days, cutoff)
     return {"deleted": deleted, "threshold_date": cutoff, "days": days}
+
+
+def init_funding_leads_table(conn: sqlite3.Connection) -> None:
+    """Initialize funding_leads table for startup radar."""
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS funding_leads (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            lead_hash TEXT UNIQUE NOT NULL,
+            company TEXT NOT NULL,
+            source TEXT NOT NULL,
+            headline TEXT NOT NULL,
+            article_url TEXT NOT NULL,
+            round_amount TEXT DEFAULT '',
+            product_focus TEXT DEFAULT '',
+            target_team_pitch TEXT DEFAULT '',
+            ats_provider TEXT DEFAULT '',
+            ats_slug TEXT DEFAULT '',
+            status TEXT NOT NULL DEFAULT 'NEW',
+            discovered_at TEXT NOT NULL
+        )
+    """)
+    conn.commit()

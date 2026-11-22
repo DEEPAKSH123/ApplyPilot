@@ -180,7 +180,14 @@ def _urlopen(req, timeout=30):
 
 def workday_search(employer: dict, search_text: str, limit: int = 20, offset: int = 0) -> dict:
     """Search jobs via Workday CXS API. Returns JSON with total + jobPostings."""
-    url = f"{employer['base_url']}/wday/cxs/{employer['tenant']}/{employer['site_id']}/jobs"
+    # Workday hard cap: limit > 20 returns HTTP 400
+    if limit > 20:
+        limit = 20
+    base_url = employer['base_url'].rstrip('/')
+    # Strip locale segments like /en-US/ if present
+    base_url = re.sub(r'/[a-z]{2}-[A-Z]{2}(?=/|$)', '', base_url)
+    site_id = re.sub(r'^[a-z]{2}-[A-Z]{2}/', '', employer['site_id'])
+    url = f"{base_url}/wday/cxs/{employer['tenant']}/{site_id}/jobs"
     payload = json.dumps({
         "appliedFacets": {},
         "limit": limit,

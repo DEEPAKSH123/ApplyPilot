@@ -300,7 +300,7 @@ class ReferralFollowUpEngine:
                    status, email_used, contact_name, contact_handle,
                    created_at, last_action_at, followup_count, next_due_at
             FROM referral_followup_state
-            WHERE status IN ('REFERRAL_HOLD', 'REFERRAL_REQUESTED', 'APPLIED', 'FOLLOWUP_1_SENT')
+            WHERE status IN ('REFERRAL_HOLD', 'REFERRAL_REQUESTED', 'APPLIED', 'FOLLOWUP_1_SENT', 'OA_OR_SCREEN_PENDING', 'INTERVIEW_ROUND_COMPLETED')
               AND next_due_at IS NOT NULL
               AND next_due_at <= ?
             ORDER BY next_due_at ASC
@@ -321,7 +321,26 @@ class ReferralFollowUpEngine:
             chandle = r["contact_handle"]
             due_at = r["next_due_at"]
 
-            if st == "REFERRAL_HOLD":
+            if st == "OA_OR_SCREEN_PENDING":
+                stage = "OA_COMPLETION_REMINDER"
+                email_to_use = r["email_used"] or self.primary_email
+                template_text = f"OA / AI-screen completion reminder for {comp} ({title}). Target 48-hour completion deadline approaching."
+            elif st == "INTERVIEW_ROUND_COMPLETED":
+                if f_count == 0:
+                    stage = "THANK_YOU_NOTE"
+                    email_to_use = r["email_used"] or self.primary_email
+                    template_text = f"Hi {cname},\n\nThank you for taking the time to speak with me today about the {title} role at {comp}. I really enjoyed learning more about the team and remain very excited about the opportunity.\n\nBest regards,\nDeepak S H"
+                elif f_count == 1:
+                    stage = "POST_INTERVIEW_DAY_3"
+                    email_to_use = r["email_used"] or self.primary_email
+                    template_text = f"Hi {cname},\n\nFollowing up on our interview last week for the {title} role at {comp}. Wanted to check if there are any updates or additional information I can provide.\n\nBest regards,\nDeepak S H"
+                elif f_count == 2:
+                    stage = "POST_INTERVIEW_FINAL"
+                    email_to_use = r["email_used"] or self.primary_email
+                    template_text = f"Hi {cname},\n\nFinal check-in regarding the {title} position at {comp}. Thanks again for the opportunity to interview with your team.\n\nBest regards,\nDeepak S H"
+                else:
+                    continue
+            elif st == "REFERRAL_HOLD":
                 stage = "HOUR_48_FALLBACK_APPLY"
                 email_to_use = self.secondary_email
                 template_text = (
@@ -393,7 +412,58 @@ class ReferralFollowUpEngine:
         status = row["status"]
         count = row["followup_count"]
 
-        if status == "REFERRAL_HOLD":
+        if status == "OA_OR_SCREEN_PENDING":
+            conn.execute(
+                """
+                UPDATE referral_followup_state
+                SET status = 'OA_COMPLETED',
+                    last_action_at = ?,
+                    next_due_at = NULL
+                WHERE job_id = ?
+                """,
+                (now_iso, str(job_id)),
+            )
+        elif status == "INTERVIEW_ROUND_COMPLETED":
+            new_count = count + 1
+            if new_count == 1:
+                # T + 3 business days (~72h)
+                next_due = (now_dt + timedelta(days=3)).isoformat()
+                conn.execute(
+                    """
+                    UPDATE referral_followup_state
+                    SET followup_count = ?,
+                        last_action_at = ?,
+                        next_due_at = ?
+                    WHERE job_id = ?
+                    """,
+                    (new_count, now_iso, next_due, str(job_id)),
+                )
+            elif new_count == 2:
+                # T + 10 business days (~7 days after day 3)
+                next_due = (now_dt + timedelta(days=7)).isoformat()
+                conn.execute(
+                    """
+                    UPDATE referral_followup_state
+                    SET followup_count = ?,
+                        last_action_at = ?,
+                        next_due_at = ?
+                    WHERE job_id = ?
+                    """,
+                    (new_count, now_iso, next_due, str(job_id)),
+                )
+            else:
+                conn.execute(
+                    """
+                    UPDATE referral_followup_state
+                    SET status = 'OFFER_OR_CLOSED',
+                        followup_count = ?,
+                        last_action_at = ?,
+                        next_due_at = NULL
+                    WHERE job_id = ?
+                    """,
+                    (new_count, now_iso, str(job_id)),
+                )
+        elif status == "REFERRAL_HOLD":
             conn.execute(
                 """
                 UPDATE referral_followup_state
@@ -455,6 +525,51 @@ class ReferralFollowUpEngine:
         return dict(row)
 
 
+
+
+    def trigger_oa_pending(self, job_id: str, now: datetime | str | None = None) -> None:
+        """Move job into OA_OR_SCREEN_PENDING state with next_due_at = now + 48h."""
+        conn = self._get_conn()
+        now_dt = _parse_iso(_to_iso(now)) if now is not None else datetime.now(timezone.utc)
+        due_dt = (now_dt + timedelta(hours=48)).isoformat()
+        conn.execute("""
+            UPDATE referral_followup_state
+            SET status = 'OA_OR_SCREEN_PENDING',
+                next_due_at = ?,
+                last_action_at = ?
+            WHERE job_id = ?
+        """, (due_dt, now_dt.isoformat(), str(job_id)))
+        conn.commit()
+
+    def mark_interview_completed(self, job_id: str, contact_name: str = "", now: datetime | str | None = None) -> None:
+        """Move job into INTERVIEW_ROUND_COMPLETED state:
+        Sets stage for T+2h thank-you note draft.
+        """
+        conn = self._get_conn()
+        now_dt = _parse_iso(_to_iso(now)) if now is not None else datetime.now(timezone.utc)
+        due_dt = (now_dt + timedelta(hours=2)).isoformat()
+        conn.execute("""
+            UPDATE referral_followup_state
+            SET status = 'INTERVIEW_ROUND_COMPLETED',
+                contact_name = CASE WHEN ? != '' THEN ? ELSE contact_name END,
+                followup_count = 0,
+                next_due_at = ?,
+                last_action_at = ?
+            WHERE job_id = ?
+        """, (contact_name, contact_name, due_dt, now_dt.isoformat(), str(job_id)))
+        conn.commit()
+
+    def mark_offer_or_closed(self, job_id: str, final_status: str = 'OFFER_OR_CLOSED') -> None:
+        """Terminal state: clears next_due_at."""
+        conn = self._get_conn()
+        conn.execute("""
+            UPDATE referral_followup_state
+            SET status = ?,
+                next_due_at = NULL
+            WHERE job_id = ?
+        """, (final_status, str(job_id)))
+        conn.commit()
+
 def sync_state_from_email_response(
     conn: sqlite3.Connection,
     company: str,
@@ -498,7 +613,24 @@ def sync_state_from_email_response(
     updated_count = 0
     cat_lower = category.lower()
 
-    if cat_lower in ("interview", "oa", "referral_or_recruiter_reply", "offer"):
+    if cat_lower == "oa":
+        new_status = "OA_OR_SCREEN_PENDING"
+        next_due = (datetime.now(timezone.utc) + timedelta(hours=48)).isoformat()
+        for r in rows:
+            cursor.execute(
+                """
+                UPDATE referral_followup_state
+                SET status = ?,
+                    next_due_at = ?,
+                    last_action_at = ?
+                WHERE job_id = ?
+                """,
+                (new_status, next_due, now_iso, r["job_id"]),
+            )
+            updated_count += 1
+        conn.commit()
+        return updated_count
+    elif cat_lower in ("interview", "referral_or_recruiter_reply", "offer"):
         new_status = "REPLIED_ACTIVE"
         for r in rows:
             cursor.execute(
