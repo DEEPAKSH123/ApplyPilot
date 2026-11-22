@@ -98,12 +98,17 @@ class DashboardHandler(SimpleHTTPRequestHandler):
     def do_GET(self):
         try:
             self._handle_do_GET()
+        except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError):
+            pass
         except Exception as e:
             log.exception(f"Unhandled error in do_GET: {e}")
-            self.send_response(500)
-            self.send_header("Content-Type", "application/json; charset=utf-8")
-            self.end_headers()
-            self.wfile.write(json.dumps({"status": "error", "message": str(e)}).encode("utf-8"))
+            try:
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(json.dumps({"status": "error", "message": str(e)}).encode("utf-8"))
+            except Exception:
+                pass
 
     def _handle_do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
@@ -130,6 +135,15 @@ class DashboardHandler(SimpleHTTPRequestHandler):
 
         elif path == "/static/app.js":
             content = _get_static_file("app.js")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/javascript; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(content)
+            return
+
+        elif path == "/static/lucide.min.js":
+            content = _get_static_file("lucide.min.js")
             self.send_response(200)
             self.send_header("Content-Type", "application/javascript; charset=utf-8")
             self.send_header("Cache-Control", "no-store")
@@ -668,12 +682,17 @@ class DashboardHandler(SimpleHTTPRequestHandler):
     def do_POST(self):
         try:
             self._handle_do_POST()
+        except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError):
+            pass
         except Exception as e:
             log.exception(f"Unhandled error in do_POST: {e}")
-            self.send_response(500)
-            self.send_header("Content-Type", "application/json; charset=utf-8")
-            self.end_headers()
-            self.wfile.write(json.dumps({"status": "error", "message": str(e)}).encode("utf-8"))
+            try:
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(json.dumps({"status": "error", "message": str(e)}).encode("utf-8"))
+            except Exception:
+                pass
 
     def _handle_do_POST(self):
         parsed = urllib.parse.urlparse(self.path)

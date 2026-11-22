@@ -524,14 +524,14 @@ async function fetchOutreachSummary() {
     const res = await fetch('/api/referral_crm/summary');
     if (!res.ok) return;
     const data = await res.json();
-    const reqs = data.requests || [];
+    const reqs = data.requests || data.recent_requests || [];
     setBadge('badge-outreach', reqs.length);
 
     const mTot = document.getElementById('crm-total-requests');
-    if (mTot) mTot.textContent = data.total_requests || reqs.length || 0;
+    if (mTot) mTot.textContent = (data.metrics && data.metrics.total_requested) || data.total_requests || reqs.length || 0;
 
     const mAcc = document.getElementById('crm-accepted-requests');
-    if (mAcc) mAcc.textContent = data.accepted_count || 0;
+    if (mAcc) mAcc.textContent = (data.metrics && data.metrics.total_accepted) || data.accepted_count || 0;
 
     const mCold = document.getElementById('crm-cold-emails');
     if (mCold) mCold.textContent = data.cold_outreach_count || 0;
