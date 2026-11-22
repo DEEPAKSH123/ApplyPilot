@@ -928,14 +928,22 @@ def compose_referral_dm(
                             typed = True
                             log.info("Successfully typed message into LinkedIn chat box!")
 
-                            # Highlight the send button
-                            page.evaluate("""() => {
-                                const btn = document.querySelector('button.msg-form__send-button, button[type="submit"].msg-form__send-btn');
-                                if (btn) {
-                                    btn.style.outline = '3px solid #10b981';
-                                    btn.style.boxShadow = '0 0 16px #10b981';
+                            # Auto-send message directly
+                            sent_ok = page.evaluate("""() => {
+                                const btn = document.querySelector('button.msg-form__send-button, button[type="submit"].msg-form__send-btn, button[aria-label*="Send message"]');
+                                if (btn && !btn.disabled) {
+                                    btn.click();
+                                    return true;
                                 }
+                                return false;
                             }""")
+                            if sent_ok:
+                                log.info("Successfully clicked Send in LinkedIn chat box!")
+                                time.sleep(1.5)
+                            else:
+                                page.keyboard.press("Control+Enter")
+                                log.info("Dispatched Control+Enter to send message!")
+                                time.sleep(1.5)
                     except Exception as me:
                         log.warning("Could not auto-type in inline chat: %s", me)
 
@@ -976,9 +984,8 @@ def compose_referral_dm(
                 except Exception as ce:
                     log.warning("Could not fill connection note: %s", ce)
 
-            # Keep browser alive for human review and click
-            log.info("Assisted DM composer active on screen. Pausing for Deepak's review...")
-            time.sleep(180) # Keep browser open for 3 minutes for review
+            # Keep browser briefly to allow network request to flush
+            time.sleep(4)
             try:
                 context.close()
             except Exception:
@@ -990,7 +997,7 @@ def compose_referral_dm(
 
     return {
         "status": "ok",
-        "message": f"Assisted DM composer active for {first_name or 'connection'}! Message pre-typed and ready to Send.",
+        "message": f"✓ 1-Click DM sent to {first_name or 'connection'}!",
         "copied_to_clipboard": True
     }
 
@@ -1056,8 +1063,8 @@ def send_connect_via_api(profile_url: str, note: str | None = None) -> dict[str,
         return {"ok": False, "error": f"Voyager profile lookup failed: {e}", "method": "voyager_api"}
 
     if resp.status_code != 200:
-        if resp.status_code in (401, 403, 429):
-            trigger_linkedin_circuit_breaker(f"Voyager profile lookup returned {resp.status_code}", trigger_url=profile_api_url)
+        if resp.status_code == 401:
+            trigger_linkedin_circuit_breaker("Voyager profile lookup returned 401 (auth expired)", trigger_url=profile_api_url)
             return {
                 "ok": False,
                 "error": f"Voyager profile lookup returned status {resp.status_code}: {resp.text[:200]}",
@@ -1119,7 +1126,7 @@ def send_connect_via_api(profile_url: str, note: str | None = None) -> dict[str,
         log.info("Invitation to %s already pending or recently sent (CANT_RESEND_YET)", slug)
         return {"ok": True, "method": "voyager_api", "target_urn": target_urn, "note": "CANT_RESEND_YET"}
 
-    if inv_resp.status_code in (401, 403, 429):
+    if inv_resp.status_code in (401, 429):
         trigger_linkedin_circuit_breaker(f"Voyager invite POST returned {inv_resp.status_code}", trigger_url=invite_url)
         return {
             "ok": False,
@@ -1209,14 +1216,14 @@ def send_connect_via_headless_browser(profile_url: str, note: str | None = None)
                     return {"ok": True, "method": "headless_playwright", "already_pending": True}
                 return {"ok": False, "error": "Connect button not found on profile page.", "method": "headless_playwright"}
 
-            connect_btn.click()
+            connect_btn.click(force=True)
             time.sleep(1.5)
 
             if note:
                 # Click 'Add a note'
                 add_note_btn = page.query_selector("button:has-text('Add a note'), button[aria-label*='Add a note']")
                 if add_note_btn:
-                    add_note_btn.click()
+                    add_note_btn.click(force=True)
                     time.sleep(1)
 
                 textarea = page.query_selector("textarea#custom-message, textarea[name='message'], textarea")
@@ -1228,7 +1235,7 @@ def send_connect_via_headless_browser(profile_url: str, note: str | None = None)
                     "button[aria-label*='Send invitation'], button:has-text('Send invitation'), button:has-text('Send now'), button:has-text('Send')"
                 )
                 if send_btn:
-                    send_btn.click()
+                    send_btn.click(force=True)
                     time.sleep(2)
             else:
                 # Send without note
@@ -1236,13 +1243,13 @@ def send_connect_via_headless_browser(profile_url: str, note: str | None = None)
                     "button[aria-label*='Send without a note'], button:has-text('Send without a note'), button:has-text('Send now'), button:has-text('Send')"
                 )
                 if send_without_note:
-                    send_without_note.click()
+                    send_without_note.click(force=True)
                     time.sleep(2)
                 else:
                     # In case a simple modal appears with Send
                     gen_send = page.query_selector("button:has-text('Send')")
                     if gen_send:
-                        gen_send.click()
+                        gen_send.click(force=True)
                         time.sleep(2)
 
             # Verification: check if 'Pending' appears on page
