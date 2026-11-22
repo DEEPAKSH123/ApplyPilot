@@ -445,7 +445,7 @@ def sync_accepted_connections_from_linkedin(max_check: int = 50, headless: bool 
                     context.close()
                     return {"status": "error", "message": ch_reason, "matched_count": 0, "connections_scraped": 0}
                 context.close()
-                return {"status": "error", "message": "LinkedIn authentication expired. Please sign in via Brave.", "matched_count": 0}
+                return {"status": "error", "message": "LinkedIn authentication expired. Please run applypilot linkedin-login.", "matched_count": 0}
 
             # Extract recent connections list from page
             extracted = page.evaluate("""() => {
@@ -653,14 +653,14 @@ def auto_connect_referral_from_job_url(
       3. For each found person:
          a. Record them in referral_connection_requests (status='discovered').
          b. If send_connection=True → call compose_referral_dm(..., action_type='connect')
-            to open Brave, pre-fill the connection note, and let Deepak click Send.
+            to pre-fill the connection note, and let Deepak click Send.
       4. Return summary dict.
 
     Args:
         job_url:         LinkedIn job posting URL.
         max_people:      Max connections to surface (default 5).
-        headless:        Whether to scrape job details headlessly (default False = show Brave).
-        send_connection: If True, opens Brave for each person to send a connection request.
+        headless:        Whether to scrape job details headlessly (default True).
+        send_connection: If True, sends connection request for each person.
                          If False (default), only discovers and records — no browser pop-ups.
 
     Returns:

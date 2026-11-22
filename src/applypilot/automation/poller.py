@@ -1,7 +1,7 @@
 """Automated Community & Inbound Poller for ApplyPilot.
 
 Runs scheduled or on-demand cycles across:
-1. Live WhatsApp Web monitoring (using synced Brave profile session)
+1. Live WhatsApp Web monitoring (using isolated profile session)
 2. Telegram Tech & Referral Channels (@placementlelo, @offcampusjobs4u, etc.)
 3. Inbound Recruiter Gmail sync (Interviews, OAs, Rejections, Offers)
 4. Export and synchronization to data/opportunities.csv and SQLite
@@ -52,7 +52,7 @@ def execute_polling_cycle(headless: bool = True) -> dict[str, Any]:
     try:
         log.info("[2/3] Ingesting WhatsApp chat export files...")
         wa_folder_count = ingest_whatsapp_folder()
-        log.info("[2/3] Polling live WhatsApp Web via Brave profile...")
+        log.info("[2/3] Polling live WhatsApp Web...")
         wa_live_count = scrape_live_whatsapp_web(headless=headless, wait_timeout_sec=40)
         results["whatsapp_jobs_new"] = wa_folder_count + wa_live_count
     except Exception as e:

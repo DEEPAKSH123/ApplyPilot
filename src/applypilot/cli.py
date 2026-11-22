@@ -206,7 +206,7 @@ def apply(
 
     effective_limit = limit if limit is not None else (0 if continuous else 5)
 
-    console.print("\n[bold green]⚡ Launching Autonomous Auto-Apply Engine (Playwright + Brave)[/bold green]")
+    console.print("\n[bold green]⚡ Launching Autonomous Auto-Apply Engine (Playwright)[/bold green]")
     console.print(f"  Limit:      {'unlimited' if continuous else effective_limit}")
     console.print(f"  Min Score:  {min_score}")
     console.print(f"  Headless:   {headless}")
@@ -350,10 +350,10 @@ def whatsapp_cmd(
     timeout: int = typer.Option(45, "--timeout", "-t", help="Timeout in seconds to wait for WhatsApp Web login"),
     headless: bool = typer.Option(False, "--headless", help="Run browser in headless background mode"),
 ) -> None:
-    """Connect to WhatsApp Web via Brave to monitor specified channels for hiring referrals."""
+    """Connect to WhatsApp Web to monitor specified channels for hiring referrals."""
     _bootstrap()
     from applypilot.discovery.whatsapp import scrape_live_whatsapp_web
-    console.print("[bold green]Starting WhatsApp Web channel monitor in Brave...[/bold green]")
+    console.print("[bold green]Starting WhatsApp Web channel monitor...[/bold green]")
     count = scrape_live_whatsapp_web(wait_timeout_sec=timeout, headless=headless)
     console.print(f"[bold cyan]WhatsApp sync complete! Ingested {count} new opportunities.[/bold cyan]")
 
@@ -373,7 +373,7 @@ def kadegree_cmd() -> None:
     """Sync openings from KaDegree (Kannada Referral Community) directly into ApplyPilot."""
     _bootstrap()
     from applypilot.discovery.kadegree import sync_kadegree_jobs
-    console.print("[bold green]Connecting to KaDegree Referral Community via Brave session...[/bold green]")
+    console.print("[bold green]Connecting to KaDegree Referral Community...[/bold green]")
     res = sync_kadegree_jobs()
     if res.get("status") == "ok":
         console.print(
@@ -569,10 +569,10 @@ def linkedin_dm_cmd(
     name: str = typer.Option("", "--name", "-n", help="Connection first name"),
     template: str = typer.Option("referral", "--template", "-t", help="Template type ('referral' or 'alumni')"),
 ) -> None:
-    """Launch Brave, navigate to connection profile, and auto-type personalized referral DM."""
+    """Launch browser, navigate to connection profile, and auto-type personalized referral DM."""
     _bootstrap()
     from applypilot.networking.linkedin import compose_referral_dm
-    console.print(f"[bold cyan]Launching Brave & composing referral DM for:[/bold cyan] {profile_url}")
+    console.print(f"[bold cyan]Launching browser & composing referral DM for:[/bold cyan] {profile_url}")
     res = compose_referral_dm(
         profile_url=profile_url,
         company=company,
@@ -805,14 +805,14 @@ def export(
 def naukri_update(
     resume: Optional[str] = typer.Option(None, "--resume", "-r", help="Path to resume PDF file to upload."),
     headed: bool = typer.Option(False, "--headed", help="Run browser in visible headed mode."),
-    login: bool = typer.Option(False, "--login", help="Open Brave to log in to Naukri and save session."),
+    login: bool = typer.Option(False, "--login", help="Open browser to log in to Naukri and save session."),
 ) -> None:
     """Re-upload resume on Naukri to update profile freshness and boost recruiter ranking."""
     _bootstrap()
     from applypilot.automation.naukri_updater import login_interactive, update_naukri_resume
 
     if login:
-        console.print("[cyan]Opening Brave browser for Naukri authentication...[/cyan]")
+        console.print("[cyan]Opening browser for Naukri authentication...[/cyan]")
         res = login_interactive()
         if res.get("status") == "success":
             console.print(f"[green]✓ {res.get('message')}[/green]")
@@ -900,7 +900,7 @@ def analyze_cmd(
     table.add_row("Today's Active Search Time", f"{act['today_active_minutes']} mins", "Daily logged browsing/applying")
     table.add_row("Weekly Search Time", f"{act['weekly_active_hours']} hrs", "Last 7 days active usage")
     table.add_row("Time per Application", f"{act['avg_mins_per_app']} mins", f"vs {act['manual_mins_per_app']} mins manual (7.3x faster)")
-    table.add_row("Heavy Time Saved (30d)", f"{act['hours_saved_30d']} hours", "JIT LaTeX tailoring + Brave autofill")
+    table.add_row("Heavy Time Saved (30d)", f"{act['hours_saved_30d']} hours", "JIT LaTeX tailoring + browser autofill")
     table.add_row("Fully Applied (ATS submitted)", str(f["fully_applied"]), "Verified submissions")
     table.add_row("Half Applied (In progress / autofill)", str(f["half_applied"]), "Forms started, awaiting manual review")
     table.add_row("Approved in Queue", str(f["approved_pending"]), "Ready to apply")

@@ -1,7 +1,7 @@
 """KaDegree (Kannada Referral Community) Job Ingestion Pipeline.
 
 Connects to KaDegree's referral platform (https://referral-community.kadegree.in)
-using the candidate's authenticated session from Brave browser, discovers internal
+using the candidate's authenticated session, discovers internal
 referral openings and shared walk-in/portal jobs posted by Kannadiga tech professionals,
 and ingests high-match SDE-I / Backend roles directly into ApplyPilot.
 """
@@ -27,7 +27,7 @@ BASE_URL = "https://referral-community.kadegree.in/api"
 
 
 def get_krc_token() -> str | None:
-    """Retrieve KaDegree auth token from token cache or Brave browser local storage."""
+    """Retrieve KaDegree auth token from token cache."""
     # 1. Check cached token file
     if TOKEN_FILE.exists():
         try:
@@ -39,47 +39,7 @@ def get_krc_token() -> str | None:
         except Exception as e:
             log.debug("Could not read token from %s: %s", TOKEN_FILE, e)
 
-    # 2. Extract dynamically from Brave's Local Storage leveldb
-    local_app_data = os.environ.get("LOCALAPPDATA", "")
-    brave_ls = os.path.join(
-        local_app_data,
-        "BraveSoftware",
-        "Brave-Browser",
-        "User Data",
-        "Default",
-        "Local Storage",
-        "leveldb",
-    )
-
-    if os.path.exists(brave_ls):
-        for fpath in glob.glob(os.path.join(brave_ls, "*")):
-            if fpath.endswith(".log") or fpath.endswith(".ldb"):
-                try:
-                    with open(fpath, "rb") as f:
-                        data = f.read()
-                    idx = 0
-                    while True:
-                        idx = data.find(b"krc_token", idx)
-                        if idx == -1:
-                            break
-                        raw = data[idx : idx + 450]
-                        m = re.search(
-                            rb"eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+",
-                            raw,
-                        )
-                        if m:
-                            tok = m.group(0).decode("ascii")
-                            # Verify valid length
-                            if len(tok) >= 150:
-                                try:
-                                    with open(TOKEN_FILE, "w", encoding="utf-8") as tf:
-                                        json.dump({"token": tok}, tf)
-                                except Exception:
-                                    pass
-                                return tok
-                        idx += 1
-                except Exception:
-                    continue
+    # 2. Return None if not in token file
     return None
 
 
@@ -305,8 +265,8 @@ def sync_kadegree_jobs(conn=None) -> dict:
     """Sync openings from KaDegree, persist to SQLite DB and export opportunities.csv."""
     token = get_krc_token()
     if not token:
-        log.error("Could not obtain KaDegree community auth token. Ensure Brave is logged in.")
-        return {"status": "error", "message": "KaDegree token not found. Please log into KaDegree in Brave."}
+        log.error("Could not obtain KaDegree community auth token.")
+        return {"status": "error", "message": "KaDegree token not found in token file."}
 
     openings = fetch_all_community_openings(token)
     if not openings:

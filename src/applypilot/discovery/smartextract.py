@@ -861,20 +861,8 @@ def _run_one_site(name: str, url: str) -> dict:
              collect_time, len(intel["json_ld"]), len(intel["api_responses"]),
              len(intel["data_testids"]), len(intel["card_candidates"]))
 
-    # Headful retry if page content is tiny
+    # Background discovery enforces strictly headless execution
     full_html = intel.get("full_html", "")
-    cleaned_check = clean_page_html(full_html) if full_html else ""
-    _captcha_signals = ["captcha", "are you a human", "verify you", "unusual requests",
-                        "access denied", "please verify", "bot detection"]
-    _is_captcha = any(s in full_html.lower() for s in _captcha_signals) if full_html else False
-    if len(cleaned_check) < 5000 and full_html and not _is_captcha:
-        log.info("Cleaned HTML only %s chars -- retrying headful...", f"{len(cleaned_check):,}")
-        intel = collect_page_intelligence(url, headless=False)
-        collect_time = time.time() - t0
-        log.info("Headful done in %.1fs | JSON-LD: %d | API: %d",
-                 collect_time, len(intel["json_ld"]), len(intel["api_responses"]))
-    elif _is_captcha:
-        log.warning("CAPTCHA/rate-limit detected -- skipping headful retry")
 
     # Step 1.5: Judge filters API responses
     if intel["api_responses"]:

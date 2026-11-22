@@ -1,7 +1,7 @@
 """LinkedIn Post Parser & Intelligent Application Intake Agent.
 
 Processes individual LinkedIn post URLs (e.g. /feed/update/urn:li:activity:... or /posts/...):
-- Fetches post content via authenticated Playwright session (using stored cookies / Brave profile).
+- Fetches post content via authenticated Playwright session (using stored cookies / isolated profile).
 - Fallbacks to BeautifulSoup / HTTP or manual post text input if session or auth blocks.
 - Extracts author info, company name, role title, requirements, recruiter emails, and Google Forms / external application URLs.
 - Synthesizes personalized recruiter outreach email and pre-configures 1-click Gmail draft with tailored resume attached.
@@ -296,7 +296,7 @@ def process_linkedin_post(post_url: str, manual_text: str = "") -> dict[str, Any
         pitch_style="quick_pitch"
     )
 
-    # Pre-generate 1-click Gmail Web Compose URL (for active Brave browser)
+    # Pre-generate 1-click Gmail Web Compose URL (for active browser)
     web_compose_url = (
         f"https://mail.google.com/mail/?view=cm&fs=1"
         f"&to={urllib.parse.quote(recruiter_email)}"

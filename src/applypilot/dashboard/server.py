@@ -3,7 +3,7 @@
 High-energy, cyber-sleek UI with:
 - Glassmorphism, energetic gradients, and micro-interactions.
 - On-Demand (JIT) Resume Tailoring & Tectonic PDF Compilation in 4 seconds.
-- Direct Live Brave integration (opens in existing Brave browser with resume copied to clipboard).
+- Direct Live browser integration (opens in existing default browser with resume copied to clipboard).
 - LinkedIn Referral & Connection Outreach generator with 1-click searches.
 - Approved Shortlist Queue for focused daily applications.
 - Celebratory confetti on application submit.
@@ -35,38 +35,23 @@ from applypilot.scoring.jit_tailor import tailor_single_job
 log = logging.getLogger(__name__)
 
 PORT = 8765
-BRAVE_EXE = r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe"
 
 
-def launch_url_in_brave(url: str, incognito: bool = False) -> bool:
-    """Launch URL in Brave browser using Windows Shell or direct process without pipe redirection."""
+def launch_url_in_browser(url: str, incognito: bool = False) -> bool:
+    """Launch URL in standard default browser without CDP attachments or process injection."""
     if not url or not (str(url).startswith("http://") or str(url).startswith("https://")):
         return False
     try:
-        if incognito:
-            if os.path.exists(BRAVE_EXE):
-                subprocess.Popen([BRAVE_EXE, "--incognito", url])
-                return True
-            else:
-                subprocess.Popen(["cmd", "/c", "start", "brave", "--incognito", url])
-                return True
-        if hasattr(os, "startfile"):
+        if hasattr(os, "startfile") and not incognito:
             os.startfile(url)
-            return True
-        elif os.path.exists(BRAVE_EXE):
-            subprocess.Popen([BRAVE_EXE, url])
             return True
         else:
             webbrowser.open(url)
             return True
     except Exception as e:
-        log.warning("Could not launch URL via Brave: %s", e)
+        log.warning("Could not launch URL via system default browser: %s", e)
         try:
-            if os.path.exists(BRAVE_EXE):
-                cmd = [BRAVE_EXE, "--incognito", url] if incognito else [BRAVE_EXE, url]
-                subprocess.Popen(cmd)
-            else:
-                webbrowser.open(url)
+            webbrowser.open(url)
             return True
         except Exception:
             return False
@@ -572,38 +557,85 @@ class DashboardHandler(SimpleHTTPRequestHandler):
 
         elif path.startswith("/api/linkedin/scan"):
             query_params = urllib.parse.parse_qs(parsed.query)
-            comp_param = query_params.get("company", [""])[0]
+            comp_param = query_params.get("company", [""])[0].strip()
 
             from applypilot.networking.linkedin import search_linkedin_connections, is_linkedin_authenticated
-            if not is_linkedin_authenticated():
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(json.dumps({
-                    "status": "not_authenticated",
-                    "message": "LinkedIn session not active."
-                }).encode("utf-8"))
-                return
+            from applypilot.database import get_connection
 
+            # Check database for existing connections at this company first
+            existing_conns = []
             try:
-                results = search_linkedin_connections(company=comp_param, role="backend", school="RV College of Engineering", max_results=8)
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(json.dumps({
-                    "status": "ok",
-                    "connections": results
-                }).encode("utf-8"))
-                return
-            except Exception as e:
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json")
-                self.end_headers()
-                self.wfile.write(json.dumps({
-                    "status": "error",
-                    "message": str(e)
-                }).encode("utf-8"))
-                return
+                conn_db = get_connection()
+                c_db = conn_db.cursor()
+                if comp_param:
+                    c_db.execute(
+                        "SELECT id, company, person_name, profile_url, headline, is_alumni, degree, status, requested_at, accepted_at "
+                        "FROM referral_connection_requests "
+                        "WHERE LOWER(company) LIKE LOWER(?)",
+                        (f"%{comp_param}%",)
+                    )
+                    existing_conns = [dict(r) for r in c_db.fetchall()]
+            except Exception as dbe:
+                log.warning("Could not fetch existing company connections from db: %s", dbe)
+
+            # Check online live connections if authenticated
+            live_results = []
+            if is_linkedin_authenticated() and comp_param:
+                try:
+                    live_results = search_linkedin_connections(company=comp_param, role="backend", school="RV College of Engineering", max_results=8)
+                    # Filter out error entries if any
+                    live_results = [r for r in live_results if not r.get("error")]
+                except Exception as se:
+                    log.debug("Live connection search info: %s", se)
+
+            # Combine existing DB records and live scanned results without duplicates
+            combined = []
+            seen_profiles = set()
+
+            for ec in existing_conns:
+                p_url = ec.get("profile_url") or ""
+                p_key = p_url.lower().rstrip("/") if p_url else ec.get("person_name", "").lower()
+                seen_profiles.add(p_key)
+                combined.append({
+                    "name": ec.get("person_name") or "Connection",
+                    "company": ec.get("company") or comp_param,
+                    "profile_url": p_url,
+                    "headline": ec.get("headline") or "Engineer",
+                    "degree": ec.get("degree") or "1st",
+                    "is_alumni": bool(ec.get("is_alumni")),
+                    "status": ec.get("status") or "connected",
+                    "is_existing": True
+                })
+
+            for lr in live_results:
+                p_url = lr.get("profile_url") or ""
+                p_key = p_url.lower().rstrip("/") if p_url else lr.get("name", "").lower()
+                if p_key not in seen_profiles:
+                    seen_profiles.add(p_key)
+                    deg = lr.get("degree") or "2nd"
+                    is_existing = (deg == "1st")
+                    combined.append({
+                        "name": lr.get("name") or "Contact",
+                        "company": lr.get("company") or comp_param,
+                        "profile_url": p_url,
+                        "headline": lr.get("headline") or lr.get("current_role") or "Engineer",
+                        "degree": deg,
+                        "is_alumni": bool(lr.get("is_alumni")),
+                        "status": "connected" if is_existing else "not_connected",
+                        "is_existing": is_existing
+                    })
+
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(json.dumps({
+                "status": "ok",
+                "company": comp_param,
+                "existing_count": len([c for c in combined if c.get("is_existing")]),
+                "new_count": len([c for c in combined if not c.get("is_existing")]),
+                "connections": combined
+            }).encode("utf-8"))
+            return
 
         elif path.startswith("/api/jobs/") and (path.endswith("/resume") or path.endswith("/cover_letter")):
             parts = path.strip("/").split("/")
@@ -983,8 +1015,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps(res).encode("utf-8"))
             return
 
-        # 2. /api/jobs/{rowid}/open_brave (Direct Open in Live Brave + Copy PDF path)
-        elif path.startswith("/api/jobs/") and path.endswith("/open_brave"):
+        # 2. /api/jobs/{rowid}/open_browser (Direct Open in default browser + Copy PDF path)
+        elif path.startswith("/api/jobs/") and (path.endswith("/open_browser") or path.endswith("/open_portal")):
             parts = path.split("/")
             rowid = int(parts[3])
             conn = get_connection()
@@ -1036,8 +1068,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     except Exception:
                         pass
 
-            # Open directly in running Brave browser
-            launch_url_in_brave(apply_url)
+            # Open directly in default browser
+            launch_url_in_browser(apply_url)
 
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
@@ -1046,7 +1078,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 "status": "ok",
                 "apply_url": apply_url,
                 "tailored_path": tailored_path,
-                "message": f"Opened portal in your active Brave browser!{msg_clip}"
+                "message": f"Opened portal in your browser!{msg_clip}"
             }).encode("utf-8"))
             return
 
@@ -1236,7 +1268,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 self.wfile.write(json.dumps({"status": "error", "message": str(e)}).encode("utf-8"))
             return
 
-        # 6. /api/open_url (Directly open URL in running Brave)
+        # 6. /api/open_url (Directly open URL in default browser)
         elif path == "/api/open_url":
             length = int(self.headers.get("Content-Length", 0))
             body_data = self.rfile.read(length).decode("utf-8") if length > 0 else "{}"
@@ -1245,14 +1277,14 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 target_url = data.get("url", "")
                 incognito = bool(data.get("incognito", False))
                 if target_url:
-                    launch_url_in_brave(target_url, incognito=incognito)
+                    launch_url_in_browser(target_url, incognito=incognito)
                     self.send_response(200)
                     self.send_header("Content-Type", "application/json")
                     self.end_headers()
                     self.wfile.write(json.dumps({"status": "ok", "url": target_url, "incognito": incognito}).encode("utf-8"))
                     return
             except Exception as e:
-                log.error("Failed to open URL in Brave: %s", e)
+                log.error("Failed to open URL in browser: %s", e)
 
             self.send_response(400)
             self.end_headers()
@@ -1314,7 +1346,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 body_markdown=body
             )
 
-            # Generate guaranteed 1-click web compose fallback URL for Brave
+            # Generate guaranteed 1-click web compose fallback URL for default browser
             web_compose = (
                 f"https://mail.google.com/mail/?view=cm&fs=1"
                 f"&to={urllib.parse.quote(to_email)}"
@@ -1323,7 +1355,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             )
             res["web_compose_url"] = web_compose
             if res.get("status") != "ok":
-              res["message"] = "Opening pre-filled Gmail compose tab in your active Brave browser..."
+              res["message"] = "Opening pre-filled Gmail compose tab in your browser..."
 
             self.send_response(200)
             self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -1636,7 +1668,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     res = auto_connect_referral_from_job_url(
                         job_url=job_url,
                         max_people=max_people,
-                        headless=False,
+                        headless=True,
                         send_connection=send_connection,
                     )
             except Exception as e:
@@ -1748,7 +1780,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.wfile.write(json.dumps({"status": "launched"}).encode("utf-8"))
             return
 
-        # /api/linkedin/compose_dm (Assisted 1-Click Referral DM auto-composer in Brave)
+        # /api/linkedin/compose_dm (Assisted 1-Click Referral DM auto-composer in isolated browser)
         elif path == "/api/linkedin/compose_dm":
             length = int(self.headers.get("Content-Length", 0))
             body_data = self.rfile.read(length).decode("utf-8") if length > 0 else "{}"
@@ -1880,7 +1912,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", "application/json; charset=utf-8")
             self.end_headers()
-            self.wfile.write(json.dumps({"status": "launched", "message": "Opening Brave for Naukri login..."}).encode("utf-8"))
+            self.wfile.write(json.dumps({"status": "launched", "message": "Opening browser for Naukri login..."}).encode("utf-8"))
             return
 
         self.send_response(404)
@@ -1945,7 +1977,7 @@ def start_dashboard_server(port: int = PORT, open_browser: bool = True):
     print("   Press Ctrl+C to stop the dashboard server.\n")
 
     if open_browser:
-        launch_url_in_brave(url)
+        launch_url_in_browser(url)
 
     while True:
         try:

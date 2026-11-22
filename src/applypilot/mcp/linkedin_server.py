@@ -2,10 +2,10 @@
 
 Exposes tools to:
 - Check LinkedIn authentication status.
-- Trigger interactive login via Brave browser.
+- Trigger interactive login via isolated browser.
 - Search hiring posts and discover recruiter emails.
 - Search RVCE alumni and connections at target companies.
-- Open profiles and posts directly in active Brave browser.
+- Open profiles and posts directly in system browser.
 """
 
 import os
@@ -29,8 +29,6 @@ mcp = MCPServer(
     description="LinkedIn automation server for finding hiring posts, alumni referrals, and recruiter leads."
 )
 
-BRAVE_EXE = r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe"
-
 
 @mcp.tool(
     name="linkedin_status",
@@ -47,7 +45,7 @@ def linkedin_status() -> dict[str, Any]:
 
 @mcp.tool(
     name="linkedin_login",
-    description="Launch Brave browser for Deepak to log in to LinkedIn and securely save session cookies."
+    description="Launch isolated browser for Deepak to log in to LinkedIn and securely save session cookies."
 )
 def linkedin_login_tool(timeout_seconds: int = 75) -> dict[str, Any]:
     """Launch interactive browser to log in to LinkedIn."""
@@ -82,17 +80,15 @@ def linkedin_search_connections_tool(
 
 
 @mcp.tool(
-    name="linkedin_open_in_brave",
-    description="Open any LinkedIn profile, job post, or search URL directly in Deepak's active Brave browser."
+    name="linkedin_open_in_browser",
+    description="Open any LinkedIn profile, job post, or search URL directly in default browser."
 )
-def linkedin_open_in_brave_tool(url: str) -> dict[str, Any]:
-    """Open URL in active Brave browser."""
+def linkedin_open_in_browser_tool(url: str) -> dict[str, Any]:
+    """Open URL in active browser."""
     if not url or not (str(url).startswith("http://") or str(url).startswith("https://")):
         return {"status": "error", "message": "Invalid URL provided"}
     try:
-        if os.path.exists(BRAVE_EXE):
-            subprocess.Popen([BRAVE_EXE, url], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        elif hasattr(os, "startfile"):
+        if hasattr(os, "startfile"):
             os.startfile(url)
         else:
             webbrowser.open(url)
@@ -103,7 +99,7 @@ def linkedin_open_in_brave_tool(url: str) -> dict[str, Any]:
 
 @mcp.tool(
     name="linkedin_compose_dm",
-    description="Launch Brave browser, navigate to a connection's LinkedIn profile, open chat/connect note, and auto-type a personalized referral DM ready to review and send."
+    description="Navigate to a connection's LinkedIn profile, open chat/connect note, and auto-type a personalized referral DM ready to review and send."
 )
 def linkedin_compose_dm_tool(
     profile_url: str,
@@ -113,7 +109,7 @@ def linkedin_compose_dm_tool(
     message: str = "",
     template: str = "referral"
 ) -> dict[str, Any]:
-    """Auto-compose a referral outreach message directly in Brave."""
+    """Auto-compose a referral outreach message."""
     return compose_referral_dm(
         profile_url=profile_url,
         company=company,
@@ -121,8 +117,12 @@ def linkedin_compose_dm_tool(
         name=name,
         custom_message=message,
         template_type=template,
-        headed=True
+        headed=False
     )
+
+
+if __name__ == "__main__":
+    mcp.run()
 
 
 if __name__ == "__main__":

@@ -21,8 +21,8 @@ from applypilot import config
 
 logger = logging.getLogger(__name__)
 
-# CDP port base — each worker uses BASE_CDP_PORT + worker_id
-BASE_CDP_PORT = 9222
+# CDP port base — each worker uses BASE_CDP_PORT + worker_id (internal automation only)
+BASE_CDP_PORT = 19333
 
 # Track Chrome processes per worker for cleanup
 _chrome_procs: dict[int, subprocess.Popen] = {}
@@ -135,8 +135,97 @@ def acquire_browser_lock(timeout: float = 30.0, stale_age: float = LOCK_TIMEOUT_
 
 
 # ---------------------------------------------------------------------------
-# Playwright Isolated Context Launcher
+# Single Persistent Browser Factory (Isolated Context)
 # ---------------------------------------------------------------------------
+
+def export_cookies_to_json(context) -> list[dict]:
+    """Export updated li_at, JSESSIONID and all session cookies to linkedin_cookies.json and session files."""
+    try:
+        cookies = context.cookies()
+        if not cookies:
+            return []
+        
+        cookie_file = getattr(config, "LINKEDIN_COOKIES_FILE", Path.home() / ".applypilot" / "linkedin_cookies.json")
+        cookie_file.parent.mkdir(parents=True, exist_ok=True)
+        cookie_file.write_text(json.dumps(cookies, indent=2), encoding="utf-8")
+        
+        # Also sync to APP_DIR session files for backward compatibility
+        try:
+            (config.APP_DIR / "storage_state.json").write_text(
+                json.dumps({"cookies": cookies, "origins": []}, indent=2), encoding="utf-8"
+            )
+            (config.APP_DIR / "linkedin_session.json").write_text(
+                json.dumps({"cookies": cookies}, indent=2), encoding="utf-8"
+            )
+        except Exception:
+            pass
+        return cookies
+    except Exception as e:
+        logger.debug("Failed exporting cookies to json: %s", e)
+        return []
+
+
+@contextmanager
+def open_isolated_context(
+    headless: bool = True,
+    viewport: dict | None = None,
+    color_scheme: str = "dark",
+    user_agent: str | None = None,
+    extra_args: list[str] | None = None,
+    lock_timeout: float = 30.0,
+):
+    """Single persistent browser factory for all Playwright usage repo-wide.
+    
+    Enforces:
+    - Bundled Chromium with launch_persistent_context pointing ONLY to ~/.applypilot/playwright_profile
+    - Cross-process file lock (~/.applypilot/browser.lock with 15-minute stale-lock timeout)
+    - color_scheme="dark"
+    - user_agent = APPLYPILOT_USER_AGENT
+    - args = ["--disable-blink-features=AutomationControlled", "--force-dark-mode", "--no-first-run", "--no-default-browser-check"]
+    - headless=True by default
+    - Automatic cookie re-export on context exit
+    """
+    from playwright.sync_api import sync_playwright
+
+    with acquire_browser_lock(timeout=lock_timeout):
+        with sync_playwright() as p:
+            profile_dir = config.PLAYWRIGHT_PROFILE_DIR
+            profile_dir.mkdir(parents=True, exist_ok=True)
+
+            args = [
+                "--disable-blink-features=AutomationControlled",
+                "--force-dark-mode",
+                "--no-first-run",
+                "--no-default-browser-check",
+            ]
+            if extra_args:
+                for arg in extra_args:
+                    if arg not in args:
+                        args.append(arg)
+
+            ua = user_agent or config.APPLYPILOT_USER_AGENT
+            vp = viewport if viewport is not None else {"width": 1280, "height": 850}
+
+            context = p.chromium.launch_persistent_context(
+                user_data_dir=str(profile_dir.resolve()),
+                headless=headless,
+                args=args,
+                color_scheme=color_scheme,
+                user_agent=ua,
+                viewport=vp,
+            )
+            try:
+                yield context
+            finally:
+                try:
+                    export_cookies_to_json(context)
+                except Exception:
+                    pass
+                try:
+                    context.close()
+                except Exception:
+                    pass
+
 
 def launch_isolated_playwright_context(
     playwright_instance,
@@ -150,20 +239,25 @@ def launch_isolated_playwright_context(
 
     Enforces:
     - Dedicated profile directory ~/.applypilot/playwright_profile
-    - Playwright's own bundled Chromium (no executable_path set to brave or external browser)
+    - Playwright's own bundled Chromium (no executable_path set to external browser)
     - color_scheme="dark"
     - Standard desktop stealth flags and consistent Windows Chrome user agent
     """
     profile_dir = config.PLAYWRIGHT_PROFILE_DIR
     profile_dir.mkdir(parents=True, exist_ok=True)
 
-    args = list(config.DEFAULT_STEALTH_ARGS)
+    args = [
+        "--disable-blink-features=AutomationControlled",
+        "--force-dark-mode",
+        "--no-first-run",
+        "--no-default-browser-check",
+    ]
     if extra_args:
         for arg in extra_args:
             if arg not in args:
                 args.append(arg)
 
-    ua = user_agent or config.DEFAULT_DESKTOP_USER_AGENT
+    ua = user_agent or config.APPLYPILOT_USER_AGENT
     vp = viewport if viewport is not None else {"width": 1280, "height": 850}
 
     return playwright_instance.chromium.launch_persistent_context(

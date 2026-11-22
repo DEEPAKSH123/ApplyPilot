@@ -174,7 +174,18 @@ def is_linkedin_authenticated() -> bool:
 
 
 def get_stored_cookies() -> list[dict]:
-    """Retrieve stored LinkedIn cookies from session files."""
+    """Retrieve stored LinkedIn cookies from session files, prioritizing ~/.applypilot/linkedin_cookies.json."""
+    cookie_file = getattr(config, "LINKEDIN_COOKIES_FILE", Path.home() / ".applypilot" / "linkedin_cookies.json")
+    if cookie_file.exists():
+        try:
+            data = json.loads(cookie_file.read_text(encoding="utf-8"))
+            if isinstance(data, list) and data:
+                return data
+            if isinstance(data, dict) and "cookies" in data:
+                return data["cookies"]
+        except Exception:
+            pass
+
     if STORAGE_STATE_FILE.exists():
         try:
             data = json.loads(STORAGE_STATE_FILE.read_text(encoding="utf-8"))
@@ -194,7 +205,7 @@ def get_stored_cookies() -> list[dict]:
 
 
 def save_stored_cookies(cookies: list[dict], user_info: dict | None = None) -> None:
-    """Save LinkedIn cookies and metadata to disk."""
+    """Save LinkedIn cookies and metadata to disk and sync with linkedin_cookies.json."""
     payload = {
         "updated_at": datetime.now(timezone.utc).isoformat(),
         "user_info": user_info or {},
@@ -211,6 +222,13 @@ def save_stored_cookies(cookies: list[dict], user_info: dict | None = None) -> N
         STORAGE_STATE_FILE.write_text(json.dumps(playwright_state, indent=2), encoding="utf-8")
     except Exception as se:
         log.warning("Could not sync storage_state.json: %s", se)
+
+    try:
+        cookie_file = getattr(config, "LINKEDIN_COOKIES_FILE", Path.home() / ".applypilot" / "linkedin_cookies.json")
+        cookie_file.parent.mkdir(parents=True, exist_ok=True)
+        cookie_file.write_text(json.dumps(cookies, indent=2), encoding="utf-8")
+    except Exception as ce:
+        log.warning("Could not sync linkedin_cookies.json: %s", ce)
 
 
 def set_li_at_cookie(li_at_token: str) -> bool:
@@ -479,34 +497,10 @@ def search_linkedin_connections(
 
     results = []
 
-    with acquire_browser_lock():
-        with sync_playwright() as p:
-            browser = None
-            context = None
-
-            # Always run in isolated headless browser in the background (never open visible windows/tabs)
-            try:
-                browser = p.chromium.launch(
-                    headless=True,
-                    args=config.DEFAULT_STEALTH_ARGS,
-                )
-                context = browser.new_context(
-                    viewport={"width": 1280, "height": 850},
-                    color_scheme="dark",
-                    user_agent=config.DEFAULT_DESKTOP_USER_AGENT,
-                )
-                page = context.new_page()
-            except Exception as le:
-                log.warning("Could not launch headless browser for connection scan: %s", le)
-                return [{"error": f"Browser launch error: {le}"}]
-
-            existing_cookies = get_stored_cookies()
-            if existing_cookies:
-                try:
-                    context.add_cookies(existing_cookies)
-                except Exception:
-                    pass
-
+    try:
+        from applypilot.apply.chrome import open_isolated_context
+        with open_isolated_context(headless=True) as context:
+            page = context.new_page()
             response = page.goto(search_url, wait_until="domcontentloaded", timeout=30000)
             time.sleep(4)
 
@@ -514,12 +508,10 @@ def search_linkedin_connections(
             is_challenged, ch_reason = check_page_for_challenges_or_auth(page, status_code=status_code)
             if is_challenged:
                 trigger_linkedin_circuit_breaker(f"search_linkedin_connections: {ch_reason}", trigger_url=page.url)
-                try: browser.close()
-                except Exception: pass
                 return [{"error": ch_reason, "status": AUTH_EXPIRED_OR_CHALLENGED}]
 
             # Robust extraction supporting modern LinkedIn DOM
-        raw_cards = page.evaluate("""
+            raw_cards = page.evaluate("""
             () => {
                 const results = [];
                 const candidateLinks = Array.from(document.querySelectorAll('a[href*="/in/"]'));
@@ -602,16 +594,14 @@ def search_linkedin_connections(
             }
         """)
 
-        try:
-            browser.close()
-        except Exception:
-            pass
-
-        for c in raw_cards:
-            c["company"] = comp_clean
-            c["school"] = school
-            c["search_url"] = search_url
-            results.append(c)
+            for c in raw_cards:
+                c["company"] = comp_clean
+                c["school"] = school
+                c["search_url"] = search_url
+                results.append(c)
+    except Exception as le:
+        log.warning("Could not run isolated browser for connection scan: %s", le)
+        return [{"error": f"Browser launch error: {le}"}]
 
     # ── CRITICAL FIX: Filter to only people CURRENTLY at target company ──
     # LinkedIn keyword search matches anyone who ever mentioned the company
@@ -730,7 +720,7 @@ def compose_referral_dm(
     action_type: str = "auto",  # 'auto', 'connect', 'message'
     headed: bool = True
 ) -> dict[str, Any]:
-    """Launch Brave, open connection profile/chat, and auto-type personalized referral message or connection note.
+    """Launch isolated browser, open connection profile/chat, and auto-type personalized referral message or connection note.
 
     If action_type == 'connect', specifically clicks Connect, Add a note, fills custom note, and highlights Send!
     Human-in-the-Loop Safe: Pre-types the message and pauses for Deepak to click 'Send'.
@@ -1001,7 +991,7 @@ def compose_referral_dm(
 
     return {
         "status": "ok",
-        "message": f"Assisted DM composer active in Brave for {first_name or 'connection'}! Message pre-typed and ready to Send.",
+        "message": f"Assisted DM composer active for {first_name or 'connection'}! Message pre-typed and ready to Send.",
         "copied_to_clipboard": True
     }
 
@@ -1051,10 +1041,7 @@ def send_connect_via_api(profile_url: str, note: str | None = None) -> dict[str,
     headers = {
         "csrf-token": csrf_token,
         "x-restli-protocol-version": "2.0.0",
-        "user-agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
-        ),
+        "user-agent": config.APPLYPILOT_USER_AGENT,
         "accept": "application/vnd.linkedin.normalized+json+2.1",
         "x-li-lang": "en_US",
     }
@@ -1151,15 +1138,32 @@ def send_connect_via_api(profile_url: str, note: str | None = None) -> dict[str,
     }
 
 
+MAX_DAILY_CONNECTS = 15
+
+
+def get_daily_connect_count() -> int:
+    """Return count of connection requests sent in the last 24 hours."""
+    try:
+        conn = get_connection()
+        c = conn.cursor()
+        since_time = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+        row = c.execute(
+            "SELECT COUNT(*) FROM referral_connection_requests WHERE requested_at >= ?",
+            (since_time,)
+        ).fetchone()
+        return row[0] if row else 0
+    except Exception as e:
+        log.warning("Could not query daily connection count: %s", e)
+        return 0
+
+
 def send_connect_via_headless_browser(profile_url: str, note: str | None = None) -> dict[str, Any]:
     """Send LinkedIn connection request in the background using Playwright in headless mode.
 
-    Loads session from saved storage_state.json / session file, navigates to profile,
+    Loads session from isolated playwright_profile, navigates to profile,
     clicks Connect (or More -> Connect), adds note if provided, submits, and verifies
     Pending state.
     """
-    from playwright.sync_api import sync_playwright
-
     # Safety check: Circuit breaker
     is_cooling, cool_reason = is_linkedin_cooldown_active()
     if is_cooling:
@@ -1172,144 +1176,135 @@ def send_connect_via_headless_browser(profile_url: str, note: str | None = None)
     if not clean_url.startswith("http"):
         clean_url = f"https://www.linkedin.com/in/{clean_url.lstrip('/')}"
 
-    with acquire_browser_lock():
-        with sync_playwright() as p:
-            browser = None
-            context = None
+    try:
+        from applypilot.apply.chrome import open_isolated_context
+        with open_isolated_context(headless=True) as context:
+            page = context.new_page()
+            response = page.goto(clean_url, wait_until="domcontentloaded", timeout=30000)
+            time.sleep(3)
 
-            # Check if storage_state.json exists
-            storage_state_arg = str(STORAGE_STATE_FILE.resolve()) if STORAGE_STATE_FILE.exists() else None
+            status_code = response.status if response else None
+            is_challenged, ch_reason = check_page_for_challenges_or_auth(page, status_code=status_code)
+            if is_challenged:
+                trigger_linkedin_circuit_breaker(f"send_connect_via_headless_browser: {ch_reason}", trigger_url=page.url)
+                return {"ok": False, "error": ch_reason, "status": AUTH_EXPIRED_OR_CHALLENGED, "method": "headless_playwright"}
 
-            try:
-                # Run strictly headless with dark mode and stealth
-                browser = p.chromium.launch(
-                    headless=True,
-                    args=config.DEFAULT_STEALTH_ARGS,
-                )
+            # Check if already pending or connected
+            page_text = page.evaluate("() => document.body.innerText || ''")
+            if "Pending" in page_text and ("Withdraw" in page_text or "Invitation sent" in page_text):
+                return {"ok": True, "method": "headless_playwright", "already_pending": True}
 
-                if storage_state_arg:
-                    context = browser.new_context(
-                        storage_state=storage_state_arg,
-                        viewport={"width": 1280, "height": 850},
-                        color_scheme="dark",
-                        user_agent=config.DEFAULT_DESKTOP_USER_AGENT,
-                    )
-                else:
-                    context = browser.new_context(
-                        viewport={"width": 1280, "height": 850},
-                        color_scheme="dark",
-                        user_agent=config.DEFAULT_DESKTOP_USER_AGENT,
-                    )
+            # Locate Connect button
+            connect_btn = page.query_selector("button:has-text('Connect'), a:has-text('Connect')")
+            if not connect_btn:
+                # Check More actions dropdown
+                more_btn = page.query_selector("button[aria-label*='More actions'], button:has-text('More')")
+                if more_btn:
+                    more_btn.click()
+                    time.sleep(1)
+                    connect_btn = page.query_selector("div[role='button']:has-text('Connect'), button:has-text('Connect')")
 
-                # Add cookies if available
-                existing_cookies = get_stored_cookies()
-                if existing_cookies:
-                    try:
-                        context.add_cookies(existing_cookies)
-                    except Exception:
-                        pass
-
-                page = context.new_page()
-                response = page.goto(clean_url, wait_until="domcontentloaded", timeout=30000)
-                time.sleep(3)
-
-                status_code = response.status if response else None
-                is_challenged, ch_reason = check_page_for_challenges_or_auth(page, status_code=status_code)
-                if is_challenged:
-                    trigger_linkedin_circuit_breaker(f"send_connect_via_headless_browser: {ch_reason}", trigger_url=page.url)
-                    browser.close()
-                    return {"ok": False, "error": ch_reason, "status": AUTH_EXPIRED_OR_CHALLENGED, "method": "headless_playwright"}
-
-                # Check if already pending or connected
-                page_text = page.evaluate("() => document.body.innerText || ''")
-                if "Pending" in page_text and ("Withdraw" in page_text or "Invitation sent" in page_text):
-                    browser.close()
+            if not connect_btn:
+                # If still not found, check if already Pending
+                if page.query_selector("button:has-text('Pending'), span:has-text('Pending')"):
                     return {"ok": True, "method": "headless_playwright", "already_pending": True}
+                return {"ok": False, "error": "Connect button not found on profile page.", "method": "headless_playwright"}
 
-                # Locate Connect button
-                connect_btn = page.query_selector("button:has-text('Connect'), a:has-text('Connect')")
-                if not connect_btn:
-                    # Check More actions dropdown
-                    more_btn = page.query_selector("button[aria-label*='More actions'], button:has-text('More')")
-                    if more_btn:
-                        more_btn.click()
-                        time.sleep(1)
-                        connect_btn = page.query_selector("div[role='button']:has-text('Connect'), button:has-text('Connect')")
+            connect_btn.click()
+            time.sleep(1.5)
 
-                if not connect_btn:
-                    # If still not found, check if already Pending
-                    if page.query_selector("button:has-text('Pending'), span:has-text('Pending')"):
-                        browser.close()
-                        return {"ok": True, "method": "headless_playwright", "already_pending": True}
-                    browser.close()
-                    return {"ok": False, "error": "Connect button not found on profile page.", "method": "headless_playwright"}
+            if note:
+                # Click 'Add a note'
+                add_note_btn = page.query_selector("button:has-text('Add a note'), button[aria-label*='Add a note']")
+                if add_note_btn:
+                    add_note_btn.click()
+                    time.sleep(1)
 
-                connect_btn.click()
-                time.sleep(1.5)
+                textarea = page.query_selector("textarea#custom-message, textarea[name='message']")
+                if textarea:
+                    textarea.fill(str(note)[:200])
+                    time.sleep(0.5)
 
-                if note:
-                    # Click 'Add a note'
-                    add_note_btn = page.query_selector("button:has-text('Add a note'), button[aria-label*='Add a note']")
-                    if add_note_btn:
-                        add_note_btn.click()
-                        time.sleep(1)
-
-                    textarea = page.query_selector("textarea#custom-message, textarea[name='message']")
-                    if textarea:
-                        textarea.fill(str(note)[:200])
-                        time.sleep(0.5)
-
-                    send_btn = page.query_selector(
-                        "button[aria-label*='Send invitation'], button:has-text('Send'), button[aria-label*='Send now']"
-                    )
-                    if send_btn:
-                        send_btn.click()
-                        time.sleep(2)
+                send_btn = page.query_selector(
+                    "button[aria-label*='Send invitation'], button:has-text('Send'), button[aria-label*='Send now']"
+                )
+                if send_btn:
+                    send_btn.click()
+                    time.sleep(2)
+            else:
+                # Send without note
+                send_without_note = page.query_selector(
+                    "button[aria-label*='Send without a note'], button:has-text('Send without a note'), button:has-text('Send now'), button:has-text('Send')"
+                )
+                if send_without_note:
+                    send_without_note.click()
+                    time.sleep(2)
                 else:
-                    # Send without note
-                    send_without_note = page.query_selector(
-                        "button[aria-label*='Send without a note'], button:has-text('Send without a note'), button:has-text('Send now'), button:has-text('Send')"
-                    )
-                    if send_without_note:
-                        send_without_note.click()
+                    # In case a simple modal appears with Send
+                    gen_send = page.query_selector("button:has-text('Send')")
+                    if gen_send:
+                        gen_send.click()
                         time.sleep(2)
-                    else:
-                        # In case a simple modal appears with Send
-                        gen_send = page.query_selector("button:has-text('Send')")
-                        if gen_send:
-                            gen_send.click()
-                            time.sleep(2)
 
-                # Verification: check if 'Pending' appears on page
-                time.sleep(2)
-                verified_pending = page.evaluate("""() => {
-                    const text = document.body.innerText || '';
-                    return text.includes('Pending') || document.querySelector('button:has-text("Pending")') !== null;
-                }""")
+            # Verification: check if 'Pending' appears on page
+            time.sleep(2)
+            verified_pending = page.evaluate("""() => {
+                const text = document.body.innerText || '';
+                return text.includes('Pending') || document.querySelector('button:has-text("Pending")') !== null;
+            }""")
 
-                browser.close()
-                if verified_pending:
-                    log.info("Headless Playwright verified 'Pending' invitation for %s", clean_url)
-                    return {"ok": True, "method": "headless_playwright"}
-                else:
-                    log.info("Headless Playwright completed submission for %s", clean_url)
-                    return {"ok": True, "method": "headless_playwright", "verified": False}
+            if verified_pending:
+                log.info("Headless Playwright verified 'Pending' invitation for %s", clean_url)
+                return {"ok": True, "method": "headless_playwright"}
+            else:
+                log.info("Headless Playwright completed submission for %s", clean_url)
+                return {"ok": True, "method": "headless_playwright", "verified": False}
 
-            except Exception as e:
-                if browser:
-                    try: browser.close()
-                    except Exception: pass
-                log.warning("Headless Playwright connection error for %s: %s", clean_url, e)
-                return {"ok": False, "error": str(e), "method": "headless_playwright"}
+    except Exception as e:
+        log.warning("Headless Playwright connection error for %s: %s", clean_url, e)
+        return {"ok": False, "error": str(e), "method": "headless_playwright"}
 
 
 def connect_in_background(profile_url: str, note: str | None = None) -> dict[str, Any]:
     """Attempt background connection request via Voyager API first, falling back to headless Playwright.
 
-    Never opens a visible browser window.
+    Enforces:
+    - 24-hour circuit breaker check
+    - Strict daily pacing: max 15 automated connects/day
+    - 20-60s random jitter before action execution
+    - Strictly sequential execution
+    - Never opens a visible browser window.
     """
+    import random
+
     clean_url = (profile_url or "").strip()
     truncated_note = str(note)[:200] if note else None
+
+    # Step 0: Check Circuit Breaker & Daily Pacing
+    is_cooling, cool_reason = is_linkedin_cooldown_active()
+    if is_cooling:
+        log.warning("LinkedIn connect_in_background aborted: %s", cool_reason)
+        return {
+            "ok": False,
+            "error": f"Circuit breaker active: {cool_reason}",
+            "status": AUTH_EXPIRED_OR_CHALLENGED,
+        }
+
+    daily_count = get_daily_connect_count()
+    if daily_count >= MAX_DAILY_CONNECTS:
+        msg = f"Daily LinkedIn automated connection limit reached ({daily_count}/{MAX_DAILY_CONNECTS} in last 24h). Safety shield active."
+        log.warning(msg)
+        return {
+            "ok": False,
+            "error": msg,
+            "status": "DAILY_LIMIT_REACHED",
+            "daily_count": daily_count,
+        }
+
+    # Step 0.5: Random safety jitter (20 to 60 seconds)
+    jitter_sec = random.uniform(20.0, 60.0)
+    log.info("Pacing safety shield: sleeping %.1fs jitter before connect action...", jitter_sec)
+    time.sleep(jitter_sec)
 
     # Step 1: Try Voyager API
     api_res = send_connect_via_api(clean_url, truncated_note)

@@ -1,4 +1,4 @@
-"""ApplyPilot configuration: paths, platform detection, user data."""
+"""ApplyPilot configuration: paths, platform detection, directories."""
 
 import os
 import platform
@@ -14,7 +14,7 @@ def _resolve_app_dir() -> Path:
         return d_dir
     return Path.home() / ".applypilot"
 
-# User data directory — all user-specific files live here
+# App data directory — all user-specific files live here
 APP_DIR = _resolve_app_dir()
 
 # Core paths
@@ -38,10 +38,12 @@ APPLY_WORKER_DIR = APP_DIR / "apply-workers"
 PLAYWRIGHT_PROFILE_DIR = Path.home() / ".applypilot" / "playwright_profile"
 BROWSER_LOCK_FILE = Path.home() / ".applypilot" / "browser.lock"
 LINKEDIN_COOLDOWN_FILE = Path.home() / ".applypilot" / "linkedin_cooldown.json"
-DEFAULT_DESKTOP_USER_AGENT = (
+LINKEDIN_COOKIES_FILE = Path.home() / ".applypilot" / "linkedin_cookies.json"
+APPLYPILOT_USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
 )
+DEFAULT_DESKTOP_USER_AGENT = APPLYPILOT_USER_AGENT
 DEFAULT_STEALTH_ARGS = [
     "--disable-blink-features=AutomationControlled",
     "--force-dark-mode",
@@ -99,10 +101,10 @@ def get_chrome_path() -> str:
 
 
 def get_chrome_user_data() -> Path:
-    """Default Chrome user data directory, cross-platform."""
+    """Default Chrome directory (legacy reference, not used for automation)."""
     system = platform.system()
     if system == "Windows":
-        return Path(os.environ.get("LOCALAPPDATA", "")) / "Google" / "Chrome" / "User Data"
+        return Path(os.environ.get("LOCALAPPDATA", "")) / "Google" / "Chrome" / "ChromeProfile"
     elif system == "Darwin":
         return Path.home() / "Library" / "Application Support" / "Google" / "Chrome"
     else:

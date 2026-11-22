@@ -6,7 +6,7 @@ were updated within the last 24 hours. Re-uploading your resume every morning at
 places your profile at the top of recruiter sourcing queues as recruiters start their day.
 
 Key Capabilities:
-- Connects using persistent browser session in Brave (`data/brave_profile` and `data/naukri_session.json`).
+- Connects using isolated persistent browser session (`~/.applypilot/playwright_profile`).
 - Navigates to `https://www.naukri.com/mnjuser/profile` and attaches `D:\ApplyPilot_Workspace\data\resume.pdf`.
 - Verifies upload confirmation and logs timestamps to `data/naukri_update_log.json`.
 - Dispatches native Windows balloon/toast notifications upon successful refresh.
@@ -28,8 +28,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from applypilot.apply.assistant import BRAVE_PROFILE_DIR, get_browser_executable
-from applypilot.config import APP_DIR, LOG_DIR
+from applypilot.apply.chrome import acquire_browser_lock, launch_isolated_playwright_context
+from applypilot.config import APP_DIR, LOG_DIR, PLAYWRIGHT_PROFILE_DIR
 
 # Logging configuration
 LOG_FILE = LOG_DIR / "naukri_updater.log"
@@ -202,44 +202,11 @@ def get_last_update_status() -> dict[str, Any]:
 # Core Naukri Automation
 # ---------------------------------------------------------------------------
 
-def is_cdp_available(port: int = 9222) -> bool:
-    """Check if Brave/Chrome CDP remote debugging port is reachable."""
-    import urllib.request
-    try:
-        with urllib.request.urlopen(f"http://127.0.0.1:{port}/json/version", timeout=1.5) as resp:
-            return resp.status == 200
-    except Exception:
-        return False
-
-
-def get_brave_page_or_context(p, headed: bool = False, exe_path: str | None = None):
-    """Obtain browser page/context: prefers connecting to primary Brave via CDP (port 9222).
-    
-    If primary Brave is running with --remote-debugging-port=9222, connects directly
-    to Deepak's live session with all personal logins/cookies active.
-    Otherwise, falls back to persistent automation profile.
-    """
-    if is_cdp_available(9222):
-        logger.info("Found primary Brave running with remote debugging on port 9222! Connecting via CDP...")
-        browser = p.chromium.connect_over_cdp("http://127.0.0.1:9222")
-        # Find default context or create page
-        contexts = browser.contexts
-        ctx = contexts[0] if contexts else browser.new_context()
-        page = ctx.new_page()
-        return browser, ctx, page, True
-
-    logger.info("Primary Brave CDP (port 9222) not detected. Using persistent automation profile...")
-    BRAVE_PROFILE_DIR.mkdir(parents=True, exist_ok=True)
-    ctx = p.chromium.launch_persistent_context(
-        user_data_dir=str(BRAVE_PROFILE_DIR.resolve()),
-        executable_path=exe_path if exe_path else None,
-        headless=not headed,
-        viewport={"width": 1280, "height": 850},
-        args=[
-            "--disable-blink-features=AutomationControlled",
-            "--no-first-run",
-            "--no-default-browser-check",
-        ],
+def get_isolated_page_or_context(p, headed: bool = False, exe_path: str | None = None):
+    """Obtain browser page/context using isolated automation profile."""
+    ctx = launch_isolated_playwright_context(
+        p,
+        headless=True,
     )
     page = ctx.pages[0] if ctx.pages else ctx.new_page()
     return None, ctx, page, False
@@ -273,31 +240,27 @@ def is_logged_in_page(page) -> bool:
 
 
 def login_interactive(timeout_seconds: int = 90) -> dict[str, Any]:
-    """Launch Brave browser interactively for Deepak to sign in to Naukri."""
+    """Launch isolated Playwright Chromium browser for Deepak to sign in to Naukri."""
     from playwright.sync_api import sync_playwright
 
-    exe_path, browser_name = get_browser_executable()
-    BRAVE_PROFILE_DIR.mkdir(parents=True, exist_ok=True)
+    logger.info("Opening isolated browser to log in to Naukri (timeout: %d seconds)...", timeout_seconds)
 
-    logger.info("Opening %s to log in to Naukri (timeout: %d seconds)...", browser_name.upper(), timeout_seconds)
+    with acquire_browser_lock():
+        with sync_playwright() as p:
+            context = launch_isolated_playwright_context(
+                p,
+                headless=True,
+            )
 
-    with sync_playwright() as p:
-        context = p.chromium.launch_persistent_context(
-            user_data_dir=str(BRAVE_PROFILE_DIR.resolve()),
-            executable_path=exe_path if exe_path else None,
-            headless=False,
-            viewport={"width": 1280, "height": 850},
-            args=["--disable-blink-features=AutomationControlled"],
-        )
+            page = context.pages[0] if context.pages else context.new_page()
 
-        page = context.pages[0] if context.pages else context.new_page()
-
-        # Inject existing cookies if present
-        existing_cookies = get_stored_cookies()
-        if existing_cookies:
-            try:
-                context.add_cookies(existing_cookies)
-            except Exception:
+            # Inject existing cookies if present
+            existing_cookies = get_stored_cookies()
+            if existing_cookies:
+                try:
+                    context.add_cookies(existing_cookies)
+                except Exception:
+                    pass
                 pass
 
         page.goto(NAUKRI_PROFILE_URL, wait_until="domcontentloaded", timeout=45000)
@@ -385,16 +348,16 @@ def update_naukri_resume(
         return record_update_log("error", err, str(target_resume))
 
     exe_path, browser_name = get_browser_executable()
-    BRAVE_PROFILE_DIR.mkdir(parents=True, exist_ok=True)
+    PLAYWRIGHT_PROFILE_DIR.mkdir(parents=True, exist_ok=True)
 
-    logger.info("Starting Naukri resume update with: %s (using %s)", target_resume.name, browser_name.upper())
+    logger.info("Starting Naukri resume update with: %s (using ISOLATED CHROMIUM)", target_resume.name)
 
     last_error = ""
 
     for attempt in range(1, max_retries + 1):
         try:
             with sync_playwright() as p:
-                browser, context, page, is_cdp = get_brave_page_or_context(p, headed=headed, exe_path=exe_path)
+                browser, context, page, is_cdp = get_isolated_page_or_context(p, headed=headed, exe_path=exe_path)
 
                 # Add pre-saved cookies if available and not on live CDP
                 if not is_cdp:
@@ -406,7 +369,7 @@ def update_naukri_resume(
                             logger.debug("Cookie inject notice: %s", ce)
 
                 logger.info("[Attempt %d/%d] Navigating to %s (via %s)...", 
-                            attempt, max_retries, NAUKRI_PROFILE_URL, "CDP Primary Brave" if is_cdp else "Persistent Profile")
+                            attempt, max_retries, NAUKRI_PROFILE_URL, "Isolated Profile")
                 page.goto(NAUKRI_PROFILE_URL, wait_until="domcontentloaded", timeout=45000)
                 time.sleep(3)
 
@@ -414,10 +377,10 @@ def update_naukri_resume(
                 if not is_logged_in_page(page):
                     logger.warning("Naukri redirected to login page. Session cookies may be expired or missing.")
                     if headed or is_cdp:
-                        logger.info("Headed / CDP mode enabled — waiting up to 120s for manual login...")
+                        logger.info("Headed mode enabled — waiting up to 120s for manual login...")
                         send_windows_notification(
                             "ApplyPilot: Naukri Sign-In",
-                            "Please complete sign-in in Brave to connect your account.",
+                            "Please complete sign-in to connect your account.",
                         )
                         login_ok = False
                         for _ in range(60):
@@ -732,7 +695,7 @@ def get_windows_task_status() -> dict[str, Any]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Naukri Daily Resume & Profile Refresh Automation.")
-    parser.add_argument("--login", action="store_true", help="Launch interactive Brave window to log in and save cookies.")
+    parser.add_argument("--login", action="store_true", help="Launch interactive window to log in and save cookies.")
     parser.add_argument("--headed", action="store_true", help="Run browser in headed (visible) mode.")
     parser.add_argument("--resume", type=str, default=None, help="Custom resume PDF path to upload.")
     parser.add_argument("--schedule", action="store_true", help="Register Windows Task Scheduler 9:00 AM daily job.")

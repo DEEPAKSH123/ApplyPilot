@@ -19,14 +19,12 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-from applypilot.config import APP_DIR, load_search_config
-from applypilot.database import get_connection, store_jobs_deduped
-from applypilot.enrichment.email_extractor import extract_emails_from_text
+from applypilot.apply.chrome import open_isolated_context, acquire_browser_lock, launch_isolated_playwright_context
+from applypilot.config import APP_DIR, load_search_config, PLAYWRIGHT_PROFILE_DIR
 
 log = logging.getLogger(__name__)
 
 WHATSAPP_DIR = APP_DIR / "whatsapp_imports"
-BRAVE_PROFILE_DIR = APP_DIR / "brave_profile"
 
 # Regex for WhatsApp message headers
 # Android: "05/11/24, 14:32 - Sender Name: Message"
@@ -212,55 +210,13 @@ def ingest_whatsapp_folder() -> int:
     return 0
 
 
-def sync_brave_whatsapp_session() -> bool:
-    """Sync live WhatsApp Web IndexedDB & Local Storage from user's primary Brave profile."""
-    local_app_data = os.environ.get("LOCALAPPDATA")
-    if not local_app_data:
-        return False
-    brave_user_data = Path(local_app_data) / "BraveSoftware" / "Brave-Browser" / "User Data" / "Default"
-    if not brave_user_data.exists():
-        return False
-
-    dest_dir = BRAVE_PROFILE_DIR / "Default"
-    dest_dir.mkdir(parents=True, exist_ok=True)
-
-    # 1. Sync IndexedDB https_web.whatsapp.com
-    src_idb = brave_user_data / "IndexedDB"
-    dest_idb = dest_dir / "IndexedDB"
-    if src_idb.exists():
-        dest_idb.mkdir(parents=True, exist_ok=True)
-        for item in src_idb.glob("*whatsapp*"):
-            try:
-                dest_item = dest_idb / item.name
-                if item.is_dir():
-                    shutil.copytree(item, dest_item, dirs_exist_ok=True)
-                else:
-                    shutil.copy2(item, dest_item)
-            except Exception as e:
-                log.debug("Notice copying WhatsApp idb %s: %s", item.name, e)
-
-    # 2. Sync Local Storage leveldb
-    src_ls = brave_user_data / "Local Storage"
-    dest_ls = dest_dir / "Local Storage"
-    if src_ls.exists():
-        try:
-            shutil.copytree(src_ls, dest_ls, dirs_exist_ok=True)
-        except Exception as e:
-            log.debug("Notice copying WhatsApp local storage: %s", e)
-
-    log.info("Synced live WhatsApp Web session from Brave profile.")
-    return True
-
-
-def scrape_live_whatsapp_web(target_groups: list[str] | None = None, wait_timeout_sec: int = 40, headless: bool = False) -> int:
-    """Connect to WhatsApp Web (preferring active Brave CDP on port 9222 or synced Brave profile)."""
-    from applypilot.apply.assistant import get_browser_executable
+def scrape_live_whatsapp_web(target_groups: list[str] | None = None, wait_timeout_sec: int = 40, headless: bool = True) -> int:
+    """Connect to WhatsApp Web using isolated browser factory."""
     from playwright.sync_api import sync_playwright
 
     log.info("Connecting to WhatsApp Web to discover tech referral opportunities...")
     new_jobs_total = 0
 
-    # Search queries to hunt for high-fit backend engineering and referral leads across chats
     search_queries = [
         "referral",
         "sde",
@@ -273,39 +229,13 @@ def scrape_live_whatsapp_web(target_groups: list[str] | None = None, wait_timeou
     ]
 
     try:
-        with sync_playwright() as p:
-            wa_page = None
-            browser = None
-            context = None
-
-            # 1. First Priority: Direct CDP attach to user's running Brave browser on port 9222!
-            try:
-                browser = p.chromium.connect_over_cdp("http://127.0.0.1:9222")
-                for ctx in browser.contexts:
-                    for pg in ctx.pages:
-                        if "web.whatsapp.com" in pg.url:
-                            wa_page = pg
-                            log.info("Successfully attached to live WhatsApp Web tab in running Brave browser!")
-                            break
-                    if wa_page:
-                        break
-            except Exception as cdp_err:
-                log.debug("CDP direct attach not available: %s", cdp_err)
-
-            # 2. Fallback: Persistent profile launch if no active CDP tab found
-            if not wa_page:
-                sync_brave_whatsapp_session()
-                exe_path, browser_name = get_browser_executable()
-                BRAVE_PROFILE_DIR.mkdir(parents=True, exist_ok=True)
-                context = p.chromium.launch_persistent_context(
-                    user_data_dir=str(BRAVE_PROFILE_DIR.resolve()),
-                    executable_path=exe_path if exe_path else None,
-                    headless=headless,
-                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
-                    viewport={"width": 1280, "height": 800},
-                    args=["--disable-blink-features=AutomationControlled"]
+        with acquire_browser_lock():
+            with sync_playwright() as p:
+                context = launch_isolated_playwright_context(
+                    p,
+                    headless=True,
                 )
-                wa_page = context.new_page() if not context.pages else context.pages[0]
+                wa_page = context.pages[0] if context.pages else context.new_page()
                 wa_page.goto("https://web.whatsapp.com/", wait_until="domcontentloaded", timeout=45000)
 
             # Wait for search box or chat pane

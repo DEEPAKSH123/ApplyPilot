@@ -2,7 +2,7 @@
 
 Provides end-to-end autonomous job application capabilities:
 - Filters jobs matching Deepak's target criteria (0-3 YOE, Go/Java Backend, RVCE, Meesho)
-- Injects active LinkedIn session cookies into Brave browser context
+- Injects active LinkedIn session cookies into isolated browser context
 - Automatically fills personal, contact, education, and professional experience
 - Intelligently answers ATS & Easy Apply screening questions (skills YOE, CTC, notice period, auth)
 - Attaches vector tailored resume PDF
@@ -30,8 +30,6 @@ from applypilot.networking.outreach import generate_outreach_messages
 
 log = logging.getLogger(__name__)
 
-BRAVE_PROFILE_DIR = config.PLAYWRIGHT_PROFILE_DIR
-
 # Global progress state for dashboard monitoring
 AUTO_APPLY_STATE = {
     "is_running": False,
@@ -47,15 +45,7 @@ AUTO_APPLY_STATE = {
 }
 
 def get_browser_executable() -> tuple[str | None, str]:
-    """Find Brave browser or fallback to system Chromium."""
-    candidates = [
-        r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe",
-        r"C:\Program Files (x86)\BraveSoftware\Brave-Browser\Application\brave.exe",
-        os.path.expandvars(r"%LOCALAPPDATA%\BraveSoftware\Brave-Browser\Application\brave.exe"),
-    ]
-    for c in candidates:
-        if os.path.exists(c):
-            return c, "brave"
+    """Return bundled Chromium."""
     return None, "chromium"
 
 
@@ -819,7 +809,7 @@ def get_today_applied_count() -> int:
 
 
 def launch_application_assistant(identifier: str | int, headed: bool = True, auto_submit: bool = True, is_batch: bool = False, batch_timeout_sec: int = 15, max_applicants: int = 100, easy_apply_only: bool = True) -> dict:
-    """Launch Brave browser, auto-fill all fields, and handle submission."""
+    """Launch browser, auto-fill all fields, and handle submission."""
     # Safety Check: Enforce daily application ceiling to protect LinkedIn account
     daily_count = get_today_applied_count()
     if auto_submit and daily_count >= MAX_DAILY_EASY_APPLIES:

@@ -62,15 +62,9 @@
           <button class="btn-micro" onclick="copySnippet('https://www.linkedin.com/in/deepak-s-h-82b772254/', 'LinkedIn Profile')" title="Copy Deepak's LinkedIn Profile URL">
             <i data-lucide="linkedin" class="micro-icon"></i> LinkedIn
           </button>
-          <a href="https://www.linkedin.com/in/deepak-s-h-82b772254/" target="_blank" rel="noopener noreferrer" class="btn-micro" title="Open LinkedIn Profile in new tab" style="text-decoration:none;display:inline-flex;align-items:center;">
-            <i data-lucide="external-link" class="micro-icon"></i>
-          </a>
           <button class="btn-micro" onclick="copySnippet('https://github.com/Deepak-S-H', 'GitHub Profile')" title="Copy Deepak's GitHub Profile URL">
             <i data-lucide="github" class="micro-icon"></i> GitHub
           </button>
-          <a href="https://github.com/Deepak-S-H" target="_blank" rel="noopener noreferrer" class="btn-micro" title="Open GitHub Profile in new tab" style="text-decoration:none;display:inline-flex;align-items:center;">
-            <i data-lucide="external-link" class="micro-icon"></i>
-          </a>
           <button class="btn-micro" onclick="copySnippet('8431433659', 'Phone Number')" title="Copy Phone Number">
             <i data-lucide="phone" class="micro-icon"></i> Phone
           </button>
@@ -137,16 +131,6 @@
         </div>
 
         <div class="topbar-actions">
-          <div class="quick-links-group" style="display:flex;align-items:center;gap:6px;margin-right:6px;">
-            <a href="https://www.linkedin.com/in/deepak-s-h-82b772254/" target="_blank" rel="noopener noreferrer" class="btn-command" title="Open LinkedIn Profile">
-              <i data-lucide="linkedin" class="action-icon"></i>
-              <span>LinkedIn</span>
-            </a>
-            <a href="https://github.com/Deepak-S-H" target="_blank" rel="noopener noreferrer" class="btn-command" title="Open GitHub Profile">
-              <i data-lucide="github" class="action-icon"></i>
-              <span>GitHub</span>
-            </a>
-          </div>
           <button class="btn-command" onclick="triggerScanNow()" title="Trigger multi-source fresh incognito scan">
             <i data-lucide="refresh-cw" class="action-icon" id="icon-scan-refresh"></i>
             <span>Scan Jobs</span>
@@ -282,29 +266,6 @@
               <div class="card-metric" id="crm-interview-calls">0</div>
               <div class="card-label">Interviews / Calls</div>
             </div>
-          </div>
-
-          <!-- Auto-Connect & Scan from LinkedIn Job URL Box -->
-          <div style="background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 18px; margin-top: 16px;">
-            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
-              <div style="display: flex; align-items: center; gap: 8px;">
-                <i data-lucide="sparkles" style="color: #a855f7; width: 18px; height: 18px;"></i>
-                <span style="font-weight: 700; font-size: 14px; color: var(--text-main);">Auto-Scan Referral Profiles from Job URL</span>
-              </div>
-              <span style="font-size: 11px; color: var(--text-dim);">Finds 1st/2nd-degree mutuals &amp; RVCE alumni at any company</span>
-            </div>
-            <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
-              <input type="text" id="outreach-job-url" placeholder="Paste LinkedIn Job URL (e.g. https://www.linkedin.com/jobs/view/...)" class="drawer-input" style="flex: 1; min-width: 280px;" />
-              <button class="btn-command" onclick="runOutreachJobScan(false)" id="btn-outreach-scan-only">
-                <i data-lucide="search" class="action-icon"></i>
-                <span>Scan 4-5 Profiles</span>
-              </button>
-              <button class="btn-command primary" onclick="runOutreachJobScan(true)" id="btn-outreach-scan-connect">
-                <i data-lucide="send" class="action-icon"></i>
-                <span>Scan &amp; Send Requests</span>
-              </button>
-            </div>
-            <div id="outreach-job-scan-result" style="margin-top: 12px; display: none;"></div>
           </div>
 
           <div class="table-container" style="margin-top: 16px;">
@@ -468,27 +429,46 @@
           </div>
         </div>
 
-        <!-- LinkedIn Referral Connect Section & Auto-Scanner -->
+        <!-- LinkedIn Company Referral & Connection Finder -->
         <div class="drawer-card">
-          <div class="card-section-label">LINKEDIN REFERRAL PROFILES &amp; OUTREACH</div>
-          <p class="card-subtext">Scan 1st/2nd-degree connections &amp; RVCE alumni at this company, or send targeted background connection requests.</p>
+          <div class="card-section-label">LINKEDIN COMPANY CONNECTIONS &amp; OUTREACH</div>
+          <p class="card-subtext">Checks whether you have existing 1st-degree connections at this company, or lets you send an authentic connection request that is verified and tracked.</p>
           
-          <!-- Auto-Scan Profiles Button & Results -->
+          <!-- Scan Trigger Button -->
           <div style="margin-bottom: 12px;">
-            <button class="btn-micro-action" id="btn-drawer-scan-connections" onclick="scanDrawerCompanyConnections()" style="width: 100%; justify-content: center; padding: 8px 12px; font-weight: 600;">
-              <i data-lucide="users" class="micro-icon"></i>
-              <span id="btn-drawer-scan-text">Scan 4-5 Referral Profiles at this Company</span>
+            <button class="btn-command" id="btn-drawer-check-conns" onclick="checkCompanyConnectionsForDrawer()" style="width: 100%; justify-content: center; padding: 8px 12px; font-weight: 600;">
+              <i data-lucide="search" class="action-icon"></i>
+              <span id="btn-drawer-check-conns-text">Check Company Connections</span>
             </button>
-            <div id="drawer-scanned-profiles-container" style="margin-top: 10px; display: none;"></div>
           </div>
 
-          <div class="linkedin-connect-box">
+          <!-- Dynamic Results Container -->
+          <div id="drawer-company-connections-results" style="display: none; margin-bottom: 14px;"></div>
+
+          <!-- Manual / Single Profile Connect Box -->
+          <div class="linkedin-connect-box" style="border-top: 1px solid var(--border-subtle); padding-top: 12px; margin-top: 6px;">
+            <div style="font-size: 11px; font-weight: 600; color: var(--text-dim); margin-bottom: 6px;">CUSTOM / DIRECT CONNECT:</div>
             <input type="text" id="drawer-linkedin-profile" placeholder="LinkedIn Profile URL (e.g. https://linkedin.com/in/...)" class="drawer-input" />
-            <textarea id="drawer-linkedin-note" rows="3" placeholder="Personalized connection note (max 200 chars)..." class="drawer-textarea"></textarea>
-            <div class="drawer-btn-row">
+            
+            <!-- Message Preview Box -->
+            <div style="margin-top: 8px;">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                <span style="font-size: 10.5px; color: var(--text-dim); font-weight: 500;">Outreach Message Preview:</span>
+                <button type="button" class="btn-micro-action" onclick="copySnippet(document.getElementById('drawer-linkedin-note').value, 'Outreach Message')" style="padding: 2px 6px; font-size: 10px;">
+                  <i data-lucide="copy" class="micro-icon"></i> Copy Note
+                </button>
+              </div>
+              <textarea id="drawer-linkedin-note" rows="3" placeholder="Personalized message or connection note..." class="drawer-textarea"></textarea>
+            </div>
+
+            <div class="drawer-btn-row" style="margin-top: 8px;">
               <button class="btn-command primary" id="btn-send-linkedin-connect" onclick="sendLinkedInConnectFromDrawer()">
                 <i data-lucide="send" class="action-icon"></i>
-                <span>Send Background Request</span>
+                <span>Send Connect &amp; Track</span>
+              </button>
+              <button class="btn-command" onclick="openProfileInBraveDirect()" title="Open profile directly in Brave browser">
+                <i data-lucide="external-link" class="action-icon"></i>
+                <span>Open in Brave</span>
               </button>
             </div>
             <div id="drawer-linkedin-status" class="live-action-status"></div>

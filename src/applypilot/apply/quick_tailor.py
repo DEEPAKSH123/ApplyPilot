@@ -33,7 +33,7 @@ UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like 
 def fetch_job_page(url: str) -> tuple[str, str]:
     """Fetch job posting webpage content and extract clean text and title.
     
-    Handles LinkedIn job search/view links using persistent Brave session cookies.
+    Handles LinkedIn job search/view links using persistent session cookies.
     Tries standard fast HTTP request first for standard web pages, falling back to Playwright.
     """
     raw_html = ""
